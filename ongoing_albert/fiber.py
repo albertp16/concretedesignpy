@@ -137,17 +137,17 @@ def confined_core_areas(bc, dc, rho_cc, s_prime, w_y, w_z):
     Parameters
     ----------
     bc : float
-        Core dimension in one direction (centerline of hoops).
+        Core dimension in one direction (centerline of hoops). (mm)
     dc : float
-        Core dimension in the orthogonal direction.
+        Core dimension in the orthogonal direction. (mm)
     rho_cc : float
         Longitudinal reinforcement ratio over the core (dimensionless).
     s_prime : float
         Clear spacing inside hoops or ties (same units as bc, dc).
     w_y : list of floats
-        Clear tie widths in the y-direction (the w'_y_i values).
+        Clear tie widths in the y-direction (the w'_y_i values). (mm)
     w_z : list of floats
-        Clear tie widths in the z-direction (the w'_z_j values).
+        Clear tie widths in the z-direction (the w'_z_j values). (mm)
     
     Returns
     -------
