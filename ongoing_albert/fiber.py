@@ -104,7 +104,7 @@ bcy = concrete_core(cy,cover,ds)
 # print(bcx)
 # print(bcy)
 section_area_core = bcx*bcy
-
+print("section_area_core : " + str(section_area_core))
 #Transver spacing 
 def transverseSpacing(bc,db,ds,nbar,segment):
     wyi = (bc - ds - (db * nbar)) / segment  # fiber strip thickness along y
@@ -123,7 +123,7 @@ print(total_area)
 print(rho_core)
 
 acc = section_area_core * (1.0 - rho_core) #TODO to convert ot m2
-print(acc) 
+print("acc : " + str(acc)) 
 
 def confined_core_areas(bc, dc, rho_cc, s_prime, w_y, w_z):
     """
@@ -165,47 +165,41 @@ def confined_core_areas(bc, dc, rho_cc, s_prime, w_y, w_z):
     
     # 1) Core area
     Ac = bc * dc
-    
+    # print(Ac)
     # 2) Effective concrete core area
     Acc = Ac * (1.0 - rho_cc)
     
     # Sums of squared tie widths
-    sum_wy2 = sum(wi**2 for wi in w_y)
-    sum_wz2 = sum(wj**2 for wj in w_z)
+    sum_wy2 = sum(math.pow(wi,2)/6 for wi in w_y)
+    sum_wz2 = sum(math.pow(wj,2)/6 for wj in w_z)
     
     # 3) Ae (effectively confined core area)
     #    Matches the bracketed expression:
     #    2*( (sum wy_i^2)/6 + (sum wz_j^2)/6 ) ...
-    factor = 2.0 * ((sum_wy2 / 6.0) + (sum_wz2 / 6.0))
-    Ae = Ac * factor * (1.0 - s_prime/(2.0*bc)) * (1.0 - s_prime/(2.0*dc))
+    factor = 2*(sum_wy2 + sum_wz2)
+    Ae = (Ac - factor) * ((1.0 - s_prime/(2.0*bc)) * (1.0 - s_prime/(2.0*dc)))
     
     # 4) kg = Ae / Ac
     kg = Ae / Ac
     
     #    ke = Ae / Acc = Ae / (Ac * (1 - rho_cc))
     ke = Ae / Acc if Acc != 0.0 else float('nan')
-    
-    return Ac, Acc, Ae, kg, ke
-
-# # Example usage:
-# if __name__ == "__main__":
-#     # Example data
-#     bc    = 300.0   # mm
-#     dc    = 400.0   # mm
-#     rho_cc= 0.02    # 2%
-#     s_p   = 40.0    # mm clear spacing
-#     w_y   = [50.0, 50.0]  # example tie widths (y-direction)
-#     w_z   = [60.0, 60.0]  # example tie widths (z-direction)
-    
-#     Ac, Acc, Ae, kg, ke = confined_core_areas(bc, dc, rho_cc, s_p, w_y, w_z)
-    
-#     print(f"Ac   = {Ac} mm²")
-#     print(f"Acc  = {Acc} mm²")
-#     print(f"Ae   = {Ae} mm²")
-#     print(f"kg   = {kg}")
-#     print(f"ke   = {ke}")
+    results = {
+        "ac" : Ac,
+        "acc" : Acc,
+        "ae" : Ae,
+        "kg" : kg,
+        "ke" : ke 
+    }
+    return results
 
 
+core_data = confined_core_areas(bcx, bcy, rho_core, 190, [wxi], [wyi,wyi,wyi,wyi])
+print("ac  -> " ,core_data["ac"])
+print("acc -> " ,core_data["acc"])
+print("ae  -> " ,core_data["ae"])
+print("kg  -> " ,core_data["kg"])
+print("ke  -> " ,core_data["ke"])
 
 
 def concrete_core(length,cover,dia_stirups):
