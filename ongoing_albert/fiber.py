@@ -2,16 +2,18 @@
 import math
 # import concretedesignpy
 fc = 20.68 #Mpa
+fy = 276
 MPATOKPA = 1000
 concrete_expect = 1.5 
-
+steel_expect = 1.25 
 
 
 
 
 fco_prime = concrete_expect*fc*MPATOKPA #kN/m
-
-print(fco_prime)
+fyh = steel_expect*fy*MPATOKPA #kN/m
+print("fco -> ",fco_prime)
+print("fyh -> ",fyh)
 
 '''
   C3000_C1_CONF, CONC, MANDER, 1, YES, 25856.3, NO, 0.002, NO, 0.0014, NO, 0.02, 0, 2.54245e+07, 0, 3152.64, 0.000124, 0, NO, 0.0795894, NO, 0.0205812, NO, 0.258592, NO, 0, NO, 28359, NO, 0.00296794, NO, 0.00207756, NO, NO, 0, 0, NO, 0, 1, 1, 0.16, 0.118, 1, 0.51, 0.105, 4, 0, 0, 10, D16, 0.0020106, NO, 0.0246397, 0, D10, 7.854e-05, 0.2, 0.19, 5, 2, 0.0003927, 0.00015708, NO, 344750, NO, NO, NO, 0.00385, NO, 0.00490875, NO, 343.227, NO, 437.614, NO, 0, NO, NO, 0, PUSHOVER
@@ -210,6 +212,114 @@ def clearTransverSpace(length,n,db,dbs,cover,segment):
     value_init = length - (2*cover) - (db*n) - (dbs*2) 
     value = value_init/segment
     return value
+
+#The Effective Lateral Confining Stress Concrete 
+def compute_transverse_area(nlegs, db):
+    """
+    Compute the total cross-sectional area of a single set of ties/hoops,
+    given the number of legs and the bar diameter (both in millimeters).
+
+    Parameters
+    ----------
+    nlegs : int
+        Number of bar legs in the tie/hoop set.
+    bar_diam_mm : float
+        Diameter of each bar (mm).
+
+    Returns
+    -------
+    float
+        Total cross-sectional area in mm^2.
+    """
+    # Area of one bar in mm^2
+    area_bars = (math.pi / 4.0) * math.pow(db,2)
+    # Multiply by number of legs
+    total_area = nlegs * area_bars
+    return total_area
+
+fyh_as_x = compute_transverse_area(2, ds)
+fyh_as_y = compute_transverse_area(5, ds)
+print(fyh_as_x)
+print(fyh_as_y)
+
+def compute_ratio_trans(area_steel,core_length,spacing):
+    results = area_steel/(core_length*spacing)
+    return results
+
+psx = compute_ratio_trans(fyh_as_x,bcx,200)
+psy = compute_ratio_trans(fyh_as_y,bcy,200)
+print(psx)
+print(psy)
+
+def compute_effective_conf_stress(ke,rho,fyh):
+    fl = ke*rho*fyh 
+    return fl
+
+def confined_concrete_strength_and_strain(
+    fl1, fl2,   # f'l1, f'l2 (lateral confining stresses in two directions)
+    fco,        # Unconfined concrete strength, f'co
+    eco=0.002         # Unconfined concrete strain at f'co (often ~0.002)
+):
+    """
+    Compute the confined concrete strength (f'cc) and strain (eps_cc)
+    using the six-step procedure shown in your reference.
+
+    Steps:
+      1) q = f'l1 / f'l2  (with f'l2 >= f'l1)
+      2) A = 6.886 - [ (0.6069 + 17.275*q ) * exp(-4.989*q) ]
+      3) B = (4.5 / 5)*[ 0.9849 - 0.6306*exp(-3.8939*q) ]^(-5) - 0.1
+         -- (exact exponent form may vary; confirm with your text!)
+      4) x' = ( f'l1 + f'l2 ) / ( 2 * f'co )
+      5) k1 = A * [ 0.1 + 0.9 / (1 + B * x') ]
+      6) f'cc = f'co * [ 1 + k1 * x' ]
+         eps_cc = eps_co * [ 1 + 5 * ( f'cc / f'co - 1 ) ]
+
+    Parameters
+    ----------
+    fl1 : float
+        f'l1, smaller lateral confining stress (kN/m²).
+    fl2 : float
+        f'l2, larger lateral confining stress (kN/m²). Must satisfy fl2 >= fl1.
+    fco : float
+        Unconfined concrete strength (kN/m²).
+    eco : float
+        Unconfined concrete strain at f'co (dimensionless, ~0.002 typical).
+
+    Returns
+    -------
+    fcc : float
+        Confined concrete strength, f'cc (kN/m²).
+    ecc : float
+        Strain at f'cc (dimensionless).
+    """
+
+    # 1) q = f'l1 / f'l2 (assuming fl2 >= fl1)
+    #    If fl2 < fl1 in your data, swap them or check:
+    q = fl1 / fl2 if fl2 != 0 else 0.0
+
+    # 2) A
+    A = 6.886 - (0.6069 + 17.275*q) * math.exp(-4.989*q)
+
+    # 3) B  (this expression is inferred from your snippet;
+    #        please confirm exact exponent, etc., from your reference.)
+    B = (4.5 / 5.0)*(0.9849 - 0.6306*math.exp(-3.8939*q))**(-5) - 0.1
+
+    # 4) x' = (f'l1 + f'l2) / (2 * fco)
+    x_prime = (fl1 + fl2) / (2.0 * fco)
+
+    # 5) k1 = A * [ 0.1 + 0.9 / (1 + B * x') ]
+    k1 = A * (0.1 + 0.9/(1.0 + B*x_prime))
+
+    # 6) f'cc = f'co [1 + k1 x']
+    fcc = fco * (1.0 + k1*x_prime)
+
+    #    eps_cc = eps_co [1 + 5 (f'cc / f'co - 1)]
+    ecc = eco * (1.0 + 5.0*(fcc/fco - 1.0))
+    print("fcc = ",fcc)
+    print("ecc = ",ecc)
+    return fcc, ecc
+
+test = confined_concrete_strength_and_strain(343.2266,437.6139,fco_prime,eco=0.002)
 
 def generateMGTCONC(name,fc,fy,type,cx,cy,ds,cover,cxn,cyn):
     # fc = 20.68 #Mpa
