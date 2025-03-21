@@ -349,6 +349,19 @@ def clearTransverSpace(length,n,db,dbs,cover,segment):
 # generateMGTCONC("C3000_UNCONF",fc,276,True)
 
 class generateFIBERMGT:
+    '''
+    name = name of element 
+    fc = compressive strength of concrete (MPa)
+    length_x = length of section along x 
+    length_y = length of section along y
+    db = main reinforcement diameter
+    ds = secondary reinforcement diameter 
+    ndbx = number of bars along x
+    ndby = number of bars along y 
+    nsegx = number of segment along x 
+    nsegy = number of segment along y 
+    cover = 40 , in millimeters  
+    '''
     def __init__(self,name,fc,length_x,length_y,db,ds,ndbx,ndby,nsegx,nsegy,cover):
         self.name = name 
         self.fc= fc 
