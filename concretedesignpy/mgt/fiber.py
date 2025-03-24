@@ -328,11 +328,11 @@ class generateFIBERMGT:
         self.ae = Ae*TOM2
         self.kg = kg
         self.ke = ke    
-        # print("ac",area_core)
-        # print("acc",acc*TOM2)
-        # print("ae",Ae*TOM2)
-        # print("kg",kg)
-        # print("ke",ke)
+        print("ac",area_core)
+        print("acc",acc*TOM2)
+        print("ae",Ae*TOM2)
+        print("kg",kg)
+        print("ke",ke)
 
         return results
     def confined_concrete_strength_and_strain(self):
