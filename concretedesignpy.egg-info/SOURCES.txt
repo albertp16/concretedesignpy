@@ -15,5 +15,7 @@ concretedesignpy/crfp/__init__.py
 concretedesignpy/crfp/column.py
 concretedesignpy/crfp/constants.py
 concretedesignpy/crfp/flexure.py
+concretedesignpy/mgt/__init__.py
+concretedesignpy/mgt/fiber.py
 concretedesignpy/stress-strain/__init__.py
 concretedesignpy/stress-strain/manders.py

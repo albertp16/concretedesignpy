@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='concretedesignpy',
-    version='0.1',
+    version='0.1.1',
     description='This APEC internal use only for Concrete Design using ACI and NSCP',
     author='Albert Pamonag',
     author_email='albert@apeconsultancy.net',
