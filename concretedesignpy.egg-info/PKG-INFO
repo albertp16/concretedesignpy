@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.1
 Name: concretedesignpy
 Version: 0.1
 Summary: This APEC internal use only for Concrete Design using ACI and NSCP
@@ -8,9 +8,3 @@ Author-email: albert@apeconsultancy.net
 Classifier: Programming Language :: Python :: 3
 Classifier: Operating System :: OS Independent
 Requires-Dist: matplotlib
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: home-page
-Dynamic: requires-dist
-Dynamic: summary

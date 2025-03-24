@@ -10,7 +10,9 @@ concretedesignpy.egg-info/requires.txt
 concretedesignpy.egg-info/top_level.txt
 concretedesignpy/beam/__init__.py
 concretedesignpy/beam/moment_capacity.py
+concretedesignpy/beam/shear_capacity.py
 concretedesignpy/crfp/__init__.py
+concretedesignpy/crfp/column.py
 concretedesignpy/crfp/constants.py
 concretedesignpy/crfp/flexure.py
 concretedesignpy/stress-strain/__init__.py
