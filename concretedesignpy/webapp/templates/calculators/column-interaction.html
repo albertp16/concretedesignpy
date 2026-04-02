@@ -238,6 +238,12 @@ function renderPlotlyChart(points, combos, payload) {
     var mu_fac = points.map(function(p) { return p.mu; });
     var pu_fac = points.map(function(p) { return p.pu; });
 
+    // Close the curves so fill: 'toself' forms a proper polygon
+    if (points.length > 0) {
+        mu_nom.push(mu_nom[0]); pu_nom.push(pu_nom[0]);
+        mu_fac.push(mu_fac[0]); pu_fac.push(pu_fac[0]);
+    }
+
     var traces = [
         {
             x: mu_nom, y: pu_nom, mode: 'lines', name: 'Nominal (Pn, Mn)',
