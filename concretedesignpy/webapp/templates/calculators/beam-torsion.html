@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Beam Torsion Design - ConcreteDesignPy{% endblock %}
+
+{% block content %}
+<div class="calc-page">
+    <a href="/" class="back-link">&larr; All Calculators</a>
+    <h1>Beam Torsion Design</h1>
+    <p class="ref">NSCP 2015 / ACI 318-19</p>
+
+    <form id="calc-form" class="calc-form">
+        <div class="form-section">
+            <h3>Section Geometry</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Width (mm)</label><input type="number" name="width" value="600" required></div>
+                <div class="form-group"><label>Height (mm)</label><input type="number" name="height" value="750" required></div>
+                <div class="form-group"><label>Cover (mm)</label><input type="number" name="cover" value="20" required></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Flange tf (mm)</label><input type="number" name="tf" value="100"></div>
+                <div class="form-group"><label>Eff. width beff (mm)</label><input type="number" name="beff" value="500"></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Material & Reinforcement</h3>
+            <div class="form-row">
+                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="28" step="0.1" required></div>
+                <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="420" step="0.1" required></div>
+                <div class="form-group"><label>Main bar db (mm)</label><input type="number" name="db" value="25" required></div>
+                <div class="form-group"><label>Stirrup ds (mm)</label><input type="number" name="ds" value="20" required></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Loading & Stirrup Data</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Tu (kN-m)</label><input type="number" name="tu" value="40" step="0.1" required></div>
+                <div class="form-group"><label>Vc (kN)</label><input type="number" name="vc" value="5" step="0.1" required></div>
+                <div class="form-group"><label>&phi; torsion</label><input type="number" name="phi_torsion" value="0.75" step="0.01"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>s_max shear (mm)</label><input type="number" name="smax_shear" value="300" required></div>
+                <div class="form-group"><label>s actual (mm)</label><input type="number" name="s_actual" value="200" required></div>
+                <div class="form-group"><label>Av (mm&sup2;)</label><input type="number" name="av" value="300" required></div>
+                <div class="form-group"><label>s stirrup (mm)</label><input type="number" name="s" value="150" required></div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Calculate</button>
+    </form>
+
+    <div id="results" class="results-panel" style="display:none;">
+        <h2>Results</h2>
+        <div id="results-content"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('calc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const payload = {};
+    new FormData(this).forEach((v, k) => payload[k] = parseFloat(v));
+    submitCalc('/api/beam/torsion', payload);
+});
+</script>
+{% endblock %}

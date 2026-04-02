@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Alternative Inertia - ConcreteDesignPy{% endblock %}
+
+{% block content %}
+<div class="calc-page">
+    <a href="/" class="back-link">&larr; All Calculators</a>
+    <h1>Alternative Moment of Inertia</h1>
+    <p class="ref">NSCP 2015 Section 424.2.3.5</p>
+
+    <form id="calc-form" class="calc-form">
+        <div class="form-section">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Member Type</label>
+                    <select name="member_type" id="member_type">
+                        <option value="column">Column / Wall</option>
+                        <option value="beam">Beam / Flat Plate / Flat Slab</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Ig (mm&sup4;)</label><input type="number" name="ig" value="50000" step="1" required></div>
+            </div>
+        </div>
+
+        <div class="form-section" id="col-fields">
+            <h3>Column / Wall Parameters</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Ast (mm&sup2;)</label><input type="number" name="ast" value="50"></div>
+                <div class="form-group"><label>Ag (mm&sup2;)</label><input type="number" name="ag" value="80000"></div>
+                <div class="form-group"><label>Mu</label><input type="number" name="mu" value="500"></div>
+                <div class="form-group"><label>Pu</label><input type="number" name="pu" value="2000"></div>
+                <div class="form-group"><label>h (mm)</label><input type="number" name="h" value="400"></div>
+                <div class="form-group"><label>Po</label><input type="number" name="po" value="3000"></div>
+            </div>
+        </div>
+
+        <div class="form-section" id="beam-fields" style="display:none;">
+            <h3>Beam / Slab Parameters</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Rho</label><input type="number" name="rho" value="0.02" step="0.001"></div>
+                <div class="form-group"><label>b (mm)</label><input type="number" name="b" value="300"></div>
+                <div class="form-group"><label>d (mm)</label><input type="number" name="d" value="500"></div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Calculate</button>
+    </form>
+
+    <div id="results" class="results-panel" style="display:none;">
+        <h2>Results</h2>
+        <div id="results-content"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('member_type').addEventListener('change', function() {
+    document.getElementById('col-fields').style.display = this.value === 'column' ? '' : 'none';
+    document.getElementById('beam-fields').style.display = this.value === 'beam' ? '' : 'none';
+});
+
+document.getElementById('calc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const f = this;
+    const mt = f.member_type.value;
+    const payload = { member_type: mt, ig: parseFloat(f.ig.value) };
+    if (mt === 'column') {
+        payload.ast = parseFloat(f.ast.value);
+        payload.ag = parseFloat(f.ag.value);
+        payload.mu = parseFloat(f.mu.value);
+        payload.pu = parseFloat(f.pu.value);
+        payload.h = parseFloat(f.h.value);
+        payload.po = parseFloat(f.po.value);
+    } else {
+        payload.rho = parseFloat(f.rho.value);
+        payload.b = parseFloat(f.b.value);
+        payload.d = parseFloat(f.d.value);
+    }
+    submitCalc('/api/section/alternative-inertia', payload);
+});
+</script>
+{% endblock %}

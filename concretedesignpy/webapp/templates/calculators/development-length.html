@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Development Length - ConcreteDesignPy{% endblock %}
+
+{% block content %}
+<div class="calc-page">
+    <a href="/" class="back-link">&larr; All Calculators</a>
+    <h1>Development Length &amp; Hook Geometry</h1>
+    <p class="ref">NSCP 2015 Section 425 &mdash; Tables 425.3.1 &amp; 425.3.2</p>
+
+    <form id="calc-form" class="calc-form">
+        <div class="form-section">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Bar Type</label>
+                    <select name="bar_type">
+                        <option value="deformed">Deformed Bars (Table 425.3.1)</option>
+                        <option value="stirrup">Stirrups/Ties/Hoops (Table 425.3.2)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Bar Size (mm)</label>
+                    <input type="number" name="bar_size" value="25" required>
+                </div>
+                <div class="form-group">
+                    <label>Hook Angle</label>
+                    <select name="angle">
+                        <option value="90">90&deg;</option>
+                        <option value="135">135&deg;</option>
+                        <option value="180" selected>180&deg;</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Calculate</button>
+    </form>
+
+    <div id="results" class="results-panel" style="display:none;">
+        <h2>Results</h2>
+        <div id="results-content"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('calc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const payload = {
+        bar_type: this.bar_type.value,
+        bar_size: parseFloat(this.bar_size.value),
+        angle: parseInt(this.angle.value),
+    };
+    submitCalc('/api/section/development-length', payload);
+});
+</script>
+{% endblock %}

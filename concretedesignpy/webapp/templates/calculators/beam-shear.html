@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Beam Shear Design - ConcreteDesignPy{% endblock %}
+
+{% block content %}
+<div class="calc-page">
+    <a href="/" class="back-link">&larr; All Calculators</a>
+    <h1>Beam Shear Design</h1>
+    <p class="ref">NSCP 2015 Section 422.5 / ACI 318-19</p>
+
+    <form id="calc-form" class="calc-form">
+        <div class="form-section">
+            <h3>Mode</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Calculation Mode</label>
+                    <select name="mode">
+                        <option value="capacity">Given spacing, find Vu</option>
+                        <option value="spacing">Given Vu, find spacing</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Vc Type</label>
+                    <select name="vc_type">
+                        <option value="simple">Simple (no axial)</option>
+                        <option value="axial_compression">With axial compression</option>
+                        <option value="axial_tension">With axial tension</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Properties</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>f'c (MPa)</label>
+                    <input type="number" name="fc" value="27.6" step="0.1" required>
+                </div>
+                <div class="form-group">
+                    <label>fyt (MPa)</label>
+                    <input type="number" name="fyt" value="413.7" step="0.1" required>
+                </div>
+                <div class="form-group">
+                    <label>&lambda;</label>
+                    <input type="number" name="lamda" value="1.0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>&phi;</label>
+                    <input type="number" name="phi" value="0.75" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Section</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Width, b (mm)</label>
+                    <input type="number" name="b" value="300" required>
+                </div>
+                <div class="form-group">
+                    <label>Effective depth, d (mm)</label>
+                    <input type="number" name="d" value="510" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Stirrups</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Stirrup dia, ds (mm)</label>
+                    <input type="number" name="ds" value="10" required>
+                </div>
+                <div class="form-group">
+                    <label>Number of legs</label>
+                    <input type="number" name="numlegs" value="2" required>
+                </div>
+                <div class="form-group">
+                    <label>Spacing, s (mm)</label>
+                    <input type="number" name="s" value="140">
+                </div>
+                <div class="form-group">
+                    <label>Vu required (kN) <small>[spacing mode]</small></label>
+                    <input type="number" name="vu_required" value="278.02" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Calculate</button>
+    </form>
+
+    <div id="results" class="results-panel" style="display:none;">
+        <h2>Results</h2>
+        <div id="results-content"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('calc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const ds = parseFloat(this.ds.value);
+    const numlegs = parseInt(this.numlegs.value);
+    const av = numlegs * Math.PI * Math.pow(ds / 2, 2);
+    const mode = this.mode.value;
+
+    const payload = {
+        mode: mode,
+        fc: parseFloat(this.fc.value),
+        b: parseFloat(this.b.value),
+        d: parseFloat(this.d.value),
+        fyt: parseFloat(this.fyt.value),
+        lamda: parseFloat(this.lamda.value),
+        phi: parseFloat(this.phi.value),
+        av: av,
+        vc_type: this.vc_type.value,
+    };
+
+    if (mode === 'capacity') {
+        payload.s = parseFloat(this.s.value);
+    } else {
+        payload.vu_required = parseFloat(this.vu_required.value) * 1000;
+    }
+
+    submitCalc('/api/beam/shear', payload);
+});
+</script>
+{% endblock %}

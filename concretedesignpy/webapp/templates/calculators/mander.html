@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Mander Confined Concrete - ConcreteDesignPy{% endblock %}
+
+{% block content %}
+<div class="calc-page">
+    <a href="/" class="back-link">&larr; All Calculators</a>
+    <h1>Mander's Confined Concrete Model</h1>
+    <p class="ref">Mander, Priestley, and Park (1988)</p>
+
+    <form id="calc-form" class="calc-form">
+        <div class="form-section">
+            <h3>Material</h3>
+            <div class="form-row">
+                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="0.1" required></div>
+                <div class="form-group"><label>fy transverse (MPa)</label><input type="number" name="fy_transverse" value="345" step="0.1" required></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Section</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="500" required></div>
+                <div class="form-group"><label>Depth, h (mm)</label><input type="number" name="h" value="500" required></div>
+                <div class="form-group"><label>Cover (mm)</label><input type="number" name="cover" value="40" required></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Reinforcement</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Main bar dia (mm)</label><input type="number" name="db_main" value="16" required></div>
+                <div class="form-group"><label>Tie dia (mm)</label><input type="number" name="db_tie" value="10" required></div>
+                <div class="form-group"><label>Tie spacing (mm)</label><input type="number" name="s_tie" value="200" required></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Bars in x</label><input type="number" name="n_bars_x" value="5" required></div>
+                <div class="form-group"><label>Bars in y</label><input type="number" name="n_bars_y" value="5" required></div>
+                <div class="form-group"><label>Tie legs x</label><input type="number" name="n_legs_x" value="2"></div>
+                <div class="form-group"><label>Tie legs y</label><input type="number" name="n_legs_y" value="2"></div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Calculate</button>
+    </form>
+
+    <div id="results" class="results-panel" style="display:none;">
+        <h2>Results</h2>
+        <div id="results-content"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('calc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const payload = {};
+    new FormData(this).forEach((v, k) => {
+        payload[k] = ['n_bars_x','n_bars_y','n_legs_x','n_legs_y'].includes(k) ? parseInt(v) : parseFloat(v);
+    });
+    submitCalc('/api/mander/confined', payload);
+});
+</script>
+{% endblock %}

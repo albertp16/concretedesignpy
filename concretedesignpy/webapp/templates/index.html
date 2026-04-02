@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}ConcreteDesignPy - RC Design Calculators{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>ConcreteDesignPy</h1>
+    <p>Open-source reinforced concrete design calculators based on NSCP 2015 and ACI 318-19</p>
+</div>
+
+<div class="calculator-grid">
+    {% for calc in calculators %}
+    <a href="/calculator/{{ calc.id }}" class="calc-card">
+        <span class="calc-category">{{ calc.category }}</span>
+        <h3>{{ calc.name }}</h3>
+        <p>{{ calc.desc }}</p>
+    </a>
+    {% endfor %}
+</div>
+
+<div class="api-info">
+    <h2>REST API</h2>
+    <p>All calculators are available as JSON API endpoints. Send POST requests with JSON body:</p>
+    <table class="api-table">
+        <thead>
+            <tr><th>Endpoint</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><code>POST /api/beam/moment</code></td><td>Beam moment capacity</td></tr>
+            <tr><td><code>POST /api/beam/shear</code></td><td>Beam shear design</td></tr>
+            <tr><td><code>POST /api/beam/torsion</code></td><td>Beam torsion checks</td></tr>
+            <tr><td><code>POST /api/beam/deflection</code></td><td>Beam deflection</td></tr>
+            <tr><td><code>POST /api/column/interaction</code></td><td>P-M interaction diagram</td></tr>
+            <tr><td><code>POST /api/column/flexural</code></td><td>Column flexural check</td></tr>
+            <tr><td><code>POST /api/joint/shear</code></td><td>Joint shear verification</td></tr>
+            <tr><td><code>POST /api/mander/confined</code></td><td>Mander confined concrete</td></tr>
+            <tr><td><code>POST /api/frp/beam</code></td><td>FRP beam strengthening</td></tr>
+            <tr><td><code>POST /api/section/development-length</code></td><td>Hook geometry</td></tr>
+            <tr><td><code>POST /api/section/moment-curvature</code></td><td>Moment-curvature</td></tr>
+            <tr><td><code>POST /api/section/rebar-layout</code></td><td>Rebar coordinates</td></tr>
+            <tr><td><code>POST /api/section/alternative-inertia</code></td><td>Alternative Ie</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

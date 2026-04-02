@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Column Flexural Check - ConcreteDesignPy{% endblock %}
+
+{% block content %}
+<div class="calc-page">
+    <a href="/" class="back-link">&larr; All Calculators</a>
+    <h1>Column Minimum Flexural Strength Check</h1>
+    <p class="ref">NSCP 2015 Section 418.7.3</p>
+
+    <form id="calc-form" class="calc-form">
+        <div class="form-section">
+            <h3>Column Moment Capacities</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Mn col top (kN-m)</label><input type="number" name="mn_col_top" value="509" step="0.01" required></div>
+                <div class="form-group"><label>Mn col bottom (kN-m)</label><input type="number" name="mn_col_bot" value="613.44" step="0.01" required></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Beam Moment Capacity</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Mn beam total (kN-m)</label><input type="number" name="mn_beam" value="1395.46" step="0.01" required></div>
+                <div class="form-group"><label>Required ratio</label><input type="number" name="limit" value="1.2" step="0.01"></div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Check</button>
+    </form>
+
+    <div id="results" class="results-panel" style="display:none;">
+        <h2>Results</h2>
+        <div id="results-content"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('calc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const payload = {
+        mn_col_top: parseFloat(this.mn_col_top.value),
+        mn_col_bot: parseFloat(this.mn_col_bot.value),
+        mn_beam: parseFloat(this.mn_beam.value),
+        limit: parseFloat(this.limit.value),
+    };
+    submitCalc('/api/column/flexural', payload);
+});
+</script>
+{% endblock %}
