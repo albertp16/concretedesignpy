@@ -179,8 +179,8 @@ def svg_beam_cross_section(b, h, rebar_forces, c, a, scale_factor=None):
     # Rebar
     for rb in rebar_forces:
         ry = oy + rb["d"] * scale_factor
-        # Distribute bars across width
-        n_bars = max(1, round(rb["area"] / (math.pi * 64)))  # approx count assuming ~16mm
+        # Use actual bar count if available, otherwise estimate
+        n_bars = rb.get("num", max(1, round(rb["area"] / (math.pi * 64))))
         bar_r = max(4, min(8, 6))
         if n_bars == 1:
             positions = [ox + bw / 2]

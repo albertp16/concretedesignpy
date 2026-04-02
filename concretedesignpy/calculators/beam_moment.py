@@ -77,7 +77,7 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
     rebars = []
     for bar in rebar_list:
         area = (math.pi / 4) * bar["diam"] ** 2 * bar["num"]
-        rebars.append({"d": bar["d"], "area": area})
+        rebars.append({"d": bar["d"], "area": area, "num": bar["num"], "diam": bar["diam"]})
 
     # d_max for c/dt ratio
     d_max = max(rb["d"] for rb in rebars)
@@ -144,6 +144,8 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
             rebar_forces.append({
                 "d": rb["d"],
                 "area": rb["area"],
+                "num": rb["num"],
+                "diam": rb["diam"],
                 "strain": strain,
                 "stress": stress,
                 "force": force,
