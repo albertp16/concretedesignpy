@@ -82,6 +82,30 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
     # d_max for c/dt ratio
     d_max = max(rb["d"] for rb in rebars)
 
+    # Helper: compute forces at a given neutral axis depth
+    def _compute_forces(c_val):
+        a_val = beta1 * c_val
+        fc_val = 0.85 * fc * a_val * b  # concrete compression
+        comp_steel = 0.0  # compression steel (absolute)
+        tens_steel = 0.0  # tension steel
+        fs_net = 0.0      # net steel force (tension positive)
+        forces = []
+        for rb in rebars:
+            strain = ecu * (rb["d"] - c_val) / c_val
+            stress = max(-fy, min(fy, strain * es))
+            force = stress * rb["area"]
+            fs_net += force
+            if force >= 0:
+                tens_steel += force
+            else:
+                comp_steel += abs(force)
+            forces.append({
+                "d": rb["d"], "area": rb["area"],
+                "num": rb["num"], "diam": rb["diam"],
+                "strain": strain, "stress": stress, "force": force,
+            })
+        return fc_val, comp_steel, tens_steel, fs_net, forces
+
     # Phase 1: coarse search for neutral axis
     iterations = []
     step_coarse = h * 0.02  # 2% of h per step
@@ -90,29 +114,18 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
     coarse_iter = 0
 
     while c > 0:
-        a = beta1 * c
-        fc_concrete = 0.85 * fc * a * b
-
-        fs_total = 0.0
-        ft_total = 0.0
-        for rb in rebars:
-            strain = ecu * (rb["d"] - c) / c
-            stress = max(-fy, min(fy, strain * es))
-            force = stress * rb["area"]
-            if force >= 0:
-                ft_total += force
-            fs_total += force
-
-        ratio = (fc_concrete + ft_total) / abs(fs_total) if abs(fs_total) > 1e-9 else float('inf')
+        fc_concrete, comp_steel, tens_steel, fs_net, _ = _compute_forces(c)
+        # Ratio: (concrete compression + steel compression) / steel tension
+        ratio = (fc_concrete + comp_steel) / tens_steel if tens_steel > 1e-9 else float('inf')
         coarse_iter += 1
         iterations.append({
             "iteration": coarse_iter,
             "c": round(c, 2),
             "c_dt": round(c / d_max, 2),
             "fc_kn": round(fc_concrete / 1000, 2),
-            "ft_kn": round(ft_total / 1000, 2),
-            "fc_ft_kn": round((fc_concrete + ft_total) / 1000, 2),
-            "fs_kn": round(abs(fs_total) / 1000, 2),
+            "ft_kn": round(comp_steel / 1000, 2),
+            "fc_ft_kn": round((fc_concrete + comp_steel) / 1000, 2),
+            "fs_kn": round(tens_steel / 1000, 2),
             "ratio": round(ratio, 3) if ratio != float('inf') else "Infinity",
         })
 
@@ -121,52 +134,30 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
         prev_ratio = ratio
         c -= step_coarse
 
-    # Phase 2: fine refinement
+    # Phase 2: fine refinement (0.32mm steps for precision)
     c_start = c + step_coarse
-    step_fine = 0.01
+    step_fine = step_coarse / 50
     c = c_start
     fine_iter = 0
 
-    for _ in range(int(step_coarse / step_fine) + 200):
-        a = beta1 * c
-        fc_concrete = 0.85 * fc * a * b
-
-        fs_total = 0.0
-        ft_total = 0.0
-        rebar_forces = []
-        for rb in rebars:
-            strain = ecu * (rb["d"] - c) / c
-            stress = max(-fy, min(fy, strain * es))
-            force = stress * rb["area"]
-            fs_total += force
-            if force >= 0:
-                ft_total += force
-            rebar_forces.append({
-                "d": rb["d"],
-                "area": rb["area"],
-                "num": rb["num"],
-                "diam": rb["diam"],
-                "strain": strain,
-                "stress": stress,
-                "force": force,
-            })
-
-        ratio = (fc_concrete + ft_total) / abs(fs_total) if abs(fs_total) > 1e-9 else float('inf')
+    for _ in range(int(step_coarse / step_fine) + 500):
+        fc_concrete, comp_steel, tens_steel, fs_net, rebar_forces = _compute_forces(c)
+        ratio = (fc_concrete + comp_steel) / tens_steel if tens_steel > 1e-9 else float('inf')
         fine_iter += 1
         iterations.append({
             "iteration": fine_iter,
             "c": round(c, 2),
             "c_dt": round(c / d_max, 2),
             "fc_kn": round(fc_concrete / 1000, 2),
-            "ft_kn": round(ft_total / 1000, 2),
-            "fc_ft_kn": round((fc_concrete + ft_total) / 1000, 2),
-            "fs_kn": round(abs(fs_total) / 1000, 2),
+            "ft_kn": round(comp_steel / 1000, 2),
+            "fc_ft_kn": round((fc_concrete + comp_steel) / 1000, 2),
+            "fs_kn": round(tens_steel / 1000, 2),
             "ratio": round(ratio, 3) if ratio != float('inf') else "Infinity",
         })
 
-        if abs(fc_concrete - fs_total) < 0.5:
+        if abs(fc_concrete - fs_net) < 0.5:
             break
-        if fc_concrete < fs_total:
+        if fc_concrete < fs_net:
             break
         c -= step_fine
 
@@ -206,7 +197,7 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
         "ecu": ecu,
         "d_max": d_max,
         "fc_concrete": round(fc_concrete / 1000, 2),
-        "fs_total": round(fs_total / 1000, 2),
+        "fs_total": round(fs_net / 1000, 2),
         "rebar_forces": rebar_forces,
         "rebar_pattern": rebar_pattern,
         "iterations": iterations,
