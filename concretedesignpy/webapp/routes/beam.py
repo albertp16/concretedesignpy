@@ -43,8 +43,12 @@ def beam_moment():
             c=result["neutral_axis"],
             a=result["a"],
         )
-        # Remove verbose rebar_forces from JSON response
-        result.pop("rebar_forces", None)
+        # Round rebar forces for display
+        for rf in result["rebar_forces"]:
+            rf["strain"] = round(rf["strain"], 6)
+            rf["stress"] = round(rf["stress"], 2)
+            rf["force"] = round(rf["force"] / 1000, 2)  # Convert to kN
+            rf["area"] = round(rf["area"], 2)
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400

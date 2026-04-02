@@ -31,7 +31,7 @@ body {
     flex-direction: column;
 }
 
-.container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; width: 100%; }
+.container { max-width: 1600px; margin: 0 auto; padding: 0 2rem; width: 100%; }
 
 /* Navbar */
 .navbar {
@@ -155,7 +155,7 @@ body {
 }
 .form-group {
     flex: 1;
-    min-width: 140px;
+    min-width: 0;
 }
 .form-group label {
     display: block;
