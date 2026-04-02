@@ -13,8 +13,8 @@ function submitCalc(url, payload, chartCallback) {
     var resultsDiv = document.getElementById('results');
     var contentDiv = document.getElementById('results-content');
 
-    resultsDiv.style.display = 'block';
-    contentDiv.innerHTML = '<div class="loading">Calculating...</div>';
+    if (resultsDiv) resultsDiv.style.display = 'block';
+    if (contentDiv) contentDiv.innerHTML = '<div class="loading">Calculating...</div>';
 
     fetch(url, {
         method: 'POST',
@@ -24,16 +24,16 @@ function submitCalc(url, payload, chartCallback) {
     .then(function(res) { return res.json(); })
     .then(function(data) {
         if (data.status === 'error') {
-            contentDiv.innerHTML = '<div class="error-msg">Error: ' + escapeHtml(data.message) + '</div>';
+            if (contentDiv) contentDiv.innerHTML = '<div class="error-msg">Error: ' + escapeHtml(data.message) + '</div>';
             return;
         }
-        contentDiv.innerHTML = renderResult(data.result);
+        if (contentDiv) contentDiv.innerHTML = renderResult(data.result);
         if (chartCallback) {
             chartCallback(data.result);
         }
     })
     .catch(function(err) {
-        contentDiv.innerHTML = '<div class="error-msg">Request failed: ' + escapeHtml(err.message) + '</div>';
+        if (contentDiv) contentDiv.innerHTML = '<div class="error-msg">Request failed: ' + escapeHtml(err.message) + '</div>';
     });
 }
 
