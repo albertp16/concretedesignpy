@@ -65,22 +65,8 @@
                 </div>
 
                 <div class="form-section">
-                    <h3>Reinforcement <small>(click preview to add)</small></h3>
-                    <div id="rebar-rows">
-                        <div class="rebar-row form-row" data-idx="0">
-                            <div class="form-group"><label>d (mm)</label><input type="number" name="rebar_d[]" value="62.5" step="0.1" class="rb-d"></div>
-                            <div class="form-group"><label>Dia (mm)</label><input type="number" name="rebar_diam[]" value="25" step="1" class="rb-diam"></div>
-                            <div class="form-group"><label>Qty</label><input type="number" name="rebar_num[]" value="2" step="1" class="rb-num"></div>
-                            <button type="button" class="btn-remove" onclick="removeRow(this)">&times;</button>
-                        </div>
-                        <div class="rebar-row form-row" data-idx="1">
-                            <div class="form-group"><label>d (mm)</label><input type="number" name="rebar_d[]" value="737.5" step="0.1" class="rb-d"></div>
-                            <div class="form-group"><label>Dia (mm)</label><input type="number" name="rebar_diam[]" value="25" step="1" class="rb-diam"></div>
-                            <div class="form-group"><label>Qty</label><input type="number" name="rebar_num[]" value="6" step="1" class="rb-num"></div>
-                            <button type="button" class="btn-remove" onclick="removeRow(this)">&times;</button>
-                        </div>
-                    </div>
-                    <button type="button" id="add-rebar" class="btn-secondary">+ Add Rebar Layer</button>
+                    <h3>Reinforcement</h3>
+                    <div id="rebar-table" style="width:100%;overflow:hidden;"></div>
                 </div>
 
                 <button type="submit" class="btn-primary" style="width:100%;">Calculate</button>
@@ -100,38 +86,41 @@
 </div>
 
 <script>
-var rebarIdx = 2;
-
-function removeRow(btn) { btn.closest('.rebar-row').remove(); }
-
-function addRebarRow(depth, diam, num) {
-    var container = document.getElementById('rebar-rows');
-    var row = document.createElement('div');
-    row.className = 'rebar-row form-row';
-    row.setAttribute('data-idx', rebarIdx++);
-    row.innerHTML =
-        '<div class="form-group"><label>d (mm)</label><input type="number" name="rebar_d[]" value="' + depth + '" step="0.1" class="rb-d"></div>' +
-        '<div class="form-group"><label>Dia (mm)</label><input type="number" name="rebar_diam[]" value="' + diam + '" step="1" class="rb-diam"></div>' +
-        '<div class="form-group"><label>Qty</label><input type="number" name="rebar_num[]" value="' + num + '" step="1" class="rb-num"></div>' +
-        '<button type="button" class="btn-remove" onclick="removeRow(this)">&times;</button>';
-    container.appendChild(row);
-}
-
-document.getElementById('add-rebar').addEventListener('click', function() {
-    var h = parseFloat(document.getElementById('beam-h').value) || 800;
-    addRebarRow(Math.round(h - 62.5), 25, 2);
+// ── Handsontable Rebar Table ──
+var rebarData = [
+    [62.5, 25, 2],
+    [737.5, 25, 6],
+    [null, null, null],
+];
+var rebarHot = new Handsontable(document.getElementById('rebar-table'), {
+    data: rebarData,
+    colHeaders: ['Depth, d (mm)', 'Diameter (mm)', 'Quantity'],
+    columns: [
+        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 120 },
+        { type: 'numeric', numericFormat: { pattern: '0' }, width: 120 },
+        { type: 'numeric', numericFormat: { pattern: '0' }, width: 80 },
+    ],
+    rowHeaders: false, minRows: 2, minSpareRows: 1,
+    contextMenu: true, stretchH: 'all', height: 'auto',
+    className: 'htCenter', licenseKey: 'non-commercial-and-evaluation',
 });
+
+function getRebarList() {
+    var list = [], data = rebarHot.getData();
+    for (var i = 0; i < data.length; i++) {
+        var d = data[i][0], diam = data[i][1], num = data[i][2];
+        if (d !== null && d !== '' && diam !== null && diam !== '' && num !== null && num !== '' && num > 0) {
+            list.push({ d: parseFloat(d), diam: parseFloat(diam), num: parseInt(num) });
+        }
+    }
+    return list;
+}
 
 // Submit
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    var depths = document.querySelectorAll('input[name="rebar_d[]"]');
-    var diams = document.querySelectorAll('input[name="rebar_diam[]"]');
-    var nums = document.querySelectorAll('input[name="rebar_num[]"]');
-    var rebar_list = [];
-    for (var i = 0; i < depths.length; i++) {
-        rebar_list.push({ d: parseFloat(depths[i].value), diam: parseFloat(diams[i].value), num: parseInt(nums[i].value) });
-    }
+    var rebar_list = getRebarList();
+    if (rebar_list.length === 0) { alert('Add at least one rebar layer.'); return; }
     var payload = { fc: parseFloat(this.fc.value), fy: parseFloat(this.fy.value), es: parseFloat(this.es.value), b: parseFloat(this.b.value), h: parseFloat(this.h.value), rebar_list: rebar_list };
 
     submitCalc('/api/beam/moment', payload, function(result) {
