@@ -233,12 +233,20 @@ function getManualBars() {
 
 // ── Plotly Chart ──
 function renderPlotlyChart(points, combos, payload) {
-    var mu_nom = points.map(function(p) { return p.mn; });
-    var pu_nom = points.map(function(p) { return p.pn; });
-    var mu_fac = points.map(function(p) { return p.mu; });
-    var pu_fac = points.map(function(p) { return p.pu; });
+    // Build symmetric envelope: positive side → negative side (mirrored) → close
+    var mu_nom = [], pu_nom = [], mu_fac = [], pu_fac = [];
 
-    // Close the curves so fill: 'toself' forms a proper polygon
+    // Positive moment side (as-is from backend)
+    for (var i = 0; i < points.length; i++) {
+        mu_nom.push(points[i].mn); pu_nom.push(points[i].pn);
+        mu_fac.push(points[i].mu); pu_fac.push(points[i].pu);
+    }
+    // Negative moment side (mirror, traverse in reverse to close the loop)
+    for (var i = points.length - 1; i >= 0; i--) {
+        mu_nom.push(-points[i].mn); pu_nom.push(points[i].pn);
+        mu_fac.push(-points[i].mu); pu_fac.push(points[i].pu);
+    }
+    // Close
     if (points.length > 0) {
         mu_nom.push(mu_nom[0]); pu_nom.push(pu_nom[0]);
         mu_fac.push(mu_fac[0]); pu_fac.push(pu_fac[0]);
@@ -277,6 +285,7 @@ function renderPlotlyChart(points, combos, payload) {
         xaxis: { title: 'Moment, \u03d5Mn (kN-m)', zeroline: true, gridcolor: '#e5e7eb' },
         yaxis: { title: 'Axial, \u03d5Pn (kN)', zeroline: true, zerolinecolor: '#374151', zerolinewidth: 1.5, gridcolor: '#e5e7eb' },
         showlegend: true, legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
+        height: 600,
         margin: { t: 60, r: 20, b: 50, l: 65 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
         hovermode: 'closest',
