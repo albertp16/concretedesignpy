@@ -4,6 +4,7 @@
 {% block head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.css">
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
 <style>
 /* Column page specific styles */
 .col-page-layout { display: flex; gap: 2rem; align-items: flex-start; }
@@ -137,10 +138,10 @@
 <script>
 // ── Handsontable ──
 var loadComboData = [
-    [1, '1.2D + 1.6L', null, null, null],
-    [2, '1.2D + 1.0L + 1.0E', null, null, null],
-    [3, '0.9D + 1.0E', null, null, null],
-    [4, '1.2D + 1.6L + 0.5S', null, null, null],
+    [1, '1.2D + 1.6L',        2500, 0, 150],
+    [2, '1.2D + 1.0L + 1.0E', 1800, 0, 280],
+    [3, '0.9D + 1.0E',        1200, 0, 250],
+    [4, '1.2D + 1.6L + 0.5S', 2700, 0, 120],
     [5, '', null, null, null],
 ];
 var hotContainer = document.getElementById('load-combo-table');
@@ -230,6 +231,55 @@ function getManualBars() {
     return bars;
 }
 
+// ── Plotly Chart ──
+function renderPlotlyChart(points, combos, payload) {
+    var mu_nom = points.map(function(p) { return p.mn; });
+    var pu_nom = points.map(function(p) { return p.pn; });
+    var mu_fac = points.map(function(p) { return p.mu; });
+    var pu_fac = points.map(function(p) { return p.pu; });
+
+    var traces = [
+        {
+            x: mu_nom, y: pu_nom, mode: 'lines', name: 'Nominal (Pn, Mn)',
+            line: { color: '#93c5fd', width: 1.5, dash: 'dash' },
+        },
+        {
+            x: mu_fac, y: pu_fac, mode: 'lines', name: 'Factored (\u03d5Pn, \u03d5Mn)',
+            line: { color: '#1e40af', width: 2.5 },
+            fill: 'tozeroy', fillcolor: 'rgba(30,64,175,0.06)',
+        },
+    ];
+
+    // Plot each load combination as a labeled marker
+    if (combos.length > 0) {
+        var colors = ['#dc2626','#f97316','#16a34a','#8b5cf6','#ec4899','#0891b2','#ca8a04','#6366f1'];
+        combos.forEach(function(lc, i) {
+            var clr = colors[i % colors.length];
+            var sym = lc.status === 'OK' ? 'circle' : 'x';
+            traces.push({
+                x: [lc.mu], y: [lc.pu], mode: 'markers+text', name: lc.name,
+                marker: { size: 10, color: clr, symbol: sym, line: { width: 1.5, color: '#fff' } },
+                text: [lc.name], textposition: 'top right',
+                textfont: { size: 10, color: clr },
+            });
+        });
+    }
+
+    var label = payload.b + '\u00d7' + payload.h + ' mm | ' + (payload.n_bars || (payload.manual_bars ? payload.manual_bars.length : '')) + '-\u03c6' + payload.d_bar;
+    var layout = {
+        title: { text: 'P-M Interaction Diagram<br><sup>' + label + ' | f\'c=' + payload.fc + ', fy=' + payload.fy + ' MPa</sup>', font: { size: 14 } },
+        xaxis: { title: 'Moment, \u03d5Mn (kN-m)', zeroline: true, gridcolor: '#e5e7eb' },
+        yaxis: { title: 'Axial, \u03d5Pn (kN)', zeroline: true, zerolinecolor: '#374151', zerolinewidth: 1.5, gridcolor: '#e5e7eb' },
+        showlegend: true, legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
+        margin: { t: 60, r: 20, b: 50, l: 65 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        hovermode: 'closest',
+    };
+
+    var config = { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d','select2d'], displaylogo: false };
+    Plotly.newPlot('chart-pm', traces, layout, config);
+}
+
 // ── Submit ──
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -247,7 +297,8 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     }
 
     submitCalc('/api/column/interaction', payload, function(result) {
-        if (result.chart_pm) document.getElementById('chart-pm').innerHTML = '<img src="' + result.chart_pm + '" style="max-width:100%;border-radius:4px;">';
+        // ── Plotly.js Interaction Diagram ──
+        renderPlotlyChart(result.points, result.load_combo_checks || [], payload);
         document.getElementById('svg-rebar').innerHTML = result.svg_rebar || '';
 
         var r = result;

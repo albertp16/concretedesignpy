@@ -13,10 +13,7 @@ from concretedesignpy.calculators.column_flexural import (
     check_min_flexural_strength,
 )
 from concretedesignpy.calculators.rebar_layout import section_generate_rect
-from concretedesignpy.calculators.diagrams import (
-    matplotlib_interaction_diagram,
-    svg_rebar_section,
-)
+from concretedesignpy.calculators.diagrams import svg_rebar_section
 
 column_bp = Blueprint("column", __name__)
 
@@ -92,15 +89,6 @@ def interaction_diagram():
             )
             result["demand_check"] = capacity
             demand_for_chart = (float(pu_demand), float(mu_demand))
-
-        # Matplotlib interaction diagram (base64 PNG)
-        section_label = f"{b:.0f}\u00d7{h:.0f} mm | {n_bars}-\u03c6{d_bar:.0f} | f'c={float(data['fc'])}, fy={float(data['fy'])} MPa"
-        result["chart_pm"] = matplotlib_interaction_diagram(
-            result["points"],
-            demand=demand_for_chart if not load_combos else None,
-            demand_points=combo_checks if load_combos and len(load_combos) > 0 else None,
-            section_label=section_label,
-        )
 
         # SVG rebar layout (if nx/ny provided)
         nx = int(data.get("nx", 0))
