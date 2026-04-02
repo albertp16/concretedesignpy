@@ -7,118 +7,216 @@
     <h1>Beam Moment Capacity</h1>
     <p class="ref">NSCP 2015 / ACI 318-19 &mdash; Strain Compatibility Method</p>
 
-    <form id="calc-form" class="calc-form">
-        <div class="form-section">
-            <h3>Material Properties</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>f'c (MPa)</label>
-                    <input type="number" name="fc" value="20.68" step="0.01" required>
+    <div class="split-layout">
+        <div class="split-left">
+            <form id="calc-form" class="calc-form">
+                <div class="form-section">
+                    <h3>Material Properties</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>f'c (MPa)</label>
+                            <input type="number" name="fc" value="20.68" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>fy (MPa)</label>
+                            <input type="number" name="fy" value="414" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Es (MPa)</label>
+                            <input type="number" name="es" value="200000" step="1">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>fy (MPa)</label>
-                    <input type="number" name="fy" value="414" step="0.01" required>
+
+                <div class="form-section">
+                    <h3>Section Geometry</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Width, b (mm)</label>
+                            <input type="number" id="beam-b" name="b" value="200" step="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Height, h (mm)</label>
+                            <input type="number" id="beam-h" name="h" value="400" step="1" required>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Es (MPa)</label>
-                    <input type="number" name="es" value="200000" step="1">
+
+                <div class="form-section">
+                    <h3>Reinforcement <small>(click section preview to add layers)</small></h3>
+                    <div id="rebar-rows">
+                        <div class="rebar-row form-row" data-idx="0">
+                            <div class="form-group"><label>d (mm)</label>
+                                <input type="number" name="rebar_d[]" value="60" step="1" class="rb-d"></div>
+                            <div class="form-group"><label>Dia (mm)</label>
+                                <input type="number" name="rebar_diam[]" value="16" step="1" class="rb-diam"></div>
+                            <div class="form-group"><label>Qty</label>
+                                <input type="number" name="rebar_num[]" value="2" step="1" class="rb-num"></div>
+                            <button type="button" class="btn-remove" onclick="removeRow(this)">&times;</button>
+                        </div>
+                        <div class="rebar-row form-row" data-idx="1">
+                            <div class="form-group"><label>d (mm)</label>
+                                <input type="number" name="rebar_d[]" value="340" step="1" class="rb-d"></div>
+                            <div class="form-group"><label>Dia (mm)</label>
+                                <input type="number" name="rebar_diam[]" value="16" step="1" class="rb-diam"></div>
+                            <div class="form-group"><label>Qty</label>
+                                <input type="number" name="rebar_num[]" value="3" step="1" class="rb-num"></div>
+                            <button type="button" class="btn-remove" onclick="removeRow(this)">&times;</button>
+                        </div>
+                    </div>
+                    <button type="button" id="add-rebar" class="btn-secondary">+ Add Rebar Layer</button>
                 </div>
-            </div>
+
+                <button type="submit" class="btn-primary">Calculate</button>
+            </form>
         </div>
 
-        <div class="form-section">
-            <h3>Section Geometry</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Width, b (mm)</label>
-                    <input type="number" name="b" value="200" step="1" required>
-                </div>
-                <div class="form-group">
-                    <label>Height, h (mm)</label>
-                    <input type="number" name="h" value="400" step="1" required>
-                </div>
+        <div class="split-right">
+            <div class="preview-panel">
+                <h3>Section Preview</h3>
+                <svg id="beam-preview" viewBox="0 0 300 420" style="width:100%;max-width:300px;cursor:crosshair;border:1px solid #e5e7eb;border-radius:6px;background:#fff"></svg>
+                <p class="hint">Click on the section to add a rebar layer at that depth</p>
             </div>
         </div>
-
-        <div class="form-section">
-            <h3>Reinforcement</h3>
-            <div id="rebar-rows">
-                <div class="rebar-row form-row">
-                    <div class="form-group">
-                        <label>Depth, d (mm)</label>
-                        <input type="number" name="rebar_d[]" value="60" step="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Diameter (mm)</label>
-                        <input type="number" name="rebar_diam[]" value="16" step="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Number</label>
-                        <input type="number" name="rebar_num[]" value="2" step="1">
-                    </div>
-                </div>
-                <div class="rebar-row form-row">
-                    <div class="form-group">
-                        <label>Depth, d (mm)</label>
-                        <input type="number" name="rebar_d[]" value="340" step="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Diameter (mm)</label>
-                        <input type="number" name="rebar_diam[]" value="16" step="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Number</label>
-                        <input type="number" name="rebar_num[]" value="3" step="1">
-                    </div>
-                </div>
-            </div>
-            <button type="button" id="add-rebar" class="btn-secondary">+ Add Rebar Layer</button>
-        </div>
-
-        <button type="submit" class="btn-primary">Calculate</button>
-    </form>
+    </div>
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <div id="results-content"></div>
+        <div class="results-split">
+            <div id="results-svg" class="results-diagram"></div>
+            <div id="results-content"></div>
+        </div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
-document.getElementById('add-rebar').addEventListener('click', function() {
-    const container = document.getElementById('rebar-rows');
-    const row = document.createElement('div');
+var rebarIdx = 2;
+
+function removeRow(btn) {
+    btn.closest('.rebar-row').remove();
+    drawPreview();
+}
+
+function addRebarRow(depth, diam, num) {
+    var container = document.getElementById('rebar-rows');
+    var row = document.createElement('div');
     row.className = 'rebar-row form-row';
-    row.innerHTML = `
-        <div class="form-group">
-            <label>Depth, d (mm)</label>
-            <input type="number" name="rebar_d[]" value="0" step="1">
-        </div>
-        <div class="form-group">
-            <label>Diameter (mm)</label>
-            <input type="number" name="rebar_diam[]" value="16" step="1">
-        </div>
-        <div class="form-group">
-            <label>Number</label>
-            <input type="number" name="rebar_num[]" value="2" step="1">
-        </div>`;
+    row.setAttribute('data-idx', rebarIdx++);
+    row.innerHTML =
+        '<div class="form-group"><label>d (mm)</label>' +
+        '<input type="number" name="rebar_d[]" value="' + depth + '" step="1" class="rb-d"></div>' +
+        '<div class="form-group"><label>Dia (mm)</label>' +
+        '<input type="number" name="rebar_diam[]" value="' + diam + '" step="1" class="rb-diam"></div>' +
+        '<div class="form-group"><label>Qty</label>' +
+        '<input type="number" name="rebar_num[]" value="' + num + '" step="1" class="rb-num"></div>' +
+        '<button type="button" class="btn-remove" onclick="removeRow(this)">&times;</button>';
     container.appendChild(row);
+
+    // Add change listeners
+    row.querySelectorAll('input').forEach(function(inp) {
+        inp.addEventListener('change', drawPreview);
+    });
+    drawPreview();
+}
+
+document.getElementById('add-rebar').addEventListener('click', function() {
+    var h = parseFloat(document.getElementById('beam-h').value) || 400;
+    addRebarRow(Math.round(h - 60), 16, 2);
 });
 
+// Interactive preview
+function drawPreview() {
+    var svg = document.getElementById('beam-preview');
+    var b = parseFloat(document.getElementById('beam-b').value) || 200;
+    var h = parseFloat(document.getElementById('beam-h').value) || 400;
+
+    var pad = 40;
+    var scale = Math.min((280 - 2 * pad) / b, (400 - 2 * pad) / h);
+    var bw = b * scale, bh = h * scale;
+    var ox = (300 - bw) / 2, oy = pad;
+
+    var s = '';
+    // Concrete
+    s += '<rect x="' + ox + '" y="' + oy + '" width="' + bw + '" height="' + bh + '" fill="#e5e7eb" stroke="#333" stroke-width="2"/>';
+
+    // Rebar layers
+    var rows = document.querySelectorAll('.rebar-row');
+    rows.forEach(function(row, i) {
+        var d = parseFloat(row.querySelector('.rb-d').value) || 0;
+        var diam = parseFloat(row.querySelector('.rb-diam').value) || 16;
+        var num = parseInt(row.querySelector('.rb-num').value) || 2;
+
+        var ry = oy + d * scale;
+        var margin = 20;
+        var barR = Math.max(3, Math.min(7, diam * scale / 3));
+
+        for (var j = 0; j < num; j++) {
+            var px;
+            if (num === 1) { px = ox + bw / 2; }
+            else { px = ox + margin + j * ((bw - 2 * margin) / (num - 1)); }
+            var color = (d < h / 2) ? '#dc2626' : '#16a34a';
+            s += '<circle cx="' + px + '" cy="' + ry + '" r="' + barR + '" fill="' + color + '" stroke="#333" stroke-width="1"/>';
+        }
+        s += '<text x="' + (ox - 4) + '" y="' + (ry + 3) + '" text-anchor="end" font-size="9" fill="#666">' + d + '</text>';
+    });
+
+    // Dimensions
+    s += '<text x="' + (ox + bw / 2) + '" y="' + (oy + bh + 18) + '" text-anchor="middle" font-size="10" fill="#333">b = ' + b + ' mm</text>';
+    s += '<text x="' + (ox - 18) + '" y="' + (oy + bh / 2) + '" text-anchor="middle" font-size="10" fill="#333" transform="rotate(-90 ' + (ox - 18) + ' ' + (oy + bh / 2) + ')">h = ' + h + ' mm</text>';
+
+    svg.innerHTML = s;
+}
+
+// Click on preview to add rebar
+document.getElementById('beam-preview').addEventListener('click', function(e) {
+    var svg = this;
+    var rect = svg.getBoundingClientRect();
+    var b = parseFloat(document.getElementById('beam-b').value) || 200;
+    var h = parseFloat(document.getElementById('beam-h').value) || 400;
+    var pad = 40;
+    var scale = Math.min((280 - 2 * pad) / b, (400 - 2 * pad) / h);
+    var bh = h * scale;
+    var oy = pad;
+
+    // Convert click to SVG coordinates
+    var pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    var svgPt = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+    var depth = Math.round((svgPt.y - oy) / scale);
+    if (depth < 10) depth = 10;
+    if (depth > h - 10) depth = h - 10;
+
+    addRebarRow(depth, 16, 2);
+});
+
+// Listen for geometry changes
+document.getElementById('beam-b').addEventListener('change', drawPreview);
+document.getElementById('beam-h').addEventListener('change', drawPreview);
+document.querySelectorAll('.rebar-row input').forEach(function(inp) {
+    inp.addEventListener('change', drawPreview);
+});
+
+// Initial draw
+drawPreview();
+
+// Submit
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const depths = document.querySelectorAll('input[name="rebar_d[]"]');
-    const diams = document.querySelectorAll('input[name="rebar_diam[]"]');
-    const nums = document.querySelectorAll('input[name="rebar_num[]"]');
-    const rebar_list = [];
-    for (let i = 0; i < depths.length; i++) {
+    var depths = document.querySelectorAll('input[name="rebar_d[]"]');
+    var diams = document.querySelectorAll('input[name="rebar_diam[]"]');
+    var nums = document.querySelectorAll('input[name="rebar_num[]"]');
+    var rebar_list = [];
+    for (var i = 0; i < depths.length; i++) {
         rebar_list.push({
             d: parseFloat(depths[i].value),
             diam: parseFloat(diams[i].value),
             num: parseInt(nums[i].value)
         });
     }
-    const payload = {
+    var payload = {
         fc: parseFloat(this.fc.value),
         fy: parseFloat(this.fy.value),
         es: parseFloat(this.es.value),
@@ -126,7 +224,27 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         h: parseFloat(this.h.value),
         rebar_list: rebar_list
     };
-    submitCalc('/api/beam/moment', payload);
+    submitCalc('/api/beam/moment', payload, function(result) {
+        // Show cross-section SVG
+        document.getElementById('results-svg').innerHTML = result.svg || '';
+
+        // LaTeX report
+        var r = result;
+        var tex = '<h3>Calculation Report</h3>';
+        tex += '<div class="mathjax-report">';
+        tex += '<p><b>Given:</b> \\( f\'_c = ' + r.fc_concrete + ' \\text{ kN} \\), \\( f_y = ' + payload.fy + ' \\text{ MPa} \\), ';
+        tex += '\\( b = ' + payload.b + ' \\text{ mm} \\), \\( h = ' + payload.h + ' \\text{ mm} \\)</p>';
+        tex += '<p><b>Whitney Stress Block:</b> \\( \\beta_1 = ' + r.beta1 + ' \\)</p>';
+        tex += '<p>\\[ a = \\beta_1 \\cdot c = ' + r.beta1 + ' \\times ' + r.neutral_axis + ' = ' + r.a + ' \\text{ mm} \\]</p>';
+        tex += '<p><b>Neutral Axis:</b> \\( c = ' + r.neutral_axis + ' \\text{ mm} \\)</p>';
+        tex += '<p><b>Tensile Strain:</b> \\( \\varepsilon_t = ' + r.epsilon_t + ' \\)</p>';
+        tex += '<p><b>Strength Reduction Factor:</b> \\( \\phi = ' + r.phi + ' \\) (' + r.classification + ')</p>';
+        tex += '<p>\\[ M_n = ' + r.mn + ' \\text{ kN-m} \\]</p>';
+        tex += '<p>\\[ M_u = \\phi \\cdot M_n = ' + r.phi + ' \\times ' + r.mn + ' = ' + r.mu + ' \\text{ kN-m} \\]</p>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}

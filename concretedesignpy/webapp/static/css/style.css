@@ -236,6 +236,91 @@ body {
 
 canvas { display: block; margin: 0 auto 1rem; background: #fff; }
 
+/* Disclaimer bar */
+.disclaimer-bar {
+    background: #fef3c7;
+    color: #92400e;
+    font-size: .75rem;
+    text-align: center;
+    padding: .35rem 0;
+    border-bottom: 1px solid #fcd34d;
+    font-weight: 500;
+}
+
+/* Split layout (form + preview) */
+.split-layout {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+.split-left { flex: 1; min-width: 0; }
+.split-right { width: 320px; flex-shrink: 0; }
+
+/* Results split (SVG + content) */
+.results-split {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.results-diagram {
+    flex: 1;
+    min-width: 260px;
+    text-align: center;
+}
+.results-diagram svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Report panel */
+.report-panel {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-top: 1rem;
+}
+.mathjax-report p { margin-bottom: .5rem; }
+
+/* Preview panel */
+.preview-panel {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1rem;
+    position: sticky;
+    top: 1rem;
+}
+.preview-panel h3 {
+    font-size: .9rem;
+    color: var(--gray-700);
+    margin-bottom: .75rem;
+}
+.hint {
+    font-size: .7rem;
+    color: var(--gray-500);
+    margin-top: .5rem;
+    text-align: center;
+}
+
+/* Remove button */
+.btn-remove {
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    align-self: flex-end;
+    margin-bottom: .15rem;
+    flex-shrink: 0;
+}
+.btn-remove:hover { background: #fef2f2; }
+
 /* Footer */
 .footer {
     margin-top: auto;
@@ -251,6 +336,12 @@ canvas { display: block; margin: 0 auto 1rem; background: #fff; }
 /* Loading */
 .loading { text-align: center; padding: 2rem; color: var(--gray-500); }
 .error-msg { color: var(--danger); background: #fef2f2; padding: .75rem; border-radius: 4px; }
+
+@media (max-width: 768px) {
+    .split-layout { flex-direction: column; }
+    .split-right { width: 100%; }
+    .results-split { flex-direction: column; }
+}
 
 @media (max-width: 640px) {
     .form-group { min-width: 100%; }

@@ -84,13 +84,14 @@
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
         <div id="results-content"></div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const payload = {
+    var payload = {
         b: parseFloat(this.b.value),
         h: parseFloat(this.h.value),
         d: parseFloat(this.d.value),
@@ -108,7 +109,26 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         sustained_duration: this.sustained_duration.value,
     };
     if (this.ma.value) payload.ma = parseFloat(this.ma.value);
-    submitCalc('/api/beam/deflection', payload);
+    submitCalc('/api/beam/deflection', payload, function(result) {
+        var r = result;
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 Section 424.2</p>';
+        if (r.ec !== undefined) tex += '<p>\\[ E_c = 4700\\sqrt{f\'_c} = ' + r.ec + ' \\text{ MPa} \\]</p>';
+        if (r.n !== undefined) tex += '<p>\\[ n = E_s / E_c = ' + r.n + ' \\]</p>';
+        if (r.ig !== undefined) tex += '<p>\\[ I_g = \\frac{bh^3}{12} = ' + r.ig + ' \\text{ mm}^4 \\]</p>';
+        if (r.mcr !== undefined) tex += '<p>\\[ M_{cr} = \\frac{f_r I_g}{y_t} = ' + r.mcr + ' \\text{ N-mm} \\]</p>';
+        if (r.icr !== undefined) tex += '<p>\\[ I_{cr} = ' + r.icr + ' \\text{ mm}^4 \\]</p>';
+        if (r.ie !== undefined) tex += '<p>\\[ I_e = \\left(\\frac{M_{cr}}{M_a}\\right)^3 I_g + \\left[1-\\left(\\frac{M_{cr}}{M_a}\\right)^3\\right] I_{cr} = ' + r.ie + ' \\text{ mm}^4 \\]</p>';
+        if (r.delta_immediate !== undefined) tex += '<p><b>Immediate Deflection:</b> \\( \\Delta_i = ' + r.delta_immediate + ' \\text{ mm} \\)</p>';
+        if (r.lambda_delta !== undefined) tex += '<p>\\[ \\lambda_\\Delta = \\frac{\\xi}{1+50\\rho\'} = ' + r.lambda_delta + ' \\]</p>';
+        if (r.delta_long_term !== undefined) tex += '<p><b>Long-term Deflection:</b> \\( \\Delta_{LT} = ' + r.delta_long_term + ' \\text{ mm} \\)</p>';
+        if (r.delta_total !== undefined) tex += '<p><b>Total Deflection:</b> \\( \\Delta_{total} = ' + r.delta_total + ' \\text{ mm} \\)</p>';
+        if (r.allowable !== undefined) tex += '<p><b>Allowable:</b> \\( L/' + (r.limit_ratio || 360) + ' = ' + r.allowable + ' \\text{ mm} \\)</p>';
+        if (r.status) tex += '<p><b>Status:</b> ' + r.status + '</p>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}

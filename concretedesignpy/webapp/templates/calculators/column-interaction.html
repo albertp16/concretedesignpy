@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Column Interaction Diagram - ConcreteDesignPy{% endblock %}
+{% block title %}Column Interaction & Rebar Layout - ConcreteDesignPy{% endblock %}
 
 {% block content %}
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
-    <h1>Column P-M Interaction Diagram</h1>
+    <h1>Column P-M Interaction Diagram &amp; Rebar Layout</h1>
     <p class="ref">NSCP 2015 / ACI 318-19</p>
 
     <form id="calc-form" class="calc-form">
@@ -32,6 +32,10 @@
                 <div class="form-group"><label>Bar diameter (mm)</label><input type="number" name="d_bar" value="25" required></div>
                 <div class="form-group"><label>Bars per side</label><input type="number" name="n_bars_side" value="2" placeholder="auto"></div>
             </div>
+            <div class="form-row">
+                <div class="form-group"><label>Bars along width (nx)</label><input type="number" name="nx" value="4"></div>
+                <div class="form-group"><label>Bars along depth (ny)</label><input type="number" name="ny" value="4"></div>
+            </div>
         </div>
 
         <button type="submit" class="btn-primary">Generate Diagram</button>
@@ -39,84 +43,58 @@
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <canvas id="pm-chart" width="600" height="400"></canvas>
+        <div class="results-split">
+            <div id="svg-pm" class="results-diagram"></div>
+            <div id="svg-rebar" class="results-diagram"></div>
+        </div>
         <div id="results-content"></div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const payload = {
-        fc: parseFloat(this.fc.value),
-        fy: parseFloat(this.fy.value),
-        b: parseFloat(this.b.value),
-        h: parseFloat(this.h.value),
-        cover: parseFloat(this.cover.value),
-        n_bars: parseInt(this.n_bars.value),
-        d_bar: parseFloat(this.d_bar.value),
-        n_bars_side: parseInt(this.n_bars_side.value) || 0,
+    var f = this;
+    var payload = {
+        fc: parseFloat(f.fc.value),
+        fy: parseFloat(f.fy.value),
+        b: parseFloat(f.b.value),
+        h: parseFloat(f.h.value),
+        cover: parseFloat(f.cover.value),
+        n_bars: parseInt(f.n_bars.value),
+        d_bar: parseFloat(f.d_bar.value),
+        n_bars_side: parseInt(f.n_bars_side.value) || 0,
+        nx: parseInt(f.nx.value) || 0,
+        ny: parseInt(f.ny.value) || 0,
     };
     submitCalc('/api/column/interaction', payload, function(result) {
-        drawPMDiagram(result.points);
+        // Render SVG diagrams
+        document.getElementById('svg-pm').innerHTML = result.svg_pm || '';
+        document.getElementById('svg-rebar').innerHTML = result.svg_rebar || '';
+
+        // LaTeX report
+        var r = result;
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Given:</b> \\( f\'_c = ' + payload.fc + ' \\text{ MPa} \\), ';
+        tex += '\\( f_y = ' + payload.fy + ' \\text{ MPa} \\), ';
+        tex += '\\( b = ' + payload.b + ' \\text{ mm} \\), \\( h = ' + payload.h + ' \\text{ mm} \\)</p>';
+        tex += '<p>\\( \\beta_1 = ' + r.beta1 + ' \\), ';
+        tex += '\\( d_{eff} = ' + r.d_eff + ' \\text{ mm} \\), ';
+        tex += '\\( d\' = ' + r.d_prime + ' \\text{ mm} \\)</p>';
+        tex += '<p><b>Pure Compression:</b> \\[ P_o = 0.85 f\'_c (A_g - A_{st}) + f_y A_{st} = ' + r.pure_compression_kn + ' \\text{ kN} \\]</p>';
+        if (r.balanced_point) {
+            tex += '<p><b>Balanced Point:</b> \\( P_n = ' + r.balanced_point.pn + ' \\text{ kN} \\), ';
+            tex += '\\( M_n = ' + r.balanced_point.mn + ' \\text{ kN-m} \\)</p>';
+        }
+        tex += '<p><b>Total Interaction Points:</b> ' + r.points.length + '</p>';
+        if (r.rebar_layout) {
+            tex += '<p><b>Rebar Layout:</b> ' + r.rebar_layout.total_bars + ' bars total</p>';
+        }
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
     });
 });
-
-function drawPMDiagram(points) {
-    const canvas = document.getElementById('pm-chart');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (!points || points.length === 0) return;
-
-    const mn = points.map(p => p.mn);
-    const pn = points.map(p => p.pn);
-    const maxM = Math.max(...mn) * 1.1;
-    const maxP = Math.max(...pn) * 1.1;
-    const minP = Math.min(...pn, 0) * 1.1;
-    const rangeP = maxP - minP;
-
-    const pad = 50;
-    const w = canvas.width - 2 * pad;
-    const h = canvas.height - 2 * pad;
-
-    // Axes
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad, pad);
-    ctx.lineTo(pad, pad + h);
-    ctx.lineTo(pad + w, pad + h);
-    ctx.stroke();
-
-    ctx.font = '12px monospace';
-    ctx.fillStyle = '#333';
-    ctx.fillText('Mn (kN-m)', pad + w / 2, pad + h + 35);
-    ctx.save();
-    ctx.translate(12, pad + h / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('Pn (kN)', 0, 0);
-    ctx.restore();
-
-    // Plot points
-    ctx.fillStyle = '#2563eb';
-    ctx.strokeStyle = '#2563eb';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i = 0; i < points.length; i++) {
-        const x = pad + (mn[i] / maxM) * w;
-        const y = pad + h - ((pn[i] - minP) / rangeP) * h;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    for (let i = 0; i < points.length; i++) {
-        const x = pad + (mn[i] / maxM) * w;
-        const y = pad + h - ((pn[i] - minP) / rangeP) * h;
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, 2 * Math.PI);
-        ctx.fill();
-    }
-}
 </script>
 {% endblock %}

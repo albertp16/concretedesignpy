@@ -32,58 +32,28 @@
         <div class="form-section">
             <h3>Properties</h3>
             <div class="form-row">
-                <div class="form-group">
-                    <label>f'c (MPa)</label>
-                    <input type="number" name="fc" value="27.6" step="0.1" required>
-                </div>
-                <div class="form-group">
-                    <label>fyt (MPa)</label>
-                    <input type="number" name="fyt" value="413.7" step="0.1" required>
-                </div>
-                <div class="form-group">
-                    <label>&lambda;</label>
-                    <input type="number" name="lamda" value="1.0" step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>&phi;</label>
-                    <input type="number" name="phi" value="0.75" step="0.01">
-                </div>
+                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="27.6" step="0.1" required></div>
+                <div class="form-group"><label>fyt (MPa)</label><input type="number" name="fyt" value="413.7" step="0.1" required></div>
+                <div class="form-group"><label>&lambda;</label><input type="number" name="lamda" value="1.0" step="0.01"></div>
+                <div class="form-group"><label>&phi;</label><input type="number" name="phi" value="0.75" step="0.01"></div>
             </div>
         </div>
 
         <div class="form-section">
             <h3>Section</h3>
             <div class="form-row">
-                <div class="form-group">
-                    <label>Width, b (mm)</label>
-                    <input type="number" name="b" value="300" required>
-                </div>
-                <div class="form-group">
-                    <label>Effective depth, d (mm)</label>
-                    <input type="number" name="d" value="510" required>
-                </div>
+                <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="300" required></div>
+                <div class="form-group"><label>Effective depth, d (mm)</label><input type="number" name="d" value="510" required></div>
             </div>
         </div>
 
         <div class="form-section">
             <h3>Stirrups</h3>
             <div class="form-row">
-                <div class="form-group">
-                    <label>Stirrup dia, ds (mm)</label>
-                    <input type="number" name="ds" value="10" required>
-                </div>
-                <div class="form-group">
-                    <label>Number of legs</label>
-                    <input type="number" name="numlegs" value="2" required>
-                </div>
-                <div class="form-group">
-                    <label>Spacing, s (mm)</label>
-                    <input type="number" name="s" value="140">
-                </div>
-                <div class="form-group">
-                    <label>Vu required (kN) <small>[spacing mode]</small></label>
-                    <input type="number" name="vu_required" value="278.02" step="0.01">
-                </div>
+                <div class="form-group"><label>Stirrup dia, ds (mm)</label><input type="number" name="ds" value="10" required></div>
+                <div class="form-group"><label>Number of legs</label><input type="number" name="numlegs" value="2" required></div>
+                <div class="form-group"><label>Spacing, s (mm)</label><input type="number" name="s" value="140"></div>
+                <div class="form-group"><label>Vu required (kN) <small>[spacing mode]</small></label><input type="number" name="vu_required" value="278.02" step="0.01"></div>
             </div>
         </div>
 
@@ -92,37 +62,58 @@
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <div id="results-content"></div>
+        <div class="results-split">
+            <div id="results-svg" class="results-diagram"></div>
+            <div id="results-content"></div>
+        </div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const ds = parseFloat(this.ds.value);
-    const numlegs = parseInt(this.numlegs.value);
-    const av = numlegs * Math.PI * Math.pow(ds / 2, 2);
-    const mode = this.mode.value;
+    var ds = parseFloat(this.ds.value);
+    var numlegs = parseInt(this.numlegs.value);
+    var av = numlegs * Math.PI * Math.pow(ds / 2, 2);
+    var mode = this.mode.value;
+    var fc = parseFloat(this.fc.value);
+    var b = parseFloat(this.b.value);
+    var d = parseFloat(this.d.value);
+    var phi = parseFloat(this.phi.value);
 
-    const payload = {
-        mode: mode,
-        fc: parseFloat(this.fc.value),
-        b: parseFloat(this.b.value),
-        d: parseFloat(this.d.value),
+    var payload = {
+        mode: mode, fc: fc, b: b, d: d,
         fyt: parseFloat(this.fyt.value),
         lamda: parseFloat(this.lamda.value),
-        phi: parseFloat(this.phi.value),
-        av: av,
-        vc_type: this.vc_type.value,
+        phi: phi, av: av, vc_type: this.vc_type.value,
     };
+    if (mode === 'capacity') { payload.s = parseFloat(this.s.value); }
+    else { payload.vu_required = parseFloat(this.vu_required.value) * 1000; }
 
-    if (mode === 'capacity') {
-        payload.s = parseFloat(this.s.value);
-    } else {
-        payload.vu_required = parseFloat(this.vu_required.value) * 1000;
-    }
+    submitCalc('/api/beam/shear', payload, function(result) {
+        document.getElementById('results-svg').innerHTML = result.svg || '';
 
-    submitCalc('/api/beam/shear', payload);
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 Section 422.5</p>';
+        if (result.vc_kn !== undefined) {
+            tex += '<p>\\[ V_c = \\frac{1}{6} \\lambda \\sqrt{f\'_c} \\cdot b_w \\cdot d = ' + result.vc_kn + ' \\text{ kN} \\]</p>';
+        }
+        if (result.vs_kn !== undefined) {
+            tex += '<p>\\[ V_s = \\frac{A_v f_{yt} d}{s} = ' + result.vs_kn + ' \\text{ kN} \\]</p>';
+        }
+        if (result.vn_kn !== undefined) {
+            tex += '<p>\\[ V_n = V_c + V_s = ' + result.vn_kn + ' \\text{ kN} \\]</p>';
+            tex += '<p>\\[ \\phi V_n = ' + phi + ' \\times ' + result.vn_kn + ' = ' + result.vu_kn + ' \\text{ kN} \\]</p>';
+        }
+        if (result.spacing !== undefined) {
+            tex += '<p><b>Required Spacing:</b> \\( s = ' + result.spacing + ' \\text{ mm} \\)</p>';
+            tex += '<p>\\( s_{max} = ' + result.smax + ' \\text{ mm} \\)</p>';
+        }
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}

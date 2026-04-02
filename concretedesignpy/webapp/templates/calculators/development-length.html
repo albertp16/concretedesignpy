@@ -37,19 +37,36 @@
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <div id="results-content"></div>
+        <div class="results-split">
+            <div id="results-svg" class="results-diagram"></div>
+            <div id="results-content"></div>
+        </div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const payload = {
+    var payload = {
         bar_type: this.bar_type.value,
         bar_size: parseFloat(this.bar_size.value),
         angle: parseInt(this.angle.value),
     };
-    submitCalc('/api/section/development-length', payload);
+    submitCalc('/api/section/development-length', payload, function(result) {
+        document.getElementById('results-svg').innerHTML = result.svg || '';
+
+        var r = result;
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 Section 425</p>';
+        tex += '<p><b>Bar:</b> \\( \\varnothing ' + r.bar_size + ' \\text{ mm} \\), Hook angle: \\( ' + r.angle + '^\\circ \\)</p>';
+        tex += '<p>\\[ D_{bend} = ' + r.bend_diameter + ' \\text{ mm} \\]</p>';
+        tex += '<p>\\[ l_{ext} = ' + r.lext + ' \\text{ mm} \\]</p>';
+        tex += '<p>\\[ l_{dh} = D_{bend} + l_{ext} = ' + r.bend_diameter + ' + ' + r.lext + ' = ' + r.ldh + ' \\text{ mm} \\]</p>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}

@@ -46,17 +46,32 @@
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
         <div id="results-content"></div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const payload = {};
-    new FormData(this).forEach((v, k) => {
-        payload[k] = ['n_bars_x','n_bars_y','n_legs_x','n_legs_y'].includes(k) ? parseInt(v) : parseFloat(v);
+    var payload = {};
+    new FormData(this).forEach(function(v, k) {
+        payload[k] = ['n_bars_x','n_bars_y','n_legs_x','n_legs_y'].indexOf(k) >= 0 ? parseInt(v) : parseFloat(v);
     });
-    submitCalc('/api/mander/confined', payload);
+    submitCalc('/api/mander/confined', payload, function(result) {
+        var r = result;
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> Mander, Priestley & Park (1988)</p>';
+        if (r.ke !== undefined) tex += '<p>\\[ k_e = ' + r.ke + ' \\]</p>';
+        if (r.rho_x !== undefined) tex += '<p>\\[ \\rho_x = ' + r.rho_x + ' \\], \\( \\rho_y = ' + r.rho_y + ' \\)</p>';
+        if (r.fl_x !== undefined) tex += '<p>\\[ f\'_{l,x} = k_e \\rho_x f_{yh} = ' + r.fl_x + ' \\text{ MPa} \\]</p>';
+        if (r.fl_y !== undefined) tex += '<p>\\[ f\'_{l,y} = k_e \\rho_y f_{yh} = ' + r.fl_y + ' \\text{ MPa} \\]</p>';
+        if (r.fcc !== undefined) tex += '<p><b>Confined Strength:</b> \\[ f\'_{cc} = ' + r.fcc + ' \\text{ MPa} \\]</p>';
+        if (r.ecc !== undefined) tex += '<p>\\[ \\varepsilon_{cc} = ' + r.ecc + ' \\]</p>';
+        if (r.ecu !== undefined) tex += '<p><b>Ultimate Strain:</b> \\[ \\varepsilon_{cu} = ' + r.ecu + ' \\]</p>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}

@@ -48,6 +48,7 @@
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
         <div id="results-content"></div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
@@ -59,9 +60,9 @@ document.getElementById('member_type').addEventListener('change', function() {
 
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const f = this;
-    const mt = f.member_type.value;
-    const payload = { member_type: mt, ig: parseFloat(f.ig.value) };
+    var f = this;
+    var mt = f.member_type.value;
+    var payload = { member_type: mt, ig: parseFloat(f.ig.value) };
     if (mt === 'column') {
         payload.ast = parseFloat(f.ast.value);
         payload.ag = parseFloat(f.ag.value);
@@ -74,7 +75,18 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         payload.b = parseFloat(f.b.value);
         payload.d = parseFloat(f.d.value);
     }
-    submitCalc('/api/section/alternative-inertia', payload);
+    submitCalc('/api/section/alternative-inertia', payload, function(result) {
+        var r = result;
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 Section 424.2.3.5</p>';
+        if (r.i_alt !== undefined) tex += '<p><b>Alternative Moment of Inertia:</b> \\[ I_{alt} = ' + r.i_alt + ' \\text{ mm}^4 \\]</p>';
+        if (r.ratio !== undefined) tex += '<p>\\[ I_{alt} / I_g = ' + r.ratio + ' \\]</p>';
+        if (r.i_lower !== undefined) tex += '<p>\\( I_{lower} = ' + r.i_lower + ' \\text{ mm}^4 \\)</p>';
+        if (r.i_upper !== undefined) tex += '<p>\\( I_{upper} = ' + r.i_upper + ' \\text{ mm}^4 \\)</p>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}

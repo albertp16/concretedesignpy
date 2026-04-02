@@ -50,7 +50,9 @@ function renderResult(obj) {
     Object.keys(obj).forEach(function(key) {
         var val = obj[key];
 
-        // Skip large arrays (like interaction diagram points) from main table
+        // Skip SVG fields, large arrays, and rebar layout objects from main table
+        if (key === 'svg' || key === 'svg_pm' || key === 'svg_rebar') return;
+        if (key === 'rebar_layout' || key === 'rebar_forces') return;
         if (Array.isArray(val) && val.length > 20) {
             return;
         }

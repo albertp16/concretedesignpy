@@ -28,14 +28,13 @@ Modules:
     - column_flexural: Minimum flexural strength ratio check
     - joint_shear: Joint shear verification for special moment frames
     - mander: Mander's confined concrete model
-    - frp_beam: FRP flexural strengthening per ACI 440
     - development_length: Hook geometry per NSCP 2015 Section 425
     - moment_curvature: 6-point moment-curvature relationship
     - rebar_layout: Rebar coordinate generation for rectangular sections
     - alternative_inertia: Alternative moment of inertia per NSCP 2015
 
 Standards:
-    NSCP 2015, ACI 318-19, ACI 440R-17, ASCE 41
+    NSCP 2015, ACI 318-19, ASCE 41
 """
 
 from concretedesignpy.calculators.beam_moment import calculate_beam_moment
@@ -57,7 +56,6 @@ from concretedesignpy.calculators.mander import (
     confined_strength_ratio,
     confined_stress_strain,
 )
-from concretedesignpy.calculators.frp_beam import frp_flexural_strengthening
 from concretedesignpy.calculators.development_length import (
     bend_and_hook_deformed_bars,
     bend_and_hook_stirrups,

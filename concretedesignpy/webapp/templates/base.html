@@ -5,15 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ConcreteDesignPy{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
     {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="navbar">
         <div class="container">
             <a href="/" class="navbar-brand">ConcreteDesignPy</a>
-            <span class="navbar-tag">v0.2 | NSCP 2015 / ACI 318-19</span>
+            <span class="navbar-tag">v0.3 | NSCP 2015 / ACI 318-19</span>
         </div>
     </nav>
+
+    <div class="disclaimer-bar">
+        <div class="container">
+            APEC Internal Tool &mdash; Albert Pamonag Engineering Consultancy &mdash; For reference only. All results must be verified by a licensed professional engineer.
+        </div>
+    </div>
 
     <main class="container">
         {% block content %}{% endblock %}
@@ -22,7 +29,7 @@
     <footer class="footer">
         <div class="container">
             <p>ConcreteDesignPy &mdash; MIT License &mdash; Albert Pamonag Engineering Consultancy</p>
-            <p class="disclaimer">For reference only. Verify all results with licensed professional engineer.</p>
+            <p class="disclaimer">APEC Internal Tool. For reference only. Verify all results with licensed professional engineer.</p>
         </div>
     </footer>
 

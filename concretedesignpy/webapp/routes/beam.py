@@ -13,6 +13,11 @@ from concretedesignpy.calculators.beam_shear import (
 )
 from concretedesignpy.calculators.beam_torsion import torsion_design
 from concretedesignpy.calculators.beam_deflection import deflection_computation
+from concretedesignpy.calculators.diagrams import (
+    svg_beam_cross_section,
+    svg_shear_diagram,
+    svg_torsion_section,
+)
 
 beam_bp = Blueprint("beam", __name__)
 
@@ -30,7 +35,15 @@ def beam_moment():
             h=float(data["h"]),
             es=float(data.get("es", 200000)),
         )
-        # Remove rebar_forces detail for JSON (too verbose)
+        # Generate cross-section SVG
+        result["svg"] = svg_beam_cross_section(
+            b=float(data["b"]),
+            h=float(data["h"]),
+            rebar_forces=result["rebar_forces"],
+            c=result["neutral_axis"],
+            a=result["a"],
+        )
+        # Remove verbose rebar_forces from JSON response
         result.pop("rebar_forces", None)
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
@@ -43,6 +56,7 @@ def beam_shear():
     data = request.get_json()
     try:
         mode = data.get("mode", "capacity")
+        phi = float(data.get("phi", 0.75))
 
         if mode == "capacity":
             vc_result = compute_concrete_shear_strength(
@@ -59,7 +73,6 @@ def beam_shear():
                 s=float(data["s"]),
             )
             vn = vc_result["vc"] + vs_result["vs"]
-            phi = float(data.get("phi", 0.75))
             vu = phi * vn
             result = {
                 **vc_result,
@@ -69,6 +82,10 @@ def beam_shear():
                 "vu": round(vu, 2),
                 "vu_kn": round(vu / 1000, 2),
             }
+            result["svg"] = svg_shear_diagram(
+                vc_result["vc_kn"], vs_result["vs_kn"],
+                round(vu / 1000, 2), phi,
+            )
         else:
             result = compute_shear_spacing(
                 fc=float(data["fc"]),
@@ -109,6 +126,12 @@ def beam_torsion():
             s_actual=float(data["s_actual"]),
             av=float(data["av"]),
             s=float(data["s"]),
+        )
+        g = result["geometry"]
+        result["svg"] = svg_torsion_section(
+            float(data["width"]), float(data["height"]),
+            g["x1"], g["y1"], g["aoh"], g["ph"],
+            float(data["cover"]), float(data["db"]),
         )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:

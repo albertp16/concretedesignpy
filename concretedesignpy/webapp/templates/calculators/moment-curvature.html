@@ -32,56 +32,91 @@
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <canvas id="mc-chart" width="600" height="350"></canvas>
-        <div id="results-content"></div>
+        <div class="results-split">
+            <div id="results-svg" class="results-diagram"></div>
+            <div id="results-content"></div>
+        </div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const payload = {
+    var payload = {
         b: parseFloat(this.b.value), h: parseFloat(this.h.value),
         d: parseFloat(this.d.value), fc: parseFloat(this.fc.value),
         fy: parseFloat(this.fy.value), as_tension: parseFloat(this.as_tension.value),
         es: parseFloat(this.es.value),
     };
     submitCalc('/api/section/moment-curvature', payload, function(result) {
-        drawMCChart(result.points);
+        var pts = result.points || [];
+        if (pts.length > 0) {
+            document.getElementById('results-svg').innerHTML = drawMCSvg(pts);
+        }
+
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 / ACI 318-19</p>';
+        tex += '<p><b>6-Point M-&phi; Analysis</b></p>';
+        tex += '<table class="result-table"><tr><th>Point</th><th>&phi; (1/mm)</th><th>M (kN-m)</th></tr>';
+        for (var i = 0; i < pts.length; i++) {
+            var p = pts[i];
+            tex += '<tr><td>P' + p.point + '</td><td>' + (p.phi ? p.phi.toExponential(4) : '0') + '</td><td>' + (p.moment_knm || 0).toFixed(2) + '</td></tr>';
+        }
+        tex += '</table>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
     });
 });
 
-function drawMCChart(points) {
-    const canvas = document.getElementById('mc-chart');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (!points || points.length === 0) return;
+function drawMCSvg(points) {
+    var phis = points.map(function(p) { return p.phi || 0; });
+    var moments = points.map(function(p) { return p.moment_knm || 0; });
+    var maxPhi = Math.max.apply(null, phis) * 1.15;
+    var maxM = Math.max.apply(null, moments) * 1.15;
+    if (maxPhi === 0) maxPhi = 1;
+    if (maxM === 0) maxM = 1;
 
-    const phis = points.map(p => p.phi);
-    const moments = points.map(p => p.moment_knm);
-    const maxPhi = Math.max(...phis) * 1.1;
-    const maxM = Math.max(...moments) * 1.1;
+    var W = 500, H = 320, pad = 55;
+    var pw = W - 2 * pad, ph = H - 2 * pad;
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:500px">';
 
-    const pad = 50; const w = canvas.width - 2*pad; const h = canvas.height - 2*pad;
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, pad+h); ctx.lineTo(pad+w, pad+h); ctx.stroke();
-    ctx.font = '11px monospace'; ctx.fillStyle = '#333';
-    ctx.fillText('Curvature (1/mm)', pad + w/2 - 40, pad+h+35);
-
-    ctx.strokeStyle = '#2563eb'; ctx.fillStyle = '#2563eb'; ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i = 0; i < points.length; i++) {
-        const x = pad + (phis[i]/maxPhi)*w;
-        const y = pad + h - (moments[i]/maxM)*h;
-        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    for (var gi = 0; gi <= 4; gi++) {
+        var gy = pad + (gi / 4) * ph;
+        s += '<line x1="' + pad + '" y1="' + gy + '" x2="' + (pad + pw) + '" y2="' + gy + '" stroke="#e5e7eb" stroke-width="1"/>';
+        var mv = maxM * (1 - gi / 4);
+        s += '<text x="' + (pad - 5) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="9" fill="#666">' + mv.toFixed(0) + '</text>';
     }
-    ctx.stroke();
-    for (let i = 0; i < points.length; i++) {
-        const x = pad + (phis[i]/maxPhi)*w;
-        const y = pad + h - (moments[i]/maxM)*h;
-        ctx.beginPath(); ctx.arc(x,y,4,0,2*Math.PI); ctx.fill();
-        ctx.fillText('P'+points[i].point, x+5, y-5);
+    for (var gj = 0; gj <= 4; gj++) {
+        var gx = pad + (gj / 4) * pw;
+        s += '<line x1="' + gx + '" y1="' + pad + '" x2="' + gx + '" y2="' + (pad + ph) + '" stroke="#e5e7eb" stroke-width="1"/>';
+        var pv = maxPhi * (gj / 4);
+        s += '<text x="' + gx + '" y="' + (pad + ph + 14) + '" text-anchor="middle" font-size="9" fill="#666">' + pv.toExponential(1) + '</text>';
     }
+
+    s += '<line x1="' + pad + '" y1="' + pad + '" x2="' + pad + '" y2="' + (pad + ph) + '" stroke="#333" stroke-width="1.5"/>';
+    s += '<line x1="' + pad + '" y1="' + (pad + ph) + '" x2="' + (pad + pw) + '" y2="' + (pad + ph) + '" stroke="#333" stroke-width="1.5"/>';
+    s += '<text x="' + (pad + pw / 2) + '" y="' + (H - 5) + '" text-anchor="middle" font-size="10" fill="#333">Curvature (1/mm)</text>';
+    s += '<text x="12" y="' + (pad + ph / 2) + '" text-anchor="middle" font-size="10" fill="#333" transform="rotate(-90 12 ' + (pad + ph / 2) + ')">Moment (kN-m)</text>';
+
+    var path = '';
+    for (var i = 0; i < points.length; i++) {
+        var x = pad + (phis[i] / maxPhi) * pw;
+        var y = pad + ph - (moments[i] / maxM) * ph;
+        path += (i === 0 ? 'M' : 'L') + x + ',' + y;
+    }
+    s += '<path d="' + path + '" fill="none" stroke="#2563eb" stroke-width="2"/>';
+
+    for (var j = 0; j < points.length; j++) {
+        var px = pad + (phis[j] / maxPhi) * pw;
+        var py = pad + ph - (moments[j] / maxM) * ph;
+        s += '<circle cx="' + px + '" cy="' + py + '" r="4" fill="#2563eb"/>';
+        s += '<text x="' + (px + 6) + '" y="' + (py - 6) + '" font-size="9" fill="#2563eb">P' + points[j].point + '</text>';
+    }
+
+    s += '</svg>';
+    return s;
 }
 </script>
 {% endblock %}

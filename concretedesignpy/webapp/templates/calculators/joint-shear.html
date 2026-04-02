@@ -32,7 +32,7 @@
         </div>
 
         <div class="form-section">
-            <h3>Material & Geometry</h3>
+            <h3>Material &amp; Geometry</h3>
             <div class="form-row">
                 <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="414" step="0.1" required></div>
                 <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="34.5" step="0.1" required></div>
@@ -59,17 +59,31 @@
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
         <div id="results-content"></div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const payload = {};
-    new FormData(this).forEach((v, k) => {
+    var payload = {};
+    new FormData(this).forEach(function(v, k) {
         payload[k] = k === 'joint_config' ? parseInt(v) : parseFloat(v);
     });
-    submitCalc('/api/joint/shear', payload);
+    submitCalc('/api/joint/shear', payload, function(result) {
+        var r = result;
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 Section 422.7</p>';
+        if (r.t1 !== undefined) tex += '<p>\\[ T_1 = A_{s1} \\cdot 1.25 f_y = ' + r.t1 + ' \\text{ kN} \\]</p>';
+        if (r.t2 !== undefined) tex += '<p>\\[ T_2 = A_{s2} \\cdot 1.25 f_y = ' + r.t2 + ' \\text{ kN} \\]</p>';
+        if (r.vu_joint !== undefined) tex += '<p>\\[ V_{u,joint} = T_1 + T_2 - V_e = ' + r.vu_joint + ' \\text{ kN} \\]</p>';
+        if (r.aj !== undefined) tex += '<p>\\[ A_j = ' + r.aj + ' \\text{ mm}^2 \\]</p>';
+        if (r.vn_joint !== undefined) tex += '<p>\\[ \\phi V_n = \\phi \\gamma \\sqrt{f\'_c} A_j = ' + r.vn_joint + ' \\text{ kN} \\]</p>';
+        if (r.status) tex += '<p><b>Status:</b> ' + r.status + '</p>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}

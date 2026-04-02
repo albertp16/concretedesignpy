@@ -17,6 +17,7 @@ from concretedesignpy.calculators.alternative_inertia import (
     alternative_inertia_column_wall,
     alternative_inertia_beam_slab,
 )
+from concretedesignpy.calculators.diagrams import svg_hook_geometry
 
 section_bp = Blueprint("section", __name__)
 
@@ -37,6 +38,11 @@ def development_length():
                 bar_size=float(data["bar_size"]),
                 angle=int(data["angle"]),
             )
+        # Add SVG diagram
+        result["svg"] = svg_hook_geometry(
+            result["bend_diameter"], result["lext"],
+            result["bar_size"], result["angle"], result["ldh"],
+        )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400

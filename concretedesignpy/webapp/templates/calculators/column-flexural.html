@@ -30,19 +30,32 @@
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
         <div id="results-content"></div>
+        <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    const payload = {
+    var payload = {
         mn_col_top: parseFloat(this.mn_col_top.value),
         mn_col_bot: parseFloat(this.mn_col_bot.value),
         mn_beam: parseFloat(this.mn_beam.value),
         limit: parseFloat(this.limit.value),
     };
-    submitCalc('/api/column/flexural', payload);
+    submitCalc('/api/column/flexural', payload, function(result) {
+        var r = result;
+        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 Section 418.7.3</p>';
+        tex += '<p>\\[ \\sum M_{nc} = M_{n,top} + M_{n,bot} = ' + payload.mn_col_top + ' + ' + payload.mn_col_bot + ' = ' + r.sum_mn_col + ' \\text{ kN-m} \\]</p>';
+        tex += '<p>\\[ \\sum M_{nb} = ' + payload.mn_beam + ' \\text{ kN-m} \\]</p>';
+        tex += '<p>\\[ \\frac{\\sum M_{nc}}{\\sum M_{nb}} = ' + r.ratio + ' \\]</p>';
+        tex += '<p><b>Required:</b> \\( \\frac{\\sum M_{nc}}{\\sum M_{nb}} \\geq ' + payload.limit + ' \\)</p>';
+        tex += '<p><b>Status:</b> ' + r.status + '</p>';
+        tex += '</div>';
+        document.getElementById('results-report').innerHTML = tex;
+        if (window.MathJax) MathJax.typeset();
+    });
 });
 </script>
 {% endblock %}
