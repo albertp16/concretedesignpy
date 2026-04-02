@@ -151,35 +151,35 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         s += '</dl>';
         document.getElementById('results-summary').innerHTML = s;
 
-        // ── Full Report ──
-        var h = '';
+        // ── Full Report (single container) ──
+        var h = '<div class="report-section">';
 
         // Concrete Strain
-        h += '<div class="report-section"><h4>Concrete Strain</h4>';
-        h += '<div class="report-eq">\\[ \\epsilon_c = ' + r.ecu + ' \\]</div></div>';
+        h += '<h4>Concrete Strain</h4>';
+        h += '<div class="report-eq">\\[ \\epsilon_c = ' + r.ecu + ' \\]</div>';
 
         // Yield Steel Strain
-        h += '<div class="report-section"><h4>Yield Steel Strain</h4>';
-        h += '<div class="report-eq">\\[ \\epsilon_s = \\frac{f_y}{E_s} = \\frac{' + payload.fy.toFixed(2) + ' \\text{ MPa}}{' + payload.es.toFixed(2) + ' \\text{ MPa}} = ' + r.epsilon_ty + ' \\]</div></div>';
+        h += '<h4>Yield Steel Strain</h4>';
+        h += '<div class="report-eq">\\[ \\epsilon_s = \\frac{f_y}{E_s} = \\frac{' + payload.fy.toFixed(2) + ' \\text{ MPa}}{' + payload.es.toFixed(2) + ' \\text{ MPa}} = ' + r.epsilon_ty + ' \\]</div>';
 
         // Beta1
-        h += '<div class="report-section"><h4>Rectangular Compression Block Factor</h4>';
+        h += '<h4>Rectangular Compression Block Factor</h4>';
         h += '<p style="font-size:.85rem;color:var(--gray-500);">Reference: NSCP 2015 Section 422.2.2.4.3</p>';
-        h += '<div class="report-eq">\\[ \\beta_1 = ' + r.beta1 + ' \\]</div></div>';
+        h += '<div class="report-eq">\\[ \\beta_1 = ' + r.beta1 + ' \\]</div>';
 
         // Reinforcement Data Pattern
-        h += '<div class="report-section"><h4>Reinforcement Data Pattern</h4>';
+        h += '<h4>Reinforcement Data Pattern</h4>';
         h += '<table class="report-table"><tr><th>d (mm)</th><th>d<sub>b</sub> (mm)</th><th>n</th><th>As (mm&sup2;)</th></tr>';
         if (r.rebar_pattern) {
             r.rebar_pattern.forEach(function(rb) {
                 h += '<tr><td>' + rb.d + '</td><td>' + rb.diam + '</td><td>' + rb.n + '</td><td>' + rb.as_mm2 + '</td></tr>';
             });
         }
-        h += '</table></div>';
+        h += '</table>';
 
         // Iteration Results Table
         if (r.iterations && r.iterations.length > 0) {
-            h += '<div class="report-section"><h4>Iteration Results Table</h4>';
+            h += '<h4>Iteration Results Table</h4>';
             h += '<div class="iter-table-wrap"><table class="report-table">';
             h += '<tr><th>Iteration</th><th>c (mm)</th><th>c/dt</th><th>F<sub>c</sub> (kN)</th><th>F<sub>t</sub> (kN)</th><th>F<sub>c</sub> + F<sub>t</sub> (kN)</th><th>F<sub>s</sub> (kN)</th><th>Ratio</th></tr>';
             r.iterations.forEach(function(it) {
@@ -187,15 +187,15 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
                 h += '<td>' + it.fc_kn + '</td><td>' + it.ft_kn + '</td><td>' + it.fc_ft_kn + '</td>';
                 h += '<td>' + it.fs_kn + '</td><td>' + it.ratio + '</td></tr>';
             });
-            h += '</table></div></div>';
+            h += '</table></div>';
         }
 
         // Depth of Neutral Axis
-        h += '<div class="report-section"><h4>Depth of Neutral Axis</h4>';
-        h += '<div class="report-eq">\\[ c = ' + r.neutral_axis + ' \\text{ mm} \\]</div></div>';
+        h += '<h4>Depth of Neutral Axis</h4>';
+        h += '<div class="report-eq">\\[ c = ' + r.neutral_axis + ' \\text{ mm} \\]</div>';
 
         // Beam Cross-Section (SVG from server)
-        h += '<div class="report-section"><h4>Beam Cross-Section (' + payload.b + ' mm x ' + payload.h + ' mm)</h4>';
+        h += '<h4>Beam Cross-Section (' + payload.b + ' mm x ' + payload.h + ' mm)</h4>';
         h += '<div style="text-align:center;">' + (result.svg || '') + '</div>';
 
         // Compression / Tension reinforcement tables
@@ -217,24 +217,22 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             tensBars.forEach(function(rb) { h += '<tr><td>' + rb.d + '</td><td>' + rb.diam + '</td><td>' + rb.n + '</td><td>' + rb.as_mm2 + '</td></tr>'; });
             h += '</table>';
         }
-        h += '</div>';
 
         // Depth of equivalent rectangular stress block
-        h += '<div class="report-section"><h4>Depth of Equivalent Rectangular Stress Block</h4>';
+        h += '<h4>Depth of Equivalent Rectangular Stress Block</h4>';
         h += '<div class="report-eq">\\[ a = \\beta_1 \\times c \\]</div>';
         h += '<div class="report-eq">\\[ a = ' + r.beta1 + ' \\times ' + r.neutral_axis + ' \\text{ mm} \\]</div>';
-        h += '<div class="report-eq">\\[ \\mathbf{a = ' + r.a + ' \\text{ mm}} \\]</div></div>';
+        h += '<div class="report-eq">\\[ \\mathbf{a = ' + r.a + ' \\text{ mm}} \\]</div>';
 
         // Actual Tension Strain
-        h += '<div class="report-section"><h4>Actual Tension Strain in Reinforcement</h4>';
+        h += '<h4>Actual Tension Strain in Reinforcement</h4>';
         h += '<div class="report-eq">\\[ \\epsilon_t = \\frac{d - c}{c} \\times \\epsilon_{cu} \\]</div>';
         h += '<div class="report-eq">\\[ \\epsilon_t = \\frac{' + r.d_max + ' - ' + r.neutral_axis + '}{' + r.neutral_axis + '} \\times ' + r.ecu + ' \\]</div>';
-        h += '<div class="report-eq">\\[ \\mathbf{\\epsilon_t = ' + r.epsilon_t + '} \\]</div></div>';
+        h += '<div class="report-eq">\\[ \\mathbf{\\epsilon_t = ' + r.epsilon_t + '} \\]</div>';
 
         // Nominal Moment Capacity
-        h += '<div class="report-section"><h4>Nominal Moment Capacity</h4>';
+        h += '<h4>Nominal Moment Capacity</h4>';
         h += '<div class="report-eq">\\[ M_n = F_c \\times \\left(d - \\frac{a}{2}\\right) + F_t \\left(d - d_c\\right) \\]</div>';
-        // Show per-layer forces
         if (r.rebar_forces) {
             h += '<table class="report-table"><tr><th>Layer</th><th>d (mm)</th><th>As (mm&sup2;)</th><th>&epsilon;s</th><th>fs (MPa)</th><th>Force (kN)</th></tr>';
             r.rebar_forces.forEach(function(rf, i) {
@@ -243,14 +241,16 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             });
             h += '</table>';
         }
-        h += '<div class="report-eq">\\[ \\mathbf{M_n = ' + r.mn + ' \\text{ kN-m}} \\]</div></div>';
+        h += '<div class="report-eq">\\[ \\mathbf{M_n = ' + r.mn + ' \\text{ kN-m}} \\]</div>';
 
         // Ultimate Moment Capacity
-        h += '<div class="report-section"><h4>Ultimate Moment Capacity</h4>';
+        h += '<h4>Ultimate Moment Capacity</h4>';
         h += '<p style="font-size:.85rem;">Classification: <b>' + r.classification + '</b></p>';
         h += '<div class="report-eq">\\[ M_u = \\phi \\times M_n \\]</div>';
         h += '<div class="report-eq">\\[ M_u = ' + r.phi + ' \\times ' + r.mn + ' \\text{ kN-m} \\]</div>';
-        h += '<div class="report-eq" style="font-size:1.1rem;font-weight:700;background:#dcfce7;">\\[ \\mathbf{M_u = ' + r.mu + ' \\text{ kN-m}} \\]</div></div>';
+        h += '<div class="report-eq" style="font-size:1.1rem;font-weight:700;background:#dcfce7;">\\[ \\mathbf{M_u = ' + r.mu + ' \\text{ kN-m}} \\]</div>';
+
+        h += '</div>'; // close single report-section
 
         var reportDiv = document.getElementById('results-report');
         reportDiv.style.display = '';
