@@ -1,24 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Beam Shear & Torsion - ConcreteDesignPy{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<style>
+.st-section { margin-bottom: 1.25rem; }
+.st-section h4 {
+    font-size: .92rem; color: var(--primary-dark);
+    border-bottom: 2px solid var(--primary-light);
+    padding-bottom: .3rem; margin: 0 0 .6rem;
+    display: flex; justify-content: space-between; align-items: baseline;
+}
+.st-section h4 .aci { font-size: .78rem; color: #3b82f6; font-weight: 400; }
+.st-eq {
+    background: var(--gray-50); padding: .55rem 1rem;
+    border-radius: 4px; margin: .4rem 0; font-size: .9rem;
+    border-left: 3px solid var(--gray-200);
+}
+.st-eq.result-eq {
+    background: #dcfce7; font-weight: 700; font-size: 1rem;
+    border-left-color: var(--success);
+}
+.st-eq.warn-eq { background: #fef3c7; border-left-color: var(--warning); }
+.st-eq.fail-eq { background: #fef2f2; border-left-color: var(--danger); }
+.st-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .25rem 2.5rem;
+    font-size: .85rem; margin: .4rem 0;
+}
+.st-grid dt { color: var(--gray-500); }
+.st-grid dd { font-family: "SF Mono","Fira Code",monospace; font-weight: 500; text-align: right; }
+.st-charts { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 1.5rem; }
+.st-charts > div { flex: 1; min-width: 420px; }
+</style>
+{% endblock %}
 
 {% block content %}
-<style>
-.calc-sheet { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
-.calc-sheet th, .calc-sheet td { padding: 5px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-.calc-sheet .section-hdr { background: #1e3a8a; color: #fff; font-weight: 600; padding: 6px 10px; }
-.calc-sheet .lbl { color: #374151; min-width: 260px; }
-.calc-sheet .val { font-weight: 600; text-align: right; min-width: 80px; }
-.calc-sheet .unit { color: #6b7280; min-width: 60px; }
-.calc-sheet .ref { color: #3b82f6; font-size: 0.8rem; text-align: right; min-width: 180px; }
-.calc-sheet .formula { color: #6b7280; font-size: 0.8rem; }
-.calc-sheet .check-ok { color: #16a34a; font-weight: 600; }
-.calc-sheet .check-fail { color: #dc2626; font-weight: 600; }
-.calc-sheet .check-warn { color: #d97706; font-weight: 600; }
-.sheet-header { display: flex; justify-content: space-between; align-items: center; border: 2px solid #1e3a8a; padding: 8px 14px; margin-bottom: 4px; }
-.sheet-header .title { font-weight: 700; color: #1e3a8a; font-size: 1rem; }
-.sheet-header .meta { font-size: 0.8rem; color: #6b7280; }
-</style>
-
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Beam Shear &amp; Torsion Design</h1>
@@ -34,7 +48,6 @@
                 <div class="form-group"><label>&phi;</label><input type="number" name="phi" value="0.75" step="0.01"></div>
             </div>
         </div>
-
         <div class="form-section">
             <h3>Section Dimensions &amp; Covers</h3>
             <div class="form-row">
@@ -44,16 +57,14 @@
                 <div class="form-group"><label>Cover to rft centroid, c (mm)</label><input type="number" name="c" value="100" required></div>
             </div>
         </div>
-
         <div class="form-section">
             <h3>Straining Actions - Ultimate</h3>
             <div class="form-row">
                 <div class="form-group"><label>Shear, Vu (kN)</label><input type="number" name="vu" value="500" step="0.1" required></div>
                 <div class="form-group"><label>Torsion, Tu (kN.m)</label><input type="number" name="tu" value="50" step="0.1"></div>
-                <div class="form-group"><label>Axial, Nu (kN) <small>+comp/-tens</small></label><input type="number" name="nu" value="10" step="0.1"></div>
+                <div class="form-group"><label>Axial, Nu (kN) <small>+comp / -tens</small></label><input type="number" name="nu" value="10" step="0.1"></div>
             </div>
         </div>
-
         <div class="form-section">
             <h3>Chosen Reinforcement</h3>
             <div class="form-row">
@@ -63,99 +74,244 @@
                 <div class="form-group"><label>Longl. bar dia (mm)</label><input type="number" name="db_long" value="12"></div>
             </div>
         </div>
-
         <button type="submit" class="btn-primary">Calculate</button>
     </form>
 
-    <div id="results" class="results-panel" style="display:none;">
-        <h2>Results</h2>
-        <div id="calc-report"></div>
+    <div id="results-area" style="display:none;">
+        <div class="st-charts">
+            <div id="chart-shear"></div>
+            <div id="chart-torsion"></div>
+        </div>
+        <div id="report"></div>
     </div>
 </div>
 
 <script>
-function fmtVal(v) {
-    if (typeof v === 'number') {
-        if (Math.abs(v) < 0.001 && v !== 0) return v.toExponential(4);
-        if (Number.isInteger(v)) return String(v);
-        return v % 1 === 0 ? String(v) : v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
-    }
-    return String(v);
-}
+function v(x, n) { return typeof x === 'number' ? (Number.isInteger(x) ? x : x.toFixed(n || 4).replace(/0+$/,'').replace(/\.$/,'')) : x; }
 
-function checkClass(v) {
-    if (!v) return '';
-    var l = String(v).toLowerCase();
-    if (l === 'ok' || l === 'safe' || l.indexOf('ok') >= 0 || l.indexOf('\u2264') >= 0) return 'check-ok';
-    if (l === 'unsafe' || l === 'not ok' || l === 'fail') return 'check-fail';
-    return 'check-warn';
-}
+function renderShearChart(r, p) {
+    var fc = p.fc, bw = p.bw, d = p.d, fyv = p.fyv, phi = p.phi;
+    var av = p.n_legs * Math.PI * Math.pow(p.db_stirrup / 2, 2);
+    var phiVc = phi * r.vc;
+    var vsMax = r.vs_max;
 
-function renderCalcSheet(result) {
-    var steps = result.steps;
-    if (!steps) return;
-
-    var html = '<div class="sheet-header">';
-    html += '<div class="title">DESIGN OF NONPRESTRESSED RECTANGULAR RC BEAMS FOR SHEAR & TORSION</div>';
-    html += '<div class="meta">ACI 318M-14</div>';
-    html += '</div>';
-
-    html += '<table class="calc-sheet">';
-    html += '<colgroup><col style="width:45%"><col style="width:12%"><col style="width:8%"><col style="width:15%"><col style="width:20%"></colgroup>';
-    html += '<thead><tr><th style="text-align:left">Description</th><th style="text-align:right">Value</th><th>Unit</th><th>Check / Note</th><th style="text-align:right">REF.</th></tr></thead>';
-    html += '<tbody>';
-
-    for (var i = 0; i < steps.length; i++) {
-        var sec = steps[i];
-        html += '<tr><td colspan="5" class="section-hdr">' + sec.title + '</td></tr>';
-        var items = sec.items;
-        for (var j = 0; j < items.length; j++) {
-            var it = items[j];
-            html += '<tr>';
-            // Label + formula
-            html += '<td class="lbl">' + it.label;
-            if (it.formula) html += '<br><span class="formula">' + it.formula + '</span>';
-            html += '</td>';
-            // Value
-            html += '<td class="val">' + fmtVal(it.value) + '</td>';
-            // Unit
-            html += '<td class="unit">' + (it.unit || '') + '</td>';
-            // Check/note
-            var chk = it.check || it.note || '';
-            html += '<td class="' + checkClass(it.check) + '">' + chk + '</td>';
-            // ACI reference
-            html += '<td class="ref">' + (it.ref || '') + '</td>';
-            html += '</tr>';
-        }
+    var sArr = [], vnArr = [], vcLine = [], vsMaxLine = [], vuLine = [];
+    for (var s = 50; s <= 600; s += 5) {
+        var vs_s = av * fyv * d / s / 1000;
+        sArr.push(s);
+        vnArr.push(phi * (r.vc + Math.min(vs_s, vsMax)));
+        vcLine.push(phiVc);
+        vsMaxLine.push(phi * (r.vc + vsMax));
+        vuLine.push(p.vu);
     }
 
-    html += '</tbody></table>';
-    document.getElementById('calc-report').innerHTML = html;
+    var traces = [
+        { x: sArr, y: vnArr, mode: 'lines', name: '\u03c6Vn = \u03c6(Vc+Vs)', line: { color: '#1e40af', width: 2.5 } },
+        { x: sArr, y: vcLine, mode: 'lines', name: '\u03c6Vc', line: { color: '#16a34a', width: 1.5, dash: 'dash' } },
+        { x: sArr, y: vsMaxLine, mode: 'lines', name: '\u03c6(Vc+Vs,max)', line: { color: '#dc2626', width: 1.5, dash: 'dot' } },
+        { x: sArr, y: vuLine, mode: 'lines', name: 'Vu = ' + p.vu + ' kN', line: { color: '#f97316', width: 2, dash: 'dashdot' } },
+        { x: [p.s_chosen], y: [phi * (r.vc + Math.min(av * fyv * d / p.s_chosen / 1000, vsMax))],
+          mode: 'markers', name: 'Chosen s=' + p.s_chosen + ' mm',
+          marker: { size: 12, color: '#dc2626', symbol: 'star', line: { width: 1.5, color: '#fff' } } },
+    ];
+    Plotly.newPlot('chart-shear', traces, {
+        title: { text: 'Shear Capacity vs Stirrup Spacing', font: { size: 13 } },
+        xaxis: { title: 'Spacing, s (mm)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        yaxis: { title: '\u03c6Vn (kN)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        legend: { x: 1, xanchor: 'right', y: 1, font: { size: 9 }, bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#d1d5db', borderwidth: 1 },
+        height: 420, margin: { t: 40, r: 10, b: 45, l: 55 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'x unified',
+    }, { responsive: true, displaylogo: false });
+}
+
+function renderTorsionChart(r, p) {
+    if (r.torsion_action === 'Neglect Torsion') {
+        document.getElementById('chart-torsion').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:420px;color:#6b7280;font-size:.95rem;">Torsion is negligible &mdash; Tu &lt; \u03c6T<sub>th</sub></div>';
+        return;
+    }
+    var bw = p.bw, d = p.d, phi = p.phi, fc = p.fc;
+    var aoh = r.aoh, ph = r.ph;
+    var limit = phi * (r.vc * 1000 / (bw * d) + (2.0 / 3.0) * Math.sqrt(fc));
+
+    // Interaction boundary (quarter ellipse)
+    var bx = [], by = [];
+    for (var i = 0; i <= 50; i++) {
+        var theta = i * Math.PI / 2 / 50;
+        bx.push(limit * Math.cos(theta));
+        by.push(limit * Math.sin(theta));
+    }
+
+    var ptX = p.vu * 1000 / (bw * d);
+    var ptY = p.tu * 1e6 * ph / (1.7 * aoh * aoh);
+
+    var traces = [
+        { x: bx, y: by, mode: 'lines', name: 'ACI Limit', line: { color: '#1e40af', width: 2.5 },
+          fill: 'tozeroy', fillcolor: 'rgba(30,64,175,0.06)' },
+        { x: [ptX], y: [ptY], mode: 'markers+text', name: 'Design Point',
+          marker: { size: 12, color: '#dc2626', symbol: 'diamond', line: { width: 1.5, color: '#fff' } },
+          text: ['(' + ptX.toFixed(2) + ', ' + ptY.toFixed(2) + ')'], textposition: 'top right',
+          textfont: { size: 10, color: '#dc2626' } },
+    ];
+    Plotly.newPlot('chart-torsion', traces, {
+        title: { text: 'Torsion-Shear Interaction Check<br><sup>ACI 318M-14 Cl. 22.7.7.1</sup>', font: { size: 13 } },
+        xaxis: { title: 'Shear Stress, Vu/(bw\u00b7d) (MPa)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        yaxis: { title: 'Torsion Stress, Tu\u00b7ph/(1.7\u00b7Aoh\u00b2) (MPa)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        legend: { x: 1, xanchor: 'right', y: 1, font: { size: 9 }, bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#d1d5db', borderwidth: 1 },
+        height: 420, margin: { t: 55, r: 10, b: 45, l: 55 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'closest',
+        annotations: [{ x: limit * 0.5, y: limit * 0.3, text: 'SAFE ZONE', showarrow: false,
+            font: { size: 14, color: 'rgba(30,64,175,0.25)' } }],
+    }, { responsive: true, displaylogo: false });
+}
+
+function renderReport(r, p) {
+    var h = '';
+    var fc = p.fc, bw = p.bw, d = p.d, phi = p.phi, fyv = p.fyv, fy = p.fy;
+
+    // ── 1. Material & Section ──
+    h += '<div class="st-section"><h4>Material Properties & Section Dimensions <span class="aci">ACI 318M-14 Cl. 20.2, 22.5.3</span></h4>';
+    h += '<dl class="st-grid">';
+    h += '<dt>f\'c</dt><dd>' + fc + ' MPa</dd>';
+    h += '<dt>fyv</dt><dd>' + fyv + ' MPa</dd>';
+    h += '<dt>fy</dt><dd>' + fy + ' MPa</dd>';
+    h += '<dt>bw</dt><dd>' + bw + ' mm</dd>';
+    h += '<dt>h</dt><dd>' + p.h + ' mm</dd>';
+    h += '<dt>d = h \u2212 c</dt><dd>' + d + ' mm</dd>';
+    h += '<dt>\u03c6</dt><dd>' + phi + '</dd>';
+    h += '<dt>Vu</dt><dd>' + p.vu + ' kN</dd>';
+    h += '<dt>Tu</dt><dd>' + p.tu + ' kN.m</dd>';
+    h += '</dl></div>';
+
+    // ── 2. Concrete Shear Strength ──
+    h += '<div class="st-section"><h4>Concrete Shear Strength, V<sub>c</sub> <span class="aci">ACI 318M-14 Cl. 22.5.5.1\u20137</span></h4>';
+    if (p.nu > 0) {
+        h += '<div class="st-eq">\\[ V_c = \\min\\left[\\left(1 + \\frac{N_u}{14 A_g}\\right) \\frac{\\sqrt{f\'_c}}{6} b_w d,\\; 0.3\\sqrt{f\'_c}\\, b_w d\\left(1+\\frac{0.3 N_u}{A_g}\\right)\\right] \\]</div>';
+    } else if (p.nu < 0) {
+        h += '<div class="st-eq">\\[ V_c = \\left(1 + \\frac{0.29 N_u}{A_g}\\right) \\frac{\\sqrt{f\'_c}}{6} b_w d \\geq 0 \\]</div>';
+    } else {
+        h += '<div class="st-eq">\\[ V_c = \\frac{\\sqrt{f\'_c}}{6} \\cdot b_w \\cdot d \\]</div>';
+    }
+    h += '<div class="st-eq">\\[ V_c = \\frac{\\sqrt{' + fc + '}}{6} \\times ' + bw + ' \\times ' + d + ' \\times 10^{-3} \\]</div>';
+    h += '<div class="st-eq result-eq">\\[ \\mathbf{V_c = ' + v(r.vc, 2) + ' \\text{ kN}} \\]</div>';
+    h += '</div>';
+
+    // ── 3. Required Vs ──
+    h += '<div class="st-section"><h4>Stirrup Shear Strength, V<sub>s</sub> <span class="aci">ACI 318M-14 Cl. 22.5.10.5</span></h4>';
+    h += '<div class="st-eq">\\[ V_{s,req} = \\frac{V_u - \\phi V_c}{\\phi} = \\frac{' + p.vu + ' - ' + phi + ' \\times ' + v(r.vc, 2) + '}{' + phi + '} \\]</div>';
+    h += '<div class="st-eq result-eq">\\[ \\mathbf{V_{s,req} = ' + v(r.vs, 2) + ' \\text{ kN}} \\]</div>';
+    h += '<div class="st-eq">\\[ V_{s,max} = \\frac{2}{3}\\sqrt{f\'_c}\\, b_w\\, d = ' + v(r.vs_max, 2) + ' \\text{ kN} \\]</div>';
+    var shearCls = r.shear_status === 'SAFE' ? 'result-eq' : 'fail-eq';
+    h += '<div class="st-eq ' + shearCls + '">\\[ V_u \\leq \\phi(V_c + V_{s,max}) \\;\\Rightarrow\\; ' + p.vu + ' \\leq ' + v(r.vu_max, 2) + ' \\;\\rightarrow\\; \\mathbf{' + r.shear_status + '} \\]</div>';
+    h += '</div>';
+
+    // ── 4. Av/s for Shear ──
+    h += '<div class="st-section"><h4>Required Shear Reinforcement, A<sub>v</sub>/s <span class="aci">ACI 318M-14 R22.5.10.5</span></h4>';
+    h += '<div class="st-eq">\\[ \\frac{A_v}{s} = \\frac{V_u - \\phi V_c}{\\phi f_{yv} d} \\]</div>';
+    h += '<div class="st-eq result-eq">\\[ \\mathbf{\\frac{A_v}{s} = ' + v(r.av_s_shear, 4) + ' \\text{ mm}^2\\text{/mm}} \\]</div>';
+    h += '</div>';
+
+    // ── 5. Torsion Geometry ──
+    h += '<div class="st-section"><h4>Torsion Geometry <span class="aci">ACI 318M-14 R22.7.6.1.1</span></h4>';
+    h += '<div class="st-eq">\\[ A_{oh} = (h - 2C_c - d_b)(b_w - 2C_c - d_b) = ' + v(r.aoh, 0) + ' \\text{ mm}^2 \\]</div>';
+    h += '<div class="st-eq">\\[ p_h = 2(h - 2C_c - d_b) + 2(b_w - 2C_c - d_b) = ' + v(r.ph, 0) + ' \\text{ mm} \\]</div>';
+    h += '</div>';
+
+    // ── 6. Torsion Thresholds ──
+    h += '<div class="st-section"><h4>Torsional Thresholds <span class="aci">ACI 318M-14 Cl. 22.7.4.1, 22.7.5.1</span></h4>';
+    h += '<div class="st-eq">\\[ \\phi T_{cr} = \\phi \\frac{\\sqrt{f\'_c} (b_w h)^2}{6(b_w + h)} = ' + v(r.tcr, 4) + ' \\text{ kN.m} \\]</div>';
+    h += '<div class="st-eq">\\[ \\phi T_{th} = \\frac{\\phi T_{cr}}{4} = ' + v(r.tth, 4) + ' \\text{ kN.m} \\]</div>';
+    var tActCls = r.torsion_action === 'Neglect Torsion' ? 'result-eq' : 'warn-eq';
+    h += '<div class="st-eq ' + tActCls + '">\\[ T_u = ' + p.tu + ' \\text{ kN.m} \\;';
+    if (r.torsion_action === 'Neglect Torsion') {
+        h += '< \\phi T_{th} = ' + v(r.tth, 4) + ' \\;\\rightarrow\\; \\mathbf{Neglect\\;Torsion}';
+    } else {
+        h += '\\geq \\phi T_{th} = ' + v(r.tth, 4) + ' \\;\\rightarrow\\; \\mathbf{Design\\;for\\;Torsion}';
+    }
+    h += ' \\]</div></div>';
+
+    // ── 7. Cross-section check ──
+    if (r.torsion_action !== 'Neglect Torsion') {
+        h += '<div class="st-section"><h4>Cross-Section Dimensions Check <span class="aci">ACI 318M-14 Cl. 22.7.7.1</span></h4>';
+        h += '<div class="st-eq">\\[ \\sqrt{\\left(\\frac{V_u}{b_w d}\\right)^2 + \\left(\\frac{T_u p_h}{1.7 A_{oh}^2}\\right)^2} \\leq \\phi\\left(\\frac{V_c}{b_w d} + \\frac{2}{3}\\sqrt{f\'_c}\\right) \\]</div>';
+        var dimCls = r.dim_check === 'SAFE' ? 'result-eq' : 'fail-eq';
+        h += '<div class="st-eq ' + dimCls + '">\\[ \\mathbf{' + r.dim_check + '} \\]</div>';
+        h += '</div>';
+    }
+
+    // ── 8. Torsion Reinforcement ──
+    h += '<div class="st-section"><h4>Torsion Reinforcement <span class="aci">ACI 318M-14 Cl. 22.7.6.1</span></h4>';
+    if (r.torsion_action === 'Neglect Torsion') {
+        h += '<div class="st-eq">\\[ \\text{Torsion reinforcement not required} \\]</div>';
+    } else {
+        h += '<div class="st-eq">\\[ \\frac{A_t}{s} = \\frac{T_u}{\\phi \\cdot 2 \\cdot 0.85 \\cdot A_{oh} \\cdot f_{yv}} \\]</div>';
+        h += '<div class="st-eq result-eq">\\[ \\mathbf{\\frac{A_t}{s} = ' + v(r.at_s, 4) + ' \\text{ mm}^2\\text{/mm/leg}} \\]</div>';
+        h += '<div class="st-eq">\\[ A_\\ell = \\frac{T_u \\cdot p_h}{2 \\phi A_{oh} f_y} \\]</div>';
+        h += '<div class="st-eq result-eq">\\[ \\mathbf{A_\\ell = ' + v(r.al, 2) + ' \\text{ mm}^2} \\]</div>';
+    }
+    h += '</div>';
+
+    // ── 9. Minimums & Totals ──
+    h += '<div class="st-section"><h4>Minimum Reinforcement & Totals <span class="aci">ACI 318M-14 Cl. 9.6.3.3, 9.6.4.2</span></h4>';
+    h += '<div class="st-eq">\\[ \\frac{A_{v,min}}{s} = \\max\\left(\\frac{\\sqrt{f\'_c}}{16}\\frac{b_w}{f_{yv}},\\; \\frac{0.35 b_w}{f_{yv}}\\right) = ' + v(r.av_min, 4) + ' \\text{ mm}^2\\text{/mm} \\]</div>';
+    h += '<div class="st-eq">\\[ \\frac{A_v + 2A_t}{s} = \\frac{A_v}{s} + \\frac{2 A_t}{s} = ' + v(r.av_s_shear, 4) + ' + 2 \\times ' + v(r.at_s, 4) + ' \\]</div>';
+    h += '<div class="st-eq result-eq">\\[ \\mathbf{\\frac{A_v + 2A_t}{s} = ' + v(r.total_req, 4) + ' \\text{ mm}^2\\text{/mm}} \\]</div>';
+    h += '</div>';
+
+    // ── 10. Chosen Reinforcement ──
+    h += '<div class="st-section"><h4>Chosen Reinforcement Check <span class="aci">ACI 318M-14 Cl. 9.7.6.2.2</span></h4>';
+    h += '<dl class="st-grid" style="grid-template-columns:1fr 1fr;">';
+    h += '<dt>Spacing</dt><dd>' + p.s_chosen + ' mm</dd>';
+    h += '<dt>S<sub>max</sub></dt><dd>' + v(r.smax, 0) + ' mm</dd>';
+    h += '<dt>Legs</dt><dd>' + p.n_legs + '</dd>';
+    h += '<dt>Stirrup \u2300</dt><dd>' + p.db_stirrup + ' mm</dd>';
+    h += '</dl>';
+    var spCls = r.spacing_check === 'OK' ? 'result-eq' : 'fail-eq';
+    h += '<div class="st-eq ' + spCls + '">\\[ s = ' + p.s_chosen + ' \\text{ mm}';
+    h += (r.spacing_check === 'OK' ? ' \\leq ' : ' > ');
+    h += 'S_{max} = ' + v(r.smax, 0) + ' \\text{ mm} \\;\\rightarrow\\; \\mathbf{' + r.spacing_check + '} \\]</div>';
+    h += '</div>';
+
+    document.getElementById('report').innerHTML = h;
+    if (window.MathJax) MathJax.typeset();
 }
 
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var f = this;
-    var h = parseFloat(f.h.value);
-    var c = parseFloat(f.c.value);
+    var h_val = parseFloat(f.h.value);
+    var c_val = parseFloat(f.c.value);
     var payload = {
-        fc: parseFloat(f.fc.value),
-        fyv: parseFloat(f.fyv.value),
-        fy: parseFloat(f.fy.value),
-        phi: parseFloat(f.phi.value),
-        bw: parseFloat(f.bw.value),
-        h: h, cc: parseFloat(f.cc.value), c: c,
-        d: h - c,
-        vu: parseFloat(f.vu.value),
-        tu: parseFloat(f.tu.value),
-        nu: parseFloat(f.nu.value),
-        s_chosen: parseFloat(f.s_chosen.value),
+        fc: parseFloat(f.fc.value), fyv: parseFloat(f.fyv.value),
+        fy: parseFloat(f.fy.value), phi: parseFloat(f.phi.value),
+        bw: parseFloat(f.bw.value), h: h_val,
+        cc: parseFloat(f.cc.value), c: c_val, d: h_val - c_val,
+        vu: parseFloat(f.vu.value), tu: parseFloat(f.tu.value),
+        nu: parseFloat(f.nu.value), s_chosen: parseFloat(f.s_chosen.value),
         n_legs: parseInt(f.n_legs.value),
         db_stirrup: parseFloat(f.db_stirrup.value),
         db_long: parseFloat(f.db_long.value),
     };
-    submitCalc('/api/beam/shear-torsion', payload, function(result) {
-        renderCalcSheet(result);
+
+    document.getElementById('results-area').style.display = 'block';
+    document.getElementById('report').innerHTML = '<div class="loading">Calculating...</div>';
+
+    fetch('/api/beam/shear-torsion', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.status === 'error') {
+            document.getElementById('report').innerHTML = '<div class="error-msg">Error: ' + data.message + '</div>';
+            return;
+        }
+        var r = data.result;
+        renderShearChart(r, payload);
+        renderTorsionChart(r, payload);
+        renderReport(r, payload);
+    })
+    .catch(function(err) {
+        document.getElementById('report').innerHTML = '<div class="error-msg">Request failed: ' + err.message + '</div>';
     });
 });
 </script>
