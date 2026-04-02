@@ -329,17 +329,25 @@ def svg_interaction_diagram(points, title="P-M Interaction Diagram", demand=None
     return svg
 
 
-def matplotlib_interaction_diagram(points, title="P-M Interaction Diagram", demand=None):
+def matplotlib_interaction_diagram(
+    points, title="P-M Interaction Diagram",
+    demand=None, demand_points=None,
+    section_label=None,
+):
     """
     Generate P-M interaction diagram using matplotlib, returned as base64 PNG.
 
     Parameters
     ----------
     points : list of dict
-        Each has 'mu', 'pu', 'mn', 'pn' keys (factored and nominal values).
+        Each has 'mu', 'pu', 'mn', 'pn' keys.
     title : str
     demand : tuple or None
-        (Pu_kN, Mu_kNm) demand point to plot.
+        (Pu_kN, Mu_kNm) single demand point (legacy).
+    demand_points : list of dict or None
+        Multiple demand points [{name, pu, mu}, ...].
+    section_label : str or None
+        Section description for subtitle.
 
     Returns
     -------
@@ -348,10 +356,11 @@ def matplotlib_interaction_diagram(points, title="P-M Interaction Diagram", dema
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import AutoMinorLocator
     import io
     import base64
 
-    fig, ax = plt.subplots(figsize=(7, 5.5))
+    fig, ax = plt.subplots(figsize=(8, 6))
 
     # Extract data
     mu_vals = [abs(p["mu"]) for p in points]
@@ -359,40 +368,71 @@ def matplotlib_interaction_diagram(points, title="P-M Interaction Diagram", dema
     mn_vals = [abs(p.get("mn", p["mu"])) for p in points]
     pn_vals = [p.get("pn", p["pu"]) for p in points]
 
-    # Plot nominal curve (dashed, lighter)
-    ax.plot(mn_vals, pn_vals, color="#93c5fd", linewidth=1.5, linestyle="--",
+    # Fill area under nominal curve
+    ax.fill(mn_vals + [0], pn_vals + [pn_vals[-1] if pn_vals else 0],
+            color="#dbeafe", alpha=0.3, zorder=1)
+
+    # Nominal curve
+    ax.plot(mn_vals, pn_vals, color="#93c5fd", linewidth=1.2, linestyle="--",
             label="Pn, Mn (nominal)", zorder=2)
 
-    # Plot factored curve (solid, bold)
+    # Factored curve
     ax.plot(mu_vals, pu_vals, color="#1e40af", linewidth=2.5,
-            label="\u03c6Pn, \u03c6Mn (factored)", zorder=3)
-    ax.scatter(mu_vals, pu_vals, color="#1e40af", s=12, zorder=4)
+            label="\u03c6Pn, \u03c6Mn (design)", zorder=3)
+    ax.scatter(mu_vals, pu_vals, color="#1e40af", s=10, zorder=4, edgecolors="none")
 
-    # Demand point
-    if demand is not None:
+    # Multiple demand points
+    if demand_points and len(demand_points) > 0:
+        for i, dp in enumerate(demand_points):
+            mu_d = abs(dp["mu"])
+            pu_d = dp["pu"]
+            marker = ax.plot(mu_d, pu_d, "D", color="#dc2626", markersize=7,
+                             markeredgewidth=1.5, markerfacecolor="#fecaca",
+                             markeredgecolor="#dc2626", zorder=6)
+            ax.annotate(dp.get("name", f"LC{i+1}"),
+                        xy=(mu_d, pu_d), xytext=(6, 6),
+                        textcoords="offset points", fontsize=7,
+                        color="#991b1b", fontweight="bold")
+        # Add legend entry for demand
+        ax.plot([], [], "D", color="#dc2626", markersize=7,
+                markerfacecolor="#fecaca", markeredgecolor="#dc2626",
+                label="Demand points")
+    elif demand is not None:
         pu_d, mu_d = demand
-        ax.plot(abs(mu_d), pu_d, "o", color="#dc2626", markersize=10,
-                markerfacecolor="none", markeredgewidth=2.5, zorder=5)
-        ax.plot(abs(mu_d), pu_d, "o", color="#dc2626", markersize=3, zorder=6)
-        ax.annotate(f"Pu={pu_d:.0f}, Mu={abs(mu_d):.0f}",
-                    xy=(abs(mu_d), pu_d), xytext=(12, 8),
-                    textcoords="offset points", fontsize=9, color="#dc2626",
-                    fontweight="bold")
+        ax.plot(abs(mu_d), pu_d, "D", color="#dc2626", markersize=8,
+                markerfacecolor="#fecaca", markeredgecolor="#dc2626",
+                markeredgewidth=2, zorder=6, label="Demand")
+        ax.annotate(f"Pu={pu_d:.0f} kN\nMu={abs(mu_d):.0f} kN-m",
+                    xy=(abs(mu_d), pu_d), xytext=(14, -10),
+                    textcoords="offset points", fontsize=8, color="#991b1b",
+                    fontweight="bold",
+                    arrowprops=dict(arrowstyle="-", color="#dc2626", lw=0.8))
 
     # Zero line
-    ax.axhline(y=0, color="#999", linewidth=0.5, linestyle="--")
+    ax.axhline(y=0, color="#6b7280", linewidth=0.6, linestyle="-")
+    ax.axvline(x=0, color="#6b7280", linewidth=0.6, linestyle="-")
 
-    # Labels and title
-    ax.set_xlabel("Moment, \u03c6Mn (kN-m)", fontsize=11)
-    ax.set_ylabel("Axial, \u03c6Pn (kN)", fontsize=11)
-    ax.set_title(title, fontsize=13, fontweight="bold", color="#1e3a8a")
-    ax.legend(loc="upper right", fontsize=9)
-    ax.grid(True, alpha=0.3)
+    # Styling
+    ax.set_xlabel("Moment, \u03c6Mn (kN-m)", fontsize=11, fontweight="500")
+    ax.set_ylabel("Axial Load, \u03c6Pn (kN)", fontsize=11, fontweight="500")
+    ax.set_title(title, fontsize=13, fontweight="bold", color="#1e3a8a", pad=12)
+    if section_label:
+        ax.text(0.5, 1.02, section_label, transform=ax.transAxes,
+                fontsize=9, color="#6b7280", ha="center", va="bottom")
+
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.9,
+              edgecolor="#d1d5db", fancybox=False)
+    ax.grid(True, which="major", alpha=0.25, color="#9ca3af")
+    ax.grid(True, which="minor", alpha=0.1, color="#d1d5db")
+    ax.xaxis.set_minor_locator(AutoMinorLocator(2))
+    ax.yaxis.set_minor_locator(AutoMinorLocator(2))
     ax.set_xlim(left=0)
+    ax.tick_params(labelsize=9)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
     fig.tight_layout()
 
-    # Convert to base64
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
                 facecolor="white", edgecolor="none")
