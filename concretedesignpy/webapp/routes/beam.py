@@ -10,6 +10,7 @@ from concretedesignpy.calculators.beam_shear import (
     compute_concrete_shear_strength,
     compute_steel_shear_strength,
     compute_shear_spacing,
+    shear_torsion_design,
 )
 from concretedesignpy.calculators.beam_torsion import torsion_design
 from concretedesignpy.calculators.beam_deflection import deflection_computation
@@ -103,6 +104,34 @@ def beam_shear():
                 vc_type=data.get("vc_type", "simple"),
             )
 
+        return jsonify({"status": "success", "result": result})
+    except (KeyError, ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@beam_bp.route("/shear-torsion", methods=["POST"])
+def beam_shear_torsion():
+    """Combined shear and torsion design per ACI 318M-14."""
+    data = request.get_json()
+    try:
+        result = shear_torsion_design(
+            fc=float(data["fc"]),
+            fyv=float(data["fyv"]),
+            fy=float(data["fy"]),
+            phi=float(data.get("phi", 0.75)),
+            bw=float(data["bw"]),
+            h=float(data["h"]),
+            cc=float(data["cc"]),
+            c=float(data["c"]),
+            d=float(data["d"]),
+            vu=float(data["vu"]),
+            tu=float(data.get("tu", 0)),
+            nu=float(data.get("nu", 0)),
+            s_chosen=float(data.get("s_chosen", 150)),
+            n_legs=int(data.get("n_legs", 4)),
+            db_stirrup=float(data.get("db_stirrup", 10)),
+            db_long=float(data.get("db_long", 12)),
+        )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400

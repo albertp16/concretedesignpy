@@ -1,59 +1,66 @@
 {% extends "base.html" %}
-{% block title %}Beam Shear Design - ConcreteDesignPy{% endblock %}
+{% block title %}Beam Shear & Torsion - ConcreteDesignPy{% endblock %}
 
 {% block content %}
+<style>
+.calc-sheet { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+.calc-sheet th, .calc-sheet td { padding: 5px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+.calc-sheet .section-hdr { background: #1e3a8a; color: #fff; font-weight: 600; padding: 6px 10px; }
+.calc-sheet .lbl { color: #374151; min-width: 260px; }
+.calc-sheet .val { font-weight: 600; text-align: right; min-width: 80px; }
+.calc-sheet .unit { color: #6b7280; min-width: 60px; }
+.calc-sheet .ref { color: #3b82f6; font-size: 0.8rem; text-align: right; min-width: 180px; }
+.calc-sheet .formula { color: #6b7280; font-size: 0.8rem; }
+.calc-sheet .check-ok { color: #16a34a; font-weight: 600; }
+.calc-sheet .check-fail { color: #dc2626; font-weight: 600; }
+.calc-sheet .check-warn { color: #d97706; font-weight: 600; }
+.sheet-header { display: flex; justify-content: space-between; align-items: center; border: 2px solid #1e3a8a; padding: 8px 14px; margin-bottom: 4px; }
+.sheet-header .title { font-weight: 700; color: #1e3a8a; font-size: 1rem; }
+.sheet-header .meta { font-size: 0.8rem; color: #6b7280; }
+</style>
+
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
-    <h1>Beam Shear Design</h1>
-    <p class="ref">NSCP 2015 Section 422.5 / ACI 318-19</p>
+    <h1>Beam Shear &amp; Torsion Design</h1>
+    <p class="ref">ACI 318M-14 / NSCP 2015</p>
 
     <form id="calc-form" class="calc-form">
         <div class="form-section">
-            <h3>Mode</h3>
+            <h3>Material Properties</h3>
             <div class="form-row">
-                <div class="form-group">
-                    <label>Calculation Mode</label>
-                    <select name="mode">
-                        <option value="capacity">Given spacing, find Vu</option>
-                        <option value="spacing">Given Vu, find spacing</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Vc Type</label>
-                    <select name="vc_type">
-                        <option value="simple">Simple (no axial)</option>
-                        <option value="axial_compression">With axial compression</option>
-                        <option value="axial_tension">With axial tension</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <div class="form-section">
-            <h3>Properties</h3>
-            <div class="form-row">
-                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="27.6" step="0.1" required></div>
-                <div class="form-group"><label>fyt (MPa)</label><input type="number" name="fyt" value="413.7" step="0.1" required></div>
-                <div class="form-group"><label>&lambda;</label><input type="number" name="lamda" value="1.0" step="0.01"></div>
+                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="40" step="0.1" required></div>
+                <div class="form-group"><label>fyv - stirrups (MPa)</label><input type="number" name="fyv" value="420" step="0.1" required></div>
+                <div class="form-group"><label>fy - longitudinal (MPa)</label><input type="number" name="fy" value="460" step="0.1" required></div>
                 <div class="form-group"><label>&phi;</label><input type="number" name="phi" value="0.75" step="0.01"></div>
             </div>
         </div>
 
         <div class="form-section">
-            <h3>Section</h3>
+            <h3>Section Dimensions &amp; Covers</h3>
             <div class="form-row">
-                <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="300" required></div>
-                <div class="form-group"><label>Effective depth, d (mm)</label><input type="number" name="d" value="510" required></div>
+                <div class="form-group"><label>Width, bw (mm)</label><input type="number" name="bw" value="300" required></div>
+                <div class="form-group"><label>Height, h (mm)</label><input type="number" name="h" value="800" required></div>
+                <div class="form-group"><label>Clear cover to links, Cc (mm)</label><input type="number" name="cc" value="30" required></div>
+                <div class="form-group"><label>Cover to rft centroid, c (mm)</label><input type="number" name="c" value="100" required></div>
             </div>
         </div>
 
         <div class="form-section">
-            <h3>Stirrups</h3>
+            <h3>Straining Actions - Ultimate</h3>
             <div class="form-row">
-                <div class="form-group"><label>Stirrup dia, ds (mm)</label><input type="number" name="ds" value="10" required></div>
-                <div class="form-group"><label>Number of legs</label><input type="number" name="numlegs" value="2" required></div>
-                <div class="form-group"><label>Spacing, s (mm)</label><input type="number" name="s" value="140"></div>
-                <div class="form-group"><label>Vu required (kN) <small>[spacing mode]</small></label><input type="number" name="vu_required" value="278.02" step="0.01"></div>
+                <div class="form-group"><label>Shear, Vu (kN)</label><input type="number" name="vu" value="500" step="0.1" required></div>
+                <div class="form-group"><label>Torsion, Tu (kN.m)</label><input type="number" name="tu" value="50" step="0.1"></div>
+                <div class="form-group"><label>Axial, Nu (kN) <small>+comp/-tens</small></label><input type="number" name="nu" value="10" step="0.1"></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Chosen Reinforcement</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Stirrup spacing (mm)</label><input type="number" name="s_chosen" value="150" required></div>
+                <div class="form-group"><label>No. of stirrup legs</label><input type="number" name="n_legs" value="4" required></div>
+                <div class="form-group"><label>Stirrup dia (mm)</label><input type="number" name="db_stirrup" value="10" required></div>
+                <div class="form-group"><label>Longl. bar dia (mm)</label><input type="number" name="db_long" value="12"></div>
             </div>
         </div>
 
@@ -62,57 +69,93 @@
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <div class="results-split">
-            <div id="results-svg" class="results-diagram"></div>
-            <div id="results-content"></div>
-        </div>
-        <div id="results-report" class="report-panel"></div>
+        <div id="calc-report"></div>
     </div>
 </div>
 
 <script>
+function fmtVal(v) {
+    if (typeof v === 'number') {
+        if (Math.abs(v) < 0.001 && v !== 0) return v.toExponential(4);
+        if (Number.isInteger(v)) return String(v);
+        return v % 1 === 0 ? String(v) : v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+    }
+    return String(v);
+}
+
+function checkClass(v) {
+    if (!v) return '';
+    var l = String(v).toLowerCase();
+    if (l === 'ok' || l === 'safe' || l.indexOf('ok') >= 0 || l.indexOf('\u2264') >= 0) return 'check-ok';
+    if (l === 'unsafe' || l === 'not ok' || l === 'fail') return 'check-fail';
+    return 'check-warn';
+}
+
+function renderCalcSheet(result) {
+    var steps = result.steps;
+    if (!steps) return;
+
+    var html = '<div class="sheet-header">';
+    html += '<div class="title">DESIGN OF NONPRESTRESSED RECTANGULAR RC BEAMS FOR SHEAR & TORSION</div>';
+    html += '<div class="meta">ACI 318M-14</div>';
+    html += '</div>';
+
+    html += '<table class="calc-sheet">';
+    html += '<colgroup><col style="width:45%"><col style="width:12%"><col style="width:8%"><col style="width:15%"><col style="width:20%"></colgroup>';
+    html += '<thead><tr><th style="text-align:left">Description</th><th style="text-align:right">Value</th><th>Unit</th><th>Check / Note</th><th style="text-align:right">REF.</th></tr></thead>';
+    html += '<tbody>';
+
+    for (var i = 0; i < steps.length; i++) {
+        var sec = steps[i];
+        html += '<tr><td colspan="5" class="section-hdr">' + sec.title + '</td></tr>';
+        var items = sec.items;
+        for (var j = 0; j < items.length; j++) {
+            var it = items[j];
+            html += '<tr>';
+            // Label + formula
+            html += '<td class="lbl">' + it.label;
+            if (it.formula) html += '<br><span class="formula">' + it.formula + '</span>';
+            html += '</td>';
+            // Value
+            html += '<td class="val">' + fmtVal(it.value) + '</td>';
+            // Unit
+            html += '<td class="unit">' + (it.unit || '') + '</td>';
+            // Check/note
+            var chk = it.check || it.note || '';
+            html += '<td class="' + checkClass(it.check) + '">' + chk + '</td>';
+            // ACI reference
+            html += '<td class="ref">' + (it.ref || '') + '</td>';
+            html += '</tr>';
+        }
+    }
+
+    html += '</tbody></table>';
+    document.getElementById('calc-report').innerHTML = html;
+}
+
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    var ds = parseFloat(this.ds.value);
-    var numlegs = parseInt(this.numlegs.value);
-    var av = numlegs * Math.PI * Math.pow(ds / 2, 2);
-    var mode = this.mode.value;
-    var fc = parseFloat(this.fc.value);
-    var b = parseFloat(this.b.value);
-    var d = parseFloat(this.d.value);
-    var phi = parseFloat(this.phi.value);
-
+    var f = this;
+    var h = parseFloat(f.h.value);
+    var c = parseFloat(f.c.value);
     var payload = {
-        mode: mode, fc: fc, b: b, d: d,
-        fyt: parseFloat(this.fyt.value),
-        lamda: parseFloat(this.lamda.value),
-        phi: phi, av: av, vc_type: this.vc_type.value,
+        fc: parseFloat(f.fc.value),
+        fyv: parseFloat(f.fyv.value),
+        fy: parseFloat(f.fy.value),
+        phi: parseFloat(f.phi.value),
+        bw: parseFloat(f.bw.value),
+        h: h, cc: parseFloat(f.cc.value), c: c,
+        d: h - c,
+        vu: parseFloat(f.vu.value),
+        tu: parseFloat(f.tu.value),
+        nu: parseFloat(f.nu.value),
+        s_chosen: parseFloat(f.s_chosen.value),
+        n_legs: parseInt(f.n_legs.value),
+        db_stirrup: parseFloat(f.db_stirrup.value),
+        db_long: parseFloat(f.db_long.value),
     };
-    if (mode === 'capacity') { payload.s = parseFloat(this.s.value); }
-    else { payload.vu_required = parseFloat(this.vu_required.value) * 1000; }
-
-    submitCalc('/api/beam/shear', payload, function(result) {
-        document.getElementById('results-svg').innerHTML = result.svg || '';
-
-        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
-        tex += '<p><b>Reference:</b> NSCP 2015 Section 422.5</p>';
-        if (result.vc_kn !== undefined) {
-            tex += '<p>\\[ V_c = \\frac{1}{6} \\lambda \\sqrt{f\'_c} \\cdot b_w \\cdot d = ' + result.vc_kn + ' \\text{ kN} \\]</p>';
-        }
-        if (result.vs_kn !== undefined) {
-            tex += '<p>\\[ V_s = \\frac{A_v f_{yt} d}{s} = ' + result.vs_kn + ' \\text{ kN} \\]</p>';
-        }
-        if (result.vn_kn !== undefined) {
-            tex += '<p>\\[ V_n = V_c + V_s = ' + result.vn_kn + ' \\text{ kN} \\]</p>';
-            tex += '<p>\\[ \\phi V_n = ' + phi + ' \\times ' + result.vn_kn + ' = ' + result.vu_kn + ' \\text{ kN} \\]</p>';
-        }
-        if (result.spacing !== undefined) {
-            tex += '<p><b>Required Spacing:</b> \\( s = ' + result.spacing + ' \\text{ mm} \\)</p>';
-            tex += '<p>\\( s_{max} = ' + result.smax + ' \\text{ mm} \\)</p>';
-        }
-        tex += '</div>';
-        document.getElementById('results-report').innerHTML = tex;
-        if (window.MathJax) MathJax.typeset();
+    submitCalc('/api/beam/shear-torsion', payload, function(result) {
+        renderCalcSheet(result);
     });
 });
 </script>
