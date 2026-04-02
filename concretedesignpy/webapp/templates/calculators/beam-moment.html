@@ -69,6 +69,7 @@
                 <div class="form-section">
                     <h3>Reinforcement</h3>
                     <div id="rebar-table" style="width:100%;overflow:hidden;"></div>
+                    <button type="button" class="btn-secondary" onclick="addRebarRow()">+ Add Rebar Layer</button>
                 </div>
 
                 <button type="submit" class="btn-primary" style="width:100%;">Calculate</button>
@@ -106,6 +107,15 @@ var rebarHot = new Handsontable(document.getElementById('rebar-table'), {
     contextMenu: true, stretchH: 'all', height: 'auto',
     className: 'htCenter', licenseKey: 'non-commercial-and-evaluation',
 });
+
+function addRebarRow() {
+    var h = parseFloat(document.getElementById('beam-h').value) || 800;
+    rebarHot.alter('insert_row_below', rebarHot.countRows() - 1, 1);
+    var row = rebarHot.countRows() - 2;
+    rebarHot.setDataAtCell(row, 0, Math.round(h - 62.5));
+    rebarHot.setDataAtCell(row, 1, 25);
+    rebarHot.setDataAtCell(row, 2, 2);
+}
 
 function getRebarList() {
     var list = [], data = rebarHot.getData();
