@@ -207,39 +207,50 @@ def svg_beam_cross_section(b, h, rebar_forces, c, a, scale_factor=None):
     return svg
 
 
-def svg_interaction_diagram(points, title="P-M Interaction Diagram"):
+def svg_interaction_diagram(points, title="P-M Interaction Diagram", demand=None):
     """
     Generate SVG of P-M interaction diagram.
 
     Parameters
     ----------
     points : list of dict
-        Each has 'mn' and 'pn' keys.
+        Each has 'mu' and 'pu' keys (factored values).
     title : str
+    demand : tuple or None
+        (Pu_kN, Mu_kNm) demand point to plot.
 
     Returns
     -------
     str : SVG markup
     """
     w = 560
-    h = 400
+    h = 440
     pad = 60
 
     if not points:
-        return '<svg viewBox="0 0 560 400"><text x="280" y="200" text-anchor="middle">No data</text></svg>'
+        return '<svg viewBox="0 0 560 440"><text x="280" y="220" text-anchor="middle">No data</text></svg>'
 
-    mn_vals = [p["mn"] for p in points]
-    pn_vals = [p["pn"] for p in points]
-    max_m = max(mn_vals) * 1.1 if max(mn_vals) > 0 else 1
-    max_p = max(pn_vals) * 1.1 if max(pn_vals) > 0 else 1
-    min_p = min(min(pn_vals) * 1.1, 0)
+    mu_vals = [abs(p["mu"]) for p in points]
+    pu_vals = [p["pu"] for p in points]
+
+    max_m = max(mu_vals) * 1.15 if max(mu_vals) > 0 else 1
+    max_p = max(pu_vals) * 1.1 if max(pu_vals) > 0 else 1
+    min_p = min(min(pu_vals) * 1.1, 0)
+
+    # Include demand point in range
+    if demand is not None:
+        pu_d, mu_d = demand
+        max_m = max(max_m, abs(mu_d) * 1.15)
+        max_p = max(max_p, pu_d * 1.1)
+        min_p = min(min_p, pu_d * 1.1)
+
     range_p = max_p - min_p if max_p != min_p else 1
 
     pw = w - 2 * pad
     ph = h - 2 * pad
 
     def tx(m):
-        return pad + (m / max_m) * pw
+        return pad + (abs(m) / max_m) * pw
 
     def ty(p):
         return pad + ph - ((p - min_p) / range_p) * ph
@@ -248,15 +259,15 @@ def svg_interaction_diagram(points, title="P-M Interaction Diagram"):
     svg += '<rect width="100%" height="100%" fill="#fff"/>\n'
 
     # Grid
-    for i in range(5):
-        gy = pad + i * ph / 4
+    for i in range(6):
+        gy = pad + i * ph / 5
         svg += f'<line x1="{pad}" y1="{gy}" x2="{pad + pw}" y2="{gy}" stroke="#e5e7eb" stroke-width="0.5"/>\n'
-        pval = max_p - i * range_p / 4 + min_p  # approximate
+        pval = max_p - i * range_p / 5 + min_p
         svg += f'<text x="{pad - 5}" y="{gy + 4}" text-anchor="end" font-size="9" fill="#999">{pval:.0f}</text>\n'
-    for i in range(5):
-        gx = pad + i * pw / 4
+    for i in range(6):
+        gx = pad + i * pw / 5
         svg += f'<line x1="{gx}" y1="{pad}" x2="{gx}" y2="{pad + ph}" stroke="#e5e7eb" stroke-width="0.5"/>\n'
-        mval = i * max_m / 4
+        mval = i * max_m / 5
         svg += f'<text x="{gx}" y="{pad + ph + 15}" text-anchor="middle" font-size="9" fill="#999">{mval:.0f}</text>\n'
 
     # Axes
@@ -268,24 +279,50 @@ def svg_interaction_diagram(points, title="P-M Interaction Diagram"):
         zy = ty(0)
         svg += f'<line x1="{pad}" y1="{zy}" x2="{pad + pw}" y2="{zy}" stroke="#999" stroke-width="0.5" stroke-dasharray="4,2"/>\n'
 
-    # Curve
-    path = "M"
-    for i, pt in enumerate(points):
-        x = tx(pt["mn"])
-        y = ty(pt["pn"])
-        path += f" {x:.1f},{y:.1f}"
-    svg += f'<path d="{path}" fill="none" stroke="#2563eb" stroke-width="2"/>\n'
-
-    # Points
+    # Nominal curve (lighter)
+    path_n = "M"
     for pt in points:
-        x = tx(pt["mn"])
-        y = ty(pt["pn"])
-        svg += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2" fill="#2563eb"/>\n'
+        x = tx(pt.get("mn", pt.get("mu", 0)))
+        y = ty(pt.get("pn", pt.get("pu", 0)))
+        path_n += f" {x:.1f},{y:.1f}"
+    svg += f'<path d="{path_n}" fill="none" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="4,2"/>\n'
+
+    # Factored curve (φPn, φMn)
+    path_f = "M"
+    for pt in points:
+        x = tx(pt["mu"])
+        y = ty(pt["pu"])
+        path_f += f" {x:.1f},{y:.1f}"
+    svg += f'<path d="{path_f}" fill="none" stroke="#2563eb" stroke-width="2.5"/>\n'
+
+    # Points on factored curve
+    for pt in points:
+        x = tx(pt["mu"])
+        y = ty(pt["pu"])
+        svg += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.5" fill="#2563eb"/>\n'
+
+    # Demand point
+    if demand is not None:
+        pu_d, mu_d = demand
+        dx = tx(mu_d)
+        dy = ty(pu_d)
+        svg += f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="6" fill="none" stroke="#dc2626" stroke-width="2"/>\n'
+        svg += f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="2" fill="#dc2626"/>\n'
+        svg += f'<text x="{dx + 10}" y="{dy - 4}" font-size="10" fill="#dc2626" font-weight="bold">'
+        svg += f'Pu={pu_d:.0f}, Mu={mu_d:.0f}</text>\n'
+
+    # Legend
+    ly = pad + 10
+    svg += f'<line x1="{pad + pw - 120}" y1="{ly}" x2="{pad + pw - 100}" y2="{ly}" stroke="#2563eb" stroke-width="2.5"/>\n'
+    svg += f'<text x="{pad + pw - 95}" y="{ly + 4}" font-size="9" fill="#333">\u03c6Pn, \u03c6Mn</text>\n'
+    svg += f'<line x1="{pad + pw - 120}" y1="{ly + 15}" x2="{pad + pw - 100}" y2="{ly + 15}" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="4,2"/>\n'
+    svg += f'<text x="{pad + pw - 95}" y="{ly + 19}" font-size="9" fill="#333">Pn, Mn</text>\n'
 
     # Labels
-    svg += f'<text x="{pad + pw / 2}" y="{pad + ph + 35}" text-anchor="middle" font-size="12" fill="#333">Moment, Mn (kN-m)</text>\n'
+    svg += f'<text x="{pad + pw / 2}" y="{pad + ph + 35}" text-anchor="middle" font-size="12" fill="#333">'
+    svg += f'Moment, \u03c6Mn (kN-m)</text>\n'
     svg += f'<text x="14" y="{pad + ph / 2}" text-anchor="middle" font-size="12" fill="#333" '
-    svg += f'transform="rotate(-90 14 {pad + ph / 2})">Axial Load, Pn (kN)</text>\n'
+    svg += f'transform="rotate(-90 14 {pad + ph / 2})">Axial, \u03c6Pn (kN)</text>\n'
     svg += f'<text x="{w / 2}" y="20" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e3a8a">{title}</text>\n'
 
     svg += '</svg>'

@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 
 from concretedesignpy.calculators.column_interaction import (
     generate_interaction_diagram,
+    check_capacity,
 )
 from concretedesignpy.calculators.column_flexural import (
     check_min_flexural_strength,
@@ -29,6 +30,7 @@ def interaction_diagram():
         h = float(data["h"])
         d_bar = float(data["d_bar"])
         cover = float(data.get("cover", 40))
+        confinement = data.get("confinement", "tied")
 
         result = generate_interaction_diagram(
             fc=float(data["fc"]),
@@ -38,11 +40,28 @@ def interaction_diagram():
             d_bar=d_bar,
             n_bars_side=int(data.get("n_bars_side", 0)),
             cover=cover,
-            c_step=float(data.get("c_step", 5)),
+            confinement=confinement,
+            n_points=int(data.get("n_points", 32)),
         )
 
-        # SVG interaction diagram
-        result["svg_pm"] = svg_interaction_diagram(result["points"])
+        # Demand check (if Pu and Mu provided)
+        pu_demand = data.get("pu_demand")
+        mu_demand = data.get("mu_demand")
+        if pu_demand is not None and mu_demand is not None:
+            capacity = check_capacity(
+                result,
+                float(pu_demand),
+                float(mu_demand),
+            )
+            result["demand_check"] = capacity
+
+        # SVG interaction diagram (with demand point if provided)
+        result["svg_pm"] = svg_interaction_diagram(
+            result["points"],
+            demand=(float(pu_demand), float(mu_demand))
+            if pu_demand is not None and mu_demand is not None
+            else None,
+        )
 
         # SVG rebar layout (if nx/ny provided)
         nx = int(data.get("nx", 0))

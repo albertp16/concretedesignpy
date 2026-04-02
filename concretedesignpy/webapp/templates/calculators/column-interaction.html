@@ -5,7 +5,7 @@
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Column P-M Interaction Diagram &amp; Rebar Layout</h1>
-    <p class="ref">NSCP 2015 / ACI 318-19</p>
+    <p class="ref">NSCP 2015 / ACI 318-19 &mdash; Strain Compatibility Method</p>
 
     <form id="calc-form" class="calc-form">
         <div class="form-section">
@@ -21,7 +21,14 @@
             <div class="form-row">
                 <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="450" required></div>
                 <div class="form-group"><label>Depth, h (mm)</label><input type="number" name="h" value="450" required></div>
-                <div class="form-group"><label>Cover (mm)</label><input type="number" name="cover" value="45" required></div>
+                <div class="form-group"><label>Cover (mm)</label><input type="number" name="cover" value="40" required></div>
+                <div class="form-group">
+                    <label>Confinement</label>
+                    <select name="confinement">
+                        <option value="tied" selected>Tied</option>
+                        <option value="spiral">Spiral</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -30,11 +37,19 @@
             <div class="form-row">
                 <div class="form-group"><label>Total bars</label><input type="number" name="n_bars" value="12" required></div>
                 <div class="form-group"><label>Bar diameter (mm)</label><input type="number" name="d_bar" value="25" required></div>
-                <div class="form-group"><label>Bars per side</label><input type="number" name="n_bars_side" value="2" placeholder="auto"></div>
+                <div class="form-group"><label>Bars per side</label><input type="number" name="n_bars_side" value="0" placeholder="auto"></div>
             </div>
             <div class="form-row">
                 <div class="form-group"><label>Bars along width (nx)</label><input type="number" name="nx" value="4"></div>
                 <div class="form-group"><label>Bars along depth (ny)</label><input type="number" name="ny" value="4"></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Demand Check <small>(optional)</small></h3>
+            <div class="form-row">
+                <div class="form-group"><label>Pu (kN)</label><input type="number" name="pu_demand" value="" step="0.1" placeholder="factored axial"></div>
+                <div class="form-group"><label>Mu (kN-m)</label><input type="number" name="mu_demand" value="" step="0.1" placeholder="factored moment"></div>
             </div>
         </div>
 
@@ -62,35 +77,59 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         b: parseFloat(f.b.value),
         h: parseFloat(f.h.value),
         cover: parseFloat(f.cover.value),
+        confinement: f.confinement.value,
         n_bars: parseInt(f.n_bars.value),
         d_bar: parseFloat(f.d_bar.value),
         n_bars_side: parseInt(f.n_bars_side.value) || 0,
         nx: parseInt(f.nx.value) || 0,
         ny: parseInt(f.ny.value) || 0,
     };
+    if (f.pu_demand.value) payload.pu_demand = parseFloat(f.pu_demand.value);
+    if (f.mu_demand.value) payload.mu_demand = parseFloat(f.mu_demand.value);
+
     submitCalc('/api/column/interaction', payload, function(result) {
-        // Render SVG diagrams
         document.getElementById('svg-pm').innerHTML = result.svg_pm || '';
         document.getElementById('svg-rebar').innerHTML = result.svg_rebar || '';
 
-        // LaTeX report
         var r = result;
         var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
+        tex += '<p><b>Reference:</b> NSCP 2015 / ACI 318-19 &mdash; Strain Compatibility</p>';
+
         tex += '<p><b>Given:</b> \\( f\'_c = ' + payload.fc + ' \\text{ MPa} \\), ';
         tex += '\\( f_y = ' + payload.fy + ' \\text{ MPa} \\), ';
         tex += '\\( b = ' + payload.b + ' \\text{ mm} \\), \\( h = ' + payload.h + ' \\text{ mm} \\)</p>';
         tex += '<p>\\( \\beta_1 = ' + r.beta1 + ' \\), ';
         tex += '\\( d_{eff} = ' + r.d_eff + ' \\text{ mm} \\), ';
         tex += '\\( d\' = ' + r.d_prime + ' \\text{ mm} \\)</p>';
+        tex += '<p>\\( n_{bars} = ' + r.n_bars_actual + ' \\), ';
+        tex += '\\( A_{st} = ' + r.ast_total + ' \\text{ mm}^2 \\), ';
+        tex += '\\( \\rho = ' + r.rho + ' \\)</p>';
+        tex += '<p>Confinement: <b>' + r.confinement + '</b></p>';
+
         tex += '<p><b>Pure Compression:</b> \\[ P_o = 0.85 f\'_c (A_g - A_{st}) + f_y A_{st} = ' + r.pure_compression_kn + ' \\text{ kN} \\]</p>';
+        tex += '<p>\\[ \\phi P_{n,max} = ' + r.phi_pn_max_kn + ' \\text{ kN} \\]</p>';
+        tex += '<p><b>Pure Tension:</b> \\( P_t = ' + r.pure_tension_kn + ' \\text{ kN} \\)</p>';
+
         if (r.balanced_point) {
-            tex += '<p><b>Balanced Point:</b> \\( P_n = ' + r.balanced_point.pn + ' \\text{ kN} \\), ';
-            tex += '\\( M_n = ' + r.balanced_point.mn + ' \\text{ kN-m} \\)</p>';
+            tex += '<p><b>Balanced Point:</b> \\( \\phi P_n = ' + r.balanced_point.pu + ' \\text{ kN} \\), ';
+            tex += '\\( \\phi M_n = ' + r.balanced_point.mu + ' \\text{ kN-m} \\)</p>';
         }
+        if (r.max_moment_point) {
+            tex += '<p><b>Max Moment:</b> \\( \\phi M_{n,max} = ' + r.max_moment_point.mu + ' \\text{ kN-m} \\) ';
+            tex += 'at \\( \\phi P_n = ' + r.max_moment_point.pu + ' \\text{ kN} \\)</p>';
+        }
+
+        if (r.demand_check) {
+            var dc = r.demand_check;
+            tex += '<hr><p><b>Demand Check:</b></p>';
+            tex += '<p>\\( P_u = ' + payload.pu_demand + ' \\text{ kN} \\), \\( M_u = ' + payload.mu_demand + ' \\text{ kN-m} \\)</p>';
+            tex += '<p>\\( \\phi M_n = ' + dc.phi_mn_capacity + ' \\text{ kN-m} \\)</p>';
+            tex += '<p>D/C Ratio: \\( \\frac{M_u}{\\phi M_n} = ' + dc.dc_ratio + ' \\)</p>';
+            tex += '<p><b>Status:</b> ' + dc.status + '</p>';
+        }
+
+        tex += '<p><b>Bar Depths from Compression Face:</b> ' + r.bar_depths.join(', ') + ' mm</p>';
         tex += '<p><b>Total Interaction Points:</b> ' + r.points.length + '</p>';
-        if (r.rebar_layout) {
-            tex += '<p><b>Rebar Layout:</b> ' + r.rebar_layout.total_bars + ' bars total</p>';
-        }
         tex += '</div>';
         document.getElementById('results-report').innerHTML = tex;
         if (window.MathJax) MathJax.typeset();

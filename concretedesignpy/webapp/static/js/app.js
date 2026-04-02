@@ -53,6 +53,8 @@ function renderResult(obj) {
         // Skip SVG fields, large arrays, and rebar layout objects from main table
         if (key === 'svg' || key === 'svg_pm' || key === 'svg_rebar') return;
         if (key === 'rebar_layout' || key === 'rebar_forces') return;
+        if (key === 'demand_check' || key === 'bar_depths' || key === 'max_moment_point') return;
+        if (key === 'geometry') return;
         if (Array.isArray(val) && val.length > 20) {
             return;
         }
