@@ -506,6 +506,142 @@ def svg_rebar_section(section_data, width, height):
     return svg
 
 
+def svg_mander_section(b, h, cover, db_main, db_tie, n_bars_x, n_bars_y, bc, dc, s_tie):
+    """
+    Generate SVG of rectangular column section for Mander confinement model.
+
+    Shows outer concrete, confined core, tie outline, main bars, and dimensions.
+
+    Parameters
+    ----------
+    b, h : float
+        Section width and depth (mm).
+    cover : float
+        Clear cover to tie center (mm).
+    db_main : float
+        Diameter of main bars (mm).
+    db_tie : float
+        Diameter of ties (mm).
+    n_bars_x : int
+        Number of bars along x-direction (top/bottom face).
+    n_bars_y : int
+        Number of bars along y-direction (left/right face).
+    bc, dc : float
+        Confined core dimensions (mm), center-to-center of ties.
+    s_tie : float
+        Tie spacing (mm).
+
+    Returns
+    -------
+    str : SVG markup
+    """
+    w = 360
+    ht = 420
+    pad = 55
+
+    scale = min((w - 2 * pad) / b, (ht - 2 * pad) / h)
+    bw = b * scale
+    bh = h * scale
+    ox = (w - bw) / 2
+    oy = (ht - bh) / 2
+
+    svg = f'<svg viewBox="0 0 {w} {ht}" xmlns="http://www.w3.org/2000/svg" style="max-width:360px;width:100%">\n'
+    svg += '<rect width="100%" height="100%" fill="#fff"/>\n'
+
+    # Outer concrete section
+    svg += f'<rect x="{ox}" y="{oy}" width="{bw}" height="{bh}" '
+    svg += 'fill="#e5e7eb" stroke="#374151" stroke-width="2"/>\n'
+
+    # Confined core (dashed)
+    core_ox = ox + (b - bc) / 2 * scale
+    core_oy = oy + (h - dc) / 2 * scale
+    core_w = bc * scale
+    core_h = dc * scale
+    svg += f'<rect x="{core_ox}" y="{core_oy}" width="{core_w}" height="{core_h}" '
+    svg += 'fill="rgba(59,130,246,0.08)" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="6,3"/>\n'
+
+    # Tie outline (slightly inside the core center)
+    tie_inset = db_tie / 2 * scale
+    svg += f'<rect x="{core_ox + tie_inset}" y="{core_oy + tie_inset}" '
+    svg += f'width="{core_w - 2 * tie_inset}" height="{core_h - 2 * tie_inset}" '
+    svg += 'fill="none" stroke="#16a34a" stroke-width="1.5" rx="3"/>\n'
+
+    # Place rebar bars
+    bar_r = max(4, min(8, db_main / 2 * scale * 0.6))
+    # Edge offsets from section edge to bar center
+    edge_x = cover * scale
+    edge_y = cover * scale
+
+    # Compute bar positions (center-to-center along confined core)
+    bars = []
+    # Top row
+    for i in range(n_bars_x):
+        if n_bars_x > 1:
+            bx = ox + edge_x + i * (bw - 2 * edge_x) / (n_bars_x - 1)
+        else:
+            bx = ox + bw / 2
+        bars.append((bx, oy + edge_y))
+    # Bottom row
+    for i in range(n_bars_x):
+        if n_bars_x > 1:
+            bx = ox + edge_x + i * (bw - 2 * edge_x) / (n_bars_x - 1)
+        else:
+            bx = ox + bw / 2
+        bars.append((bx, oy + bh - edge_y))
+    # Left side (excluding corners)
+    for j in range(1, n_bars_y - 1):
+        by = oy + edge_y + j * (bh - 2 * edge_y) / (n_bars_y - 1)
+        bars.append((ox + edge_x, by))
+    # Right side (excluding corners)
+    for j in range(1, n_bars_y - 1):
+        by = oy + edge_y + j * (bh - 2 * edge_y) / (n_bars_y - 1)
+        bars.append((ox + bw - edge_x, by))
+
+    for bx, by in bars:
+        svg += f'<circle cx="{bx:.1f}" cy="{by:.1f}" r="{bar_r}" '
+        svg += 'fill="#dc2626" stroke="#333" stroke-width="1"/>\n'
+
+    # Dimension: b (bottom)
+    dim_y = oy + bh + 20
+    svg += _svg_dim_line(ox, dim_y, ox + bw, dim_y, f"b = {b:.0f} mm")
+    # Dimension: h (left)
+    dim_x = ox - 20
+    svg += _svg_dim_line_v(dim_x, oy, dim_x, oy + bh, f"h = {h:.0f} mm")
+    # Dimension: bc (inside top)
+    bc_y = core_oy - 8
+    svg += f'<line x1="{core_ox}" y1="{bc_y}" x2="{core_ox + core_w}" y2="{bc_y}" '
+    svg += 'stroke="#3b82f6" stroke-width="0.7"/>\n'
+    svg += f'<text x="{core_ox + core_w / 2}" y="{bc_y - 3}" text-anchor="middle" '
+    svg += f'font-size="9" fill="#3b82f6">bc = {bc:.0f}</text>\n'
+    # Dimension: dc (inside right)
+    dc_x = core_ox + core_w + 8
+    svg += f'<line x1="{dc_x}" y1="{core_oy}" x2="{dc_x}" y2="{core_oy + core_h}" '
+    svg += 'stroke="#3b82f6" stroke-width="0.7"/>\n'
+    svg += f'<text x="{dc_x + 3}" y="{core_oy + core_h / 2}" '
+    svg += f'font-size="9" fill="#3b82f6" transform="rotate(-90 {dc_x + 3} {core_oy + core_h / 2})">'
+    svg += f'dc = {dc:.0f}</text>\n'
+
+    # Title & info
+    n_total = 2 * (n_bars_x + n_bars_y) - 4
+    svg += f'<text x="{w / 2}" y="{ht - 5}" text-anchor="middle" font-size="10" fill="#333">'
+    svg += f'{n_total} bars \u00d7 \u03c6{db_main:.0f} mm | ties \u03c6{db_tie:.0f}@{s_tie:.0f}</text>\n'
+
+    # Legend
+    lx = ox + bw + 5
+    ly = oy + 15
+    svg += f'<rect x="{lx}" y="{ly}" width="8" height="8" fill="#e5e7eb" stroke="#374151" stroke-width="1"/>\n'
+    svg += f'<text x="{lx + 12}" y="{ly + 8}" font-size="8" fill="#666">Concrete</text>\n'
+    svg += f'<rect x="{lx}" y="{ly + 14}" width="8" height="8" fill="rgba(59,130,246,0.08)" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2,1"/>\n'
+    svg += f'<text x="{lx + 12}" y="{ly + 22}" font-size="8" fill="#666">Confined core</text>\n'
+    svg += f'<circle cx="{lx + 4}" cy="{ly + 32}" r="4" fill="#dc2626" stroke="#333" stroke-width="0.5"/>\n'
+    svg += f'<text x="{lx + 12}" y="{ly + 35}" font-size="8" fill="#666">Main rebar</text>\n'
+    svg += f'<rect x="{lx}" y="{ly + 40}" width="8" height="8" fill="none" stroke="#16a34a" stroke-width="1" rx="1"/>\n'
+    svg += f'<text x="{lx + 12}" y="{ly + 48}" font-size="8" fill="#666">Ties</text>\n'
+
+    svg += '</svg>'
+    return svg
+
+
 def svg_torsion_section(width, height, x1, y1, aoh, ph, cover, db):
     """Generate SVG for torsion core geometry."""
     w = 300

@@ -131,6 +131,20 @@ def confined_stress_strain(
     e_sec = fcc / ecc
     ec = 5000 * math.sqrt(fc)
 
+    # Mander stress-strain curve data
+    r = ec / (ec - e_sec)
+    ecu = 0.004 + 1.4 * ((fl_x + fl_y) / 2) * 0.01 / fcc if fcc > 0 else 0.004
+    ecu = max(ecu, 3 * ecc)
+    n_pts = 200
+    strain_pts = [i * ecu / n_pts for i in range(n_pts + 1)]
+    stress_pts = []
+    for eps in strain_pts:
+        x = eps / ecc if ecc > 0 else 0
+        denom = r - 1 + x ** r
+        stress = fcc * x * r / denom if denom != 0 else 0
+        stress_pts.append(round(stress, 4))
+    strain_pts = [round(e, 8) for e in strain_pts]
+
     return {
         "fcc": round(fcc, 2),
         "ecc": round(ecc, 6),
@@ -147,4 +161,8 @@ def confined_stress_strain(
         "eco": eco,
         "e_sec": round(e_sec, 2),
         "ec": round(ec, 2),
+        "ecu": round(ecu, 6),
+        "r": round(r, 4),
+        "curve_strain": strain_pts,
+        "curve_stress": stress_pts,
     }

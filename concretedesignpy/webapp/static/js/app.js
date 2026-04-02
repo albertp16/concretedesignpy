@@ -51,7 +51,7 @@ function renderResult(obj) {
         var val = obj[key];
 
         // Skip SVG/chart fields, large arrays, and detail objects from main table
-        if (key === 'svg' || key === 'svg_pm' || key === 'svg_rebar' || key === 'chart_pm') return;
+        if (key === 'svg' || key === 'svg_pm' || key === 'svg_rebar' || key === 'svg_section' || key === 'chart_pm') return;
         if (key === 'rebar_layout' || key === 'rebar_forces') return;
         if (key === 'demand_check' || key === 'bar_depths' || key === 'max_moment_point') return;
         if (key === 'balanced_steel_detail' || key === 'bar_areas') return;

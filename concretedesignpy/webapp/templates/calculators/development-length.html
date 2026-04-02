@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Development Length - ConcreteDesignPy{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>{% endblock %}
 
 {% block content %}
 <div class="calc-page">
@@ -37,15 +38,227 @@
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <div class="results-split">
-            <div id="results-svg" class="results-diagram"></div>
-            <div id="results-content"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+            <div id="chart-hook" style="flex:1;min-width:480px;"></div>
+            <div id="results-content" style="flex:0 0 auto;min-width:200px;"></div>
         </div>
         <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
+function arcPoints(cx, cy, r, startDeg, endDeg, n) {
+    var pts = [];
+    for (var i = 0; i <= n; i++) {
+        var a = (startDeg + i * (endDeg - startDeg) / n) * Math.PI / 180;
+        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+    return pts;
+}
+
+function renderHookChart(r) {
+    var D = r.bend_diameter;
+    var R = D / 2;
+    var lext = r.lext;
+    var ldh = r.ldh;
+    var db = r.bar_size;
+    var angle = r.angle;
+    var hw = db / 2; // half-bar width
+
+    var traces = [];
+    var annotations = [];
+    var shapes = [];
+
+    // Colors
+    var barFill = 'rgba(180,180,190,0.5)';
+    var barLine = '#374151';
+    var arcColor = '#3b82f6';
+    var dimColor = '#6b7280';
+
+    // Helper: add a filled bar as a shape (rectangle defined by path)
+    function addBarShape(x0, y0, x1, y1) {
+        shapes.push({
+            type: 'rect', x0: x0, y0: y0, x1: x1, y1: y1,
+            fillcolor: barFill, line: { color: barLine, width: 1.5 },
+        });
+    }
+
+    // Helper: dimension annotation with arrow
+    function addDim(x0, y0, x1, y1, text, side) {
+        var mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+        // end markers as small traces
+        traces.push({
+            x: [x0, x1], y: [y0, y1], mode: 'lines',
+            line: { color: dimColor, width: 1, dash: 'dot' },
+            hoverinfo: 'skip', showlegend: false,
+        });
+        var ax = 0, ay = 0;
+        if (side === 'top') ay = -25;
+        else if (side === 'bottom') ay = 25;
+        else if (side === 'right') ax = 30;
+        else if (side === 'left') ax = -30;
+        annotations.push({
+            x: mx, y: my, text: text,
+            showarrow: true, arrowhead: 0, arrowcolor: dimColor,
+            ax: ax, ay: ay,
+            font: { size: 11, color: dimColor },
+            bgcolor: 'rgba(255,255,255,0.85)',
+        });
+    }
+
+    // Horizontal bar: from x=0 to x=ldh, centered at y=0
+    addBarShape(0, -hw, ldh, hw);
+
+    if (angle === 90) {
+        // Bend circle center
+        var bcx = ldh + R;
+        var bcy = -R;
+        // Arc (quarter circle from 90deg to 0deg going right-down from bar end)
+        var arc = arcPoints(ldh, -R, R, 90, 0, 40);
+        var outerArc = arcPoints(ldh, -R, R + hw, 90, 0, 40);
+        var innerArc = arcPoints(ldh, -R, Math.max(R - hw, 0), 90, 0, 40);
+        traces.push({
+            x: arc.map(function(p){return p[0]}), y: arc.map(function(p){return p[1]}),
+            mode: 'lines', line: { color: arcColor, width: 2, dash: 'dash' },
+            hoverinfo: 'skip', showlegend: false,
+        });
+
+        // Vertical bar going down from arc end
+        var vx = ldh + R;
+        addBarShape(vx - hw, -R - lext, vx + hw, -R);
+
+        // Dimension: ldh (top)
+        addDim(0, hw + D * 0.15, ldh, hw + D * 0.15, 'l<sub>dh</sub> = ' + ldh + ' mm', 'top');
+        // Dimension: lext (right)
+        addDim(vx + hw + D * 0.1, -R, vx + hw + D * 0.1, -R - lext, 'l<sub>ext</sub> = ' + lext + ' mm', 'right');
+        // Dimension: D label at arc
+        annotations.push({
+            x: ldh, y: -R, text: 'D = ' + D + ' mm',
+            showarrow: true, arrowhead: 0, ax: -50, ay: 20,
+            font: { size: 11, color: arcColor },
+            arrowcolor: arcColor,
+        });
+
+        // Dashed bend circle
+        var fullArc = arcPoints(ldh, -R, R, 0, 360, 80);
+        traces.push({
+            x: fullArc.map(function(p){return p[0]}), y: fullArc.map(function(p){return p[1]}),
+            mode: 'lines', line: { color: arcColor, width: 1, dash: 'dot' },
+            hoverinfo: 'skip', showlegend: false,
+        });
+
+    } else if (angle === 180) {
+        // Semicircle going right then back up/down
+        // Arc center at (ldh, 0), going from 90deg (top) to -90deg (bottom) clockwise on right side
+        var bcx = ldh;
+        var bcy = -R;
+
+        // Semicircular arc on right side, from top to bottom
+        var arc = arcPoints(ldh, -R, R, 90, -90, 60);
+        traces.push({
+            x: arc.map(function(p){return p[0]}), y: arc.map(function(p){return p[1]}),
+            mode: 'lines', line: { color: arcColor, width: 2, dash: 'dash' },
+            hoverinfo: 'skip', showlegend: false,
+        });
+
+        // Return bar going left from bottom of arc
+        var retY = -2 * R;
+        addBarShape(ldh - lext, retY - hw, ldh, retY + hw);
+
+        // Dimension: ldh (top)
+        addDim(0, hw + D * 0.15, ldh, hw + D * 0.15, 'l<sub>dh</sub> = ' + ldh + ' mm', 'top');
+        // Dimension: D (right of arc)
+        addDim(ldh + R + D * 0.15, 0, ldh + R + D * 0.15, retY, 'D = ' + D + ' mm', 'right');
+        // Dimension: lext (bottom)
+        addDim(ldh - lext, retY - hw - D * 0.15, ldh, retY - hw - D * 0.15, 'l<sub>ext</sub> = ' + lext + ' mm', 'bottom');
+
+    } else {
+        // 135 degree hook
+        // Bend arc: quarter circle from 90deg down to -45deg (135 degree bend)
+        var arc = arcPoints(ldh, -R, R, 90, -45, 50);
+        traces.push({
+            x: arc.map(function(p){return p[0]}), y: arc.map(function(p){return p[1]}),
+            mode: 'lines', line: { color: arcColor, width: 2, dash: 'dash' },
+            hoverinfo: 'skip', showlegend: false,
+        });
+
+        // Angled bar at 135 from horizontal → goes down-right at 45 deg from vertical
+        var tailStartX = ldh + R * Math.cos(-45 * Math.PI / 180);
+        var tailStartY = -R + R * Math.sin(-45 * Math.PI / 180);
+        var dx45 = lext * Math.cos(-45 * Math.PI / 180);
+        var dy45 = lext * Math.sin(-45 * Math.PI / 180);
+        var tailEndX = tailStartX + dx45;
+        var tailEndY = tailStartY + dy45;
+
+        // Draw angled bar as thick line
+        traces.push({
+            x: [tailStartX, tailEndX], y: [tailStartY, tailEndY],
+            mode: 'lines', line: { color: barLine, width: db * 0.6 },
+            hoverinfo: 'skip', showlegend: false,
+        });
+        // Thin outline for angled bar
+        var perpX = hw * Math.cos(45 * Math.PI / 180);
+        var perpY = hw * Math.sin(45 * Math.PI / 180);
+        shapes.push({
+            type: 'path',
+            path: 'M ' + (tailStartX - perpY) + ' ' + (tailStartY + perpX)
+                + ' L ' + (tailEndX - perpY) + ' ' + (tailEndY + perpX)
+                + ' L ' + (tailEndX + perpY) + ' ' + (tailEndY - perpX)
+                + ' L ' + (tailStartX + perpY) + ' ' + (tailStartY - perpX) + ' Z',
+            fillcolor: barFill, line: { color: barLine, width: 1.5 },
+        });
+
+        // Dashed full bend circle
+        var fullArc = arcPoints(ldh, -R, R, 0, 360, 80);
+        traces.push({
+            x: fullArc.map(function(p){return p[0]}), y: fullArc.map(function(p){return p[1]}),
+            mode: 'lines', line: { color: arcColor, width: 1, dash: 'dot' },
+            hoverinfo: 'skip', showlegend: false,
+        });
+
+        // Dimensions
+        addDim(0, hw + D * 0.15, ldh, hw + D * 0.15, 'l<sub>dh</sub> = ' + ldh + ' mm', 'top');
+        annotations.push({
+            x: ldh, y: -R, text: 'D = ' + D + ' mm',
+            showarrow: true, arrowhead: 0, ax: -55, ay: 25,
+            font: { size: 11, color: arcColor },
+            arrowcolor: arcColor,
+        });
+        // lext along the angled bar
+        var midTX = (tailStartX + tailEndX) / 2;
+        var midTY = (tailStartY + tailEndY) / 2;
+        annotations.push({
+            x: midTX, y: midTY,
+            text: 'l<sub>ext</sub> = ' + lext + ' mm',
+            showarrow: true, arrowhead: 0, ax: 40, ay: -20,
+            font: { size: 11, color: dimColor },
+            arrowcolor: dimColor,
+            bgcolor: 'rgba(255,255,255,0.85)',
+        });
+    }
+
+    var layout = {
+        title: { text: angle + '\u00b0 Hook \u2014 \u2300' + db + ' mm', font: { size: 14 } },
+        xaxis: {
+            scaleanchor: 'y', scaleratio: 1,
+            showgrid: false, zeroline: false, showticklabels: false,
+        },
+        yaxis: {
+            showgrid: false, zeroline: false, showticklabels: false,
+        },
+        shapes: shapes,
+        annotations: annotations,
+        height: 420,
+        margin: { t: 45, r: 30, b: 20, l: 30 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        hovermode: false,
+        dragmode: 'pan',
+    };
+
+    var config = { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d','select2d','autoScale2d'], displaylogo: false, scrollZoom: true };
+    Plotly.newPlot('chart-hook', traces, layout, config);
+}
+
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var payload = {
@@ -54,7 +267,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         angle: parseInt(this.angle.value),
     };
     submitCalc('/api/section/development-length', payload, function(result) {
-        document.getElementById('results-svg').innerHTML = result.svg || '';
+        renderHookChart(result);
 
         var r = result;
         var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';

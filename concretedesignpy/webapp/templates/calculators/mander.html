@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Mander Confined Concrete - ConcreteDesignPy{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>{% endblock %}
 
 {% block content %}
 <div class="calc-page">
@@ -45,12 +46,144 @@
 
     <div id="results" class="results-panel" style="display:none;">
         <h2>Results</h2>
-        <div id="results-content"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+            <div id="results-content" style="flex:1;min-width:280px;"></div>
+            <div id="svg-section" style="flex:0 0 auto;text-align:center;"></div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;">
+            <div id="chart-stress-strain" style="flex:1;min-width:400px;"></div>
+            <div id="chart-confinement" style="flex:1;min-width:400px;"></div>
+        </div>
         <div id="results-report" class="report-panel"></div>
     </div>
 </div>
 
 <script>
+// ── Mander solver functions (rectangular biaxial confinement) ──
+function manderEqA(r) {
+    return 6.8886 - (0.6069 + 17.275 * r) * Math.exp(-4.989 * r);
+}
+function manderEqB(A, r) {
+    var B2 = (5.0 / A) * (0.9849 - 0.6306 * Math.exp(-3.8939 * r)) - 0.1;
+    return (4.5 / B2) - 5.0;
+}
+function manderSolver(r, xi) {
+    var A = manderEqA(r);
+    var B = manderEqB(A, r);
+    var k1 = A * (0.1 + 0.9 / (1.0 + B * xi));
+    return 1.0 + k1 * xi;
+}
+function manderRatio(ratio) {
+    return -1.254 + 2.254 * Math.sqrt(1.0 + 7.92 * ratio) - 2.0 * ratio;
+}
+
+// ── Chart 1: Stress-Strain Curve ──
+function renderStressStrainChart(result) {
+    var strain = result.curve_strain;
+    var stress = result.curve_stress;
+    if (!strain || !stress) return;
+
+    var fc = parseFloat(document.querySelector('[name="fc"]').value);
+    var eco = 0.002;
+    var uStrain = [], uStress = [];
+    for (var i = 0; i <= 100; i++) {
+        var e = i * 0.003 / 100;
+        uStrain.push(e);
+        if (e <= eco) {
+            uStress.push(fc * (2 * e / eco - (e / eco) * (e / eco)));
+        } else {
+            uStress.push(Math.max(0, fc * (1 - 0.15 * (e - eco) / (0.003 - eco))));
+        }
+    }
+
+    var traces = [
+        { x: strain, y: stress, mode: 'lines', name: 'Confined (Mander)', line: { color: '#1e40af', width: 2.5 } },
+        { x: uStrain, y: uStress, mode: 'lines', name: 'Unconfined', line: { color: '#dc2626', width: 2, dash: 'dash' } },
+    ];
+
+    var annotations = [
+        { x: result.ecc, y: result.fcc, text: "f'cc = " + result.fcc + ' MPa', showarrow: true, arrowhead: 2, ax: 40, ay: -30, font: { size: 11, color: '#1e40af' } },
+        { x: eco, y: fc, text: "f'co = " + fc + ' MPa', showarrow: true, arrowhead: 2, ax: -50, ay: -25, font: { size: 11, color: '#dc2626' } },
+    ];
+
+    var layout = {
+        title: { text: "Mander's Stress-Strain Curve", font: { size: 14 } },
+        xaxis: { title: 'Strain, \u03b5', zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        yaxis: { title: 'Stress (MPa)', zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        showlegend: true,
+        legend: { x: 1, xanchor: 'right', y: 0.4, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
+        annotations: annotations,
+        height: 500,
+        margin: { t: 50, r: 20, b: 60, l: 65 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        hovermode: 'closest',
+    };
+
+    var config = { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d','select2d'], displaylogo: false };
+    Plotly.newPlot('chart-stress-strain', traces, layout, config);
+}
+
+// ── Chart 2: Confined Strength Determination ──
+function renderConfinementChart(result) {
+    var fc = parseFloat(document.querySelector('[name="fc"]').value);
+    var nPts = 31;
+    var ratioVals = [];
+    for (var i = 0; i < nPts; i++) ratioVals.push(i * 0.3 / (nPts - 1));
+
+    // Reference curves for different fl1/fl2 ratios
+    var curves = [
+        { r: 0.0, name: "f'l1/f'l2 = 0", color: '#1e40af', dash: 'solid' },
+        { r: 0.1, name: "f'l1/f'l2 = 0.1", color: '#16a34a', dash: 'solid' },
+        { r: 0.2, name: "f'l1/f'l2 = 0.2", color: '#9333ea', dash: 'solid' },
+    ];
+
+    var traces = [];
+    curves.forEach(function(c) {
+        var xVals = [], yVals = [];
+        for (var i = 0; i < nPts; i++) {
+            xVals.push(manderSolver(c.r, ratioVals[i]));
+            yVals.push(-ratioVals[i]);
+        }
+        traces.push({ x: xVals, y: yVals, mode: 'lines', name: c.name, line: { color: c.color, width: 2, dash: c.dash } });
+    });
+
+    // fl1 = fl2 (original Mander curve)
+    var xEq = [], yEq = [];
+    for (var i = 0; i < nPts; i++) {
+        xEq.push(manderRatio(ratioVals[i]));
+        yEq.push(-ratioVals[i]);
+    }
+    traces.push({ x: xEq, y: yEq, mode: 'lines', name: "f'l1 = f'l2", line: { color: '#f97316', width: 2.5, dash: 'dash' } });
+
+    // Mark the user's computed point
+    if (result.ratio && result.fl_eff !== undefined && fc > 0) {
+        var ptX = result.ratio;
+        var ptY = -(result.fl_eff / fc);
+        traces.push({
+            x: [ptX], y: [ptY], mode: 'markers+text', name: 'Current section',
+            marker: { size: 12, color: '#dc2626', symbol: 'star', line: { width: 1.5, color: '#fff' } },
+            text: ["(" + ptX.toFixed(3) + ", " + (-ptY).toFixed(3) + ")"],
+            textposition: 'top right', textfont: { size: 10, color: '#dc2626' },
+        });
+    }
+
+    var layout = {
+        title: { text: "Confined Strength Determination<br><sup>Lateral Confining Stresses for Rectangular Section</sup>", font: { size: 14 } },
+        xaxis: { title: "Confined Strength Ratio, f'cc/f'co", zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        yaxis: { title: "Largest Confining Stress Ratio, f'l2/f'co", gridcolor: '#e5e7eb' },
+        showlegend: true,
+        legend: { x: 0, xanchor: 'left', y: 0, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
+        height: 500,
+        margin: { t: 60, r: 20, b: 60, l: 75 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        hovermode: 'closest',
+    };
+
+    var config = { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d','select2d'], displaylogo: false };
+    Plotly.newPlot('chart-confinement', traces, layout, config);
+}
+
+// ── Form Submit ──
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var payload = {};
@@ -59,6 +192,11 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     });
     submitCalc('/api/mander/confined', payload, function(result) {
         var r = result;
+
+        document.getElementById('svg-section').innerHTML = r.svg_section || '';
+        renderStressStrainChart(r);
+        renderConfinementChart(r);
+
         var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
         tex += '<p><b>Reference:</b> Mander, Priestley & Park (1988)</p>';
         if (r.ke !== undefined) tex += '<p>\\[ k_e = ' + r.ke + ' \\]</p>';
