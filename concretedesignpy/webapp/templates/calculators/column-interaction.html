@@ -135,6 +135,7 @@ var hot = new Handsontable(hotContainer, {
 });
 
 function renumberLoadCombos() {
+    if (!hot) return;
     var data = hot.getData();
     for (var i = 0; i < data.length; i++) {
         hot.setDataAtCell(i, 0, i + 1, 'renumber');
