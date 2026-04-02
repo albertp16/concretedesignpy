@@ -21,7 +21,6 @@ def validate_first_hoop(first_hoop_loc: float) -> bool:
         bool: True if the first hoop is within 50 mm, False otherwise.
     """
     if first_hoop_loc > 50:
-        print("Warning: The first hoop should be within 50 mm of the face of the supporting member.")
         return False
     return True
 
@@ -46,7 +45,6 @@ def validate_max_hoop_spacing(depth: float, db: float, ds: float, hoop_spacing: 
     """
     max_spacing = min(depth / 4, 6 * db, 24 * ds, 150)
     if hoop_spacing > max_spacing:
-        print(f"Warning: Provided hoop spacing ({hoop_spacing:.2f} mm) exceeds the limit of {max_spacing:.2f} mm.")
         return False
     return True
 
@@ -66,7 +64,6 @@ def validate_hoops_not_required(depth: float, hoop_spacing: float) -> bool:
     """
     max_spacing = depth / 2
     if hoop_spacing > max_spacing:
-        print(f"Warning: Provided hoop spacing ({hoop_spacing:.2f} mm) exceeds the limit of {max_spacing:.2f} mm.")
         return False
     return True
 
@@ -87,7 +84,6 @@ def validate_max_spacing(db: float, hoop_spacing: float) -> bool:
     """
     max_spacing = min(6 * db, 150)
     if hoop_spacing > max_spacing:
-        print(f"Warning: Provided hoop spacing ({hoop_spacing:.2f} mm) exceeds the limit of {max_spacing:.2f} mm.")
         return False
     return True
 
@@ -158,19 +154,15 @@ def main():
 
     # Validate first hoop location
     if not validate_first_hoop(first_hoop_loc):
-        print("First hoop location validation failed.")
 
     # Validate maximum hoop spacing
     if not validate_max_hoop_spacing(depth, db, ds, hoop_spacing):
-        print("Maximum hoop spacing validation failed.")
 
     # Validate hoops not required scenario
     if not validate_hoops_not_required(depth, hoop_spacing):
-        print("Hoops not required spacing validation failed.")
 
     # Validate maximum spacing based on bar diameter
     if not validate_max_spacing(db, hoop_spacing):
-        print("Maximum spacing based on bar diameter validation failed.")
 
 if __name__ == "__main__":
     main()

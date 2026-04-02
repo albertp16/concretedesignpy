@@ -172,7 +172,6 @@ class generateFIBERMGT:
         self.ft = ft
         self.et = et
         data = f'{self.name},CONC, MANDER, 1, YES, {fco_prime}, NO, {self.eco}, NO, {self.ecy}, NO, {self.esp}, 0, {self.ec}, 0, {self.ft}, 0, {self.et},'
-        print(data)
         return data
     def sectiondata(self):
         #Concrete Core Dimension to Center Line of Perimeter hoops
@@ -183,13 +182,9 @@ class generateFIBERMGT:
         self.core_x = core_x
         self.core_y = core_y
 
-        print("bc = ", core_x)
-        print("dc = ", core_y)
         #Concrete Core Dimension to Center Line of Perimeter hoops
         wxi = transverseSpacing(self.length_x,self.db,self.ds,self.ndbx,self.nsegx,self.cover)
         wyi = transverseSpacing(self.length_y,self.db,self.ds,self.ndby,self.nsegy,self.cover)
-        print("wxi = ", wxi)
-        print("wyi = ", wyi)
         seg_x_arr = []
         seg_y_arr = []
         
@@ -216,8 +211,6 @@ class generateFIBERMGT:
             j += 1
         self.seg_x_arr_output = seg_x_arr
         self.seg_y_arr_output = seg_y_arr
-        print(seg_x_arr)
-        print(seg_y_arr)
     def confined_core_areas(self):
         """
         Compute:
@@ -273,19 +266,15 @@ class generateFIBERMGT:
         dbm_area = area_diam(self.db)
         total_area = steel_area(self.total_n,dbm_area)
         rho_core = area_ratio(total_area,area_core)
-        print("core ratio : ",rho_core)
 
         dbs_area = area_diam(self.ds)*TOM2 #MGT Report 
         self.dbs_area = dbs_area
-        print("ds area : ",dbs_area)
         
         
         #Total Area of Confinement Rebars 
         area_conf_x = dbs_area*self.ndbx #MGT Report
         area_conf_y = dbs_area*self.ndby #MGT Report
 
-        print("conf x-dir : ",area_conf_x)
-        print("conf x-dir : ",area_conf_y)
         # 2) Effective concrete core area
         acc = area_core * (1.0 - rho_core)
         
@@ -311,8 +300,6 @@ class generateFIBERMGT:
         fly = compute_effective_conf_stress(ke,psy,fy_expected) #MGT REPORT
         self.flx = flx
         self.fly = fly       
-        print("flx : ",flx) 
-        print("fly : ",fly)
 
 
         results = {
@@ -328,11 +315,6 @@ class generateFIBERMGT:
         self.ae = Ae*TOM2
         self.kg = kg
         self.ke = ke    
-        print("ac",area_core)
-        print("acc",acc*TOM2)
-        print("ae",Ae*TOM2)
-        print("kg",kg)
-        print("ke",ke)
 
         return results
     def confined_concrete_strength_and_strain(self):
@@ -395,8 +377,6 @@ class generateFIBERMGT:
 
         #    eps_cc = eps_co [1 + 5 (f'cc / f'co - 1)]
         ecc = eco * (1.0 + 5.0*(fcc/self.fco_prime - 1.0))
-        print("fcc = ",fcc)
-        print("ecc = ",ecc)
         self.fcc = fcc 
         self.ecc = ecc
         # return fcc, ecc

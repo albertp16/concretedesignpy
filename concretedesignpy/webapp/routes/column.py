@@ -60,23 +60,43 @@ def interaction_diagram():
             bar_areas=bar_areas,
         )
 
-        # Demand check (if Pu and Mu provided)
+        # Load combination checks
+        load_combos = data.get("load_combos")
         pu_demand = data.get("pu_demand")
         mu_demand = data.get("mu_demand")
-        if pu_demand is not None and mu_demand is not None:
+        demand_for_chart = None
+
+        if load_combos and len(load_combos) > 0:
+            combo_checks = []
+            for lc in load_combos:
+                pu = float(lc["pu"])
+                mu = abs(float(lc["mu"]))
+                cap = check_capacity(result, pu, mu)
+                combo_checks.append({
+                    "name": lc.get("name", ""),
+                    "pu": pu,
+                    "mu": mu,
+                    "phi_mn_capacity": cap["phi_mn_capacity"],
+                    "dc_ratio": cap["dc_ratio"],
+                    "status": cap["status"],
+                })
+            result["load_combo_checks"] = combo_checks
+            # Use the critical combo for chart demand point
+            critical = max(combo_checks, key=lambda c: abs(c["mu"]))
+            demand_for_chart = (critical["pu"], critical["mu"])
+        elif pu_demand is not None and mu_demand is not None:
             capacity = check_capacity(
                 result,
                 float(pu_demand),
                 float(mu_demand),
             )
             result["demand_check"] = capacity
+            demand_for_chart = (float(pu_demand), float(mu_demand))
 
         # Matplotlib interaction diagram (base64 PNG)
         result["chart_pm"] = matplotlib_interaction_diagram(
             result["points"],
-            demand=(float(pu_demand), float(mu_demand))
-            if pu_demand is not None and mu_demand is not None
-            else None,
+            demand=demand_for_chart,
         )
 
         # SVG rebar layout (if nx/ny provided)

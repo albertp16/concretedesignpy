@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Column Interaction & Rebar Layout - ConcreteDesignPy{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.css">
+<script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
@@ -74,11 +79,8 @@
                 </div>
 
                 <div class="form-section">
-                    <h3>Demand Check <small>(optional)</small></h3>
-                    <div class="form-row">
-                        <div class="form-group"><label>Pu (kN)</label><input type="number" name="pu_demand" value="" step="0.1" placeholder="factored axial"></div>
-                        <div class="form-group"><label>Mu (kN-m)</label><input type="number" name="mu_demand" value="" step="0.1" placeholder="factored moment"></div>
-                    </div>
+                    <h3>Load Combinations <small>(Demand Check)</small></h3>
+                    <div id="load-combo-table" style="width:100%;overflow:hidden;"></div>
                 </div>
 
                 <button type="submit" class="btn-primary">Generate Diagram</button>
@@ -99,7 +101,65 @@
 </div>
 
 <script>
-// Rebar mode toggle
+// ── Handsontable Load Combination Table ──
+var loadComboData = [
+    [1, '1.2D + 1.6L', null, null, null],
+    [2, '1.2D + 1.0L + 1.0E', null, null, null],
+    [3, '0.9D + 1.0E', null, null, null],
+    [4, '1.2D + 1.6L + 0.5S', null, null, null],
+    [5, '', null, null, null],
+];
+
+var hotContainer = document.getElementById('load-combo-table');
+var hot = new Handsontable(hotContainer, {
+    data: loadComboData,
+    colHeaders: ['', 'Load Combination', 'P<sub>u</sub> (kN)', 'V<sub>u</sub> (kN)', 'M<sub>u</sub> (kN-m)'],
+    columns: [
+        { type: 'numeric', readOnly: true, width: 30 },
+        { type: 'text', width: 160 },
+        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 80 },
+        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 80 },
+        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 80 },
+    ],
+    rowHeaders: false,
+    minRows: 5,
+    minSpareRows: 1,
+    contextMenu: true,
+    stretchH: 'all',
+    height: 'auto',
+    autoRowSize: true,
+    className: 'htCenter',
+    licenseKey: 'non-commercial-and-evaluation',
+    afterCreateRow: function() { renumberLoadCombos(); },
+    afterRemoveRow: function() { renumberLoadCombos(); },
+});
+
+function renumberLoadCombos() {
+    var data = hot.getData();
+    for (var i = 0; i < data.length; i++) {
+        hot.setDataAtCell(i, 0, i + 1, 'renumber');
+    }
+}
+
+function getLoadCombos() {
+    var combos = [];
+    var data = hot.getData();
+    for (var i = 0; i < data.length; i++) {
+        var pu = data[i][2];
+        var mu = data[i][4];
+        if (pu !== null && pu !== '' && mu !== null && mu !== '') {
+            combos.push({
+                name: data[i][1] || ('LC ' + (i + 1)),
+                pu: parseFloat(pu),
+                vu: data[i][3] !== null && data[i][3] !== '' ? parseFloat(data[i][3]) : 0,
+                mu: parseFloat(mu),
+            });
+        }
+    }
+    return combos;
+}
+
+// ── Rebar mode toggle ──
 document.querySelectorAll('input[name="rebar_mode"]').forEach(function(radio) {
     radio.addEventListener('change', function() {
         document.getElementById('rebar-auto').style.display = this.value === 'auto' ? '' : 'none';
@@ -145,28 +205,23 @@ function generateDefaultBars() {
     var d_prime = cover + tie + d_bar / 2.0;
     var area = Math.PI * d_bar * d_bar / 4.0;
 
-    // Clear table
     document.getElementById('rebar-tbody').innerHTML = '';
     rebarCounter = 0;
 
-    // Generate perimeter bars (nx along width, ny along depth)
     var x_min = -b / 2.0 + d_prime;
     var x_max = b / 2.0 - d_prime;
     var z_min = d_prime;
     var z_max = h - d_prime;
 
-    // Top row
     for (var i = 0; i < nx; i++) {
         var y = nx > 1 ? x_min + i * (x_max - x_min) / (nx - 1) : 0;
         addRebarRow(area.toFixed(1), y.toFixed(1), z_max.toFixed(1));
     }
-    // Side bars (excluding corners)
     for (var j = 1; j < ny - 1; j++) {
         var z = z_max - j * (z_max - z_min) / (ny - 1);
         addRebarRow(area.toFixed(1), x_min.toFixed(1), z.toFixed(1));
         addRebarRow(area.toFixed(1), x_max.toFixed(1), z.toFixed(1));
     }
-    // Bottom row
     for (var i = 0; i < nx; i++) {
         var y = nx > 1 ? x_min + i * (x_max - x_min) / (nx - 1) : 0;
         addRebarRow(area.toFixed(1), y.toFixed(1), z_min.toFixed(1));
@@ -186,6 +241,7 @@ function getManualBars() {
     return bars;
 }
 
+// ── Form Submit ──
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var f = this;
@@ -212,8 +268,17 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         payload.ny = parseInt(f.ny.value) || 0;
     }
 
-    if (f.pu_demand.value) payload.pu_demand = parseFloat(f.pu_demand.value);
-    if (f.mu_demand.value) payload.mu_demand = parseFloat(f.mu_demand.value);
+    // Load combinations
+    var combos = getLoadCombos();
+    if (combos.length > 0) {
+        payload.load_combos = combos;
+        // Use the critical combo (max Mu) as the primary demand for the chart
+        var critical = combos.reduce(function(prev, curr) {
+            return Math.abs(curr.mu) > Math.abs(prev.mu) ? curr : prev;
+        });
+        payload.pu_demand = critical.pu;
+        payload.mu_demand = Math.abs(critical.mu);
+    }
 
     submitCalc('/api/column/interaction', payload, function(result) {
         // Matplotlib chart (base64 PNG)
@@ -259,7 +324,6 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             tex += '\\( \\phi M_n = ' + r.balanced_point.mu + ' \\text{ kN-m} \\)</p>';
             tex += '<p>\\( \\phi = ' + r.balanced_point.phi + ' \\) (' + r.balanced_point.classification + ')</p>';
 
-            // Per-bar strain/stress table at balanced point
             if (r.balanced_steel_detail) {
                 tex += '<p><b>Steel Forces at Balanced Point:</b></p>';
                 tex += '<table class="result-table" style="font-size:.8rem;">';
@@ -281,8 +345,21 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             tex += 'at \\( \\phi P_n = ' + r.max_moment_point.pu + ' \\text{ kN} \\)</p>';
         }
 
-        // Demand check
-        if (r.demand_check) {
+        // Load combination demand checks
+        if (r.load_combo_checks && r.load_combo_checks.length > 0) {
+            tex += '<h4>Demand / Capacity Check</h4>';
+            tex += '<table class="result-table" style="font-size:.8rem;">';
+            tex += '<tr><th>Load Combo</th><th>P<sub>u</sub> (kN)</th><th>M<sub>u</sub> (kN-m)</th>';
+            tex += '<th>&phi;M<sub>n</sub> (kN-m)</th><th>D/C</th><th>Status</th></tr>';
+            r.load_combo_checks.forEach(function(lc) {
+                var statusClass = lc.status === 'OK' ? 'status-pass' : 'status-fail';
+                tex += '<tr><td>' + lc.name + '</td><td>' + lc.pu + '</td><td>' + lc.mu + '</td>';
+                tex += '<td>' + lc.phi_mn_capacity + '</td>';
+                tex += '<td>' + lc.dc_ratio + '</td>';
+                tex += '<td><span class="' + statusClass + '">' + lc.status + '</span></td></tr>';
+            });
+            tex += '</table>';
+        } else if (r.demand_check) {
             var dc = r.demand_check;
             tex += '<h4>Demand / Capacity Check</h4>';
             tex += '<p>\\( P_u = ' + payload.pu_demand + ' \\text{ kN} \\), \\( M_u = ' + payload.mu_demand + ' \\text{ kN-m} \\)</p>';

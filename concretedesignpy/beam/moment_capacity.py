@@ -64,9 +64,6 @@ def process_rebar_data(rebar_list):
     diams = np.array([r["diam"] for r in rebar_list], dtype=float)
     nums  = np.array([r["num"]  for r in rebar_list],  dtype=int)
 
-    print("Distances:", ds)
-    print("Diameters:", diams)
-    print("Counts:   ", nums)
 
     area_diam_vectorized = np.vectorize(gen.area_diam)
     steel_area_vectorized = np.vectorize(gen.steel_area)

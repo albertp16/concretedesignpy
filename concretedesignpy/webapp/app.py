@@ -43,5 +43,4 @@ def create_app():
 def main():
     """Entry point for the console script."""
     app = create_app()
-    print("ConcreteDesignPy Web App running at http://127.0.0.1:5000")
     app.run(debug=True, host="127.0.0.1", port=5000)

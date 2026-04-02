@@ -25,9 +25,6 @@ def main():
     E_c = compute_modulus_of_elasticity(f_c)
     A_g = compute_gross_area(b, h)
     
-    # Output results
-    print(f"Modulus of elasticity of concrete: {E_c:.2f} MPa")
-    print(f"Gross area of column: {A_g:.2f} mm^2")
 
 if __name__ == "__main__":
     main()
@@ -64,9 +61,6 @@ def main():
     ffe = compute_effective_stress(ffu, Ef)
     rho_f = compute_frp_ratio(n, tf, b, h)
     
-    # Output results
-    print(f"Effective stress in FRP: {ffe:.2f} mPa")
-    print(f"FRP volumetric ratio: {rho_f:.4f}")
 
 if __name__ == "__main__":
     main()

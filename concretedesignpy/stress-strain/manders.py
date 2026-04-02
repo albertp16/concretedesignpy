@@ -180,9 +180,6 @@ def main() -> None:
     fpl_example = 3.0    # MPa, lateral confinement
 
     fcc = compute_confined_strength(fpco_example, fpl_example)
-    print(f"Unconfined strength (f'co) = {fpco_example} MPa")
-    print(f"Effective lateral stress (fpl) = {fpl_example} MPa")
-    print(f"Confined strength (f'cc) = {fcc:.2f} MPa")
 
     # Plot the relationship between confinement ratio and confined strength ratio
     plot_confined_strength()

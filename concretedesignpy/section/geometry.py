@@ -304,8 +304,6 @@ As_list = [2580, 1290, 1290, 2580]  # mm^2
 
 po = calculate_po(fc_prime, fy, b, h, As_list)
 pt = calculate_pt(fy,As_list)
-print(po)
-print(pt)
 
 rebar_data = [[2580,1290,1290,2580],[75,200,400,525]] ## [[steel area],[depth from top]] 600x600mm rectangular
 
@@ -338,7 +336,7 @@ if __name__ == "__main__":
     epsilon_y = 525 / 200000  # Assuming Young's modulus of steel = 200000 MPa and yield stress = 525 MPa
 
     # Compute results
-    print(compute_balanced_point(rebar_data, d, epsilon_y))
+    compute_balanced_point(rebar_data, d, epsilon_y)
 
 # def plot_PM_interaction(): 
 #     # Given constants
@@ -709,8 +707,6 @@ if __name__ == "__main__":
     po = calculate_po(fcprime, fy, b, h, as_list)
     pt = calculate_pt(fy, as_list)
     
-    print(f"Pure axial compression load, Po = {po:,.0f} N")
-    print(f"Pure axial tension load,     Pt = {pt:,.0f} N\n")
     
     # Compute P–M diagram key points (Cell 2)
     results = points_on_pm_diagram(fcprime, fy, b, h, betafactor, epsgamma, Es, as_list, d_list)
@@ -721,14 +717,6 @@ if __name__ == "__main__":
     pL = results["below"]["P"]
     mL = results["below"]["M"]
     
-    for which in ["balanced", "above", "below"]:
-        out = results[which]
-        print(f"{which.upper()} POINT:")
-        print(f"  c = {out['c']:.3f} mm")
-        print(f"  P = {out['P']:.2f} N")
-        print(f"  M = {out['M']:.1f} N·mm")
-        print(f"  φ = {out['phi']:.6f} (1/mm)")
-        print(f"  f_s_i list = {out['fs_list']}\n")
     
     # Plot the P–M interaction diagram (Cell 3)
     plot_pm_points_with_curve(po, pt, mB, pB, mA, pA, mL, pL, fcprime, asbar, fy)
