@@ -337,10 +337,58 @@ canvas { display: block; margin: 0 auto 1rem; background: #fff; }
 .loading { text-align: center; padding: 2rem; color: var(--gray-500); }
 .error-msg { color: var(--danger); background: #fef2f2; padding: .75rem; border-radius: 4px; }
 
+/* Column calculator layout */
+.col-layout {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+.col-layout-form { flex: 0 0 420px; min-width: 0; }
+.col-layout-results { flex: 1; min-width: 0; }
+.col-layout-results .results-panel { position: sticky; top: 1rem; }
+
+/* Rebar mode toggle */
+.rebar-mode-toggle {
+    float: right;
+    font-size: .8rem;
+    font-weight: 400;
+}
+.rebar-mode-toggle label { margin-left: .5rem; cursor: pointer; }
+.rebar-mode-toggle input[type="radio"] { margin-right: .15rem; }
+
+/* Rebar editor table */
+.rebar-table-wrap { max-height: 320px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 4px; }
+.rebar-edit-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.rebar-edit-table th {
+    position: sticky; top: 0; background: var(--gray-100);
+    padding: .3rem .4rem; text-align: center; font-weight: 600;
+    color: var(--gray-700); border-bottom: 1px solid var(--gray-300);
+}
+.rebar-edit-table td { padding: .2rem .3rem; text-align: center; border-bottom: 1px solid var(--gray-100); }
+.rebar-edit-table input {
+    width: 80px; padding: .2rem .3rem; border: 1px solid var(--gray-300);
+    border-radius: 3px; font-size: .8rem; text-align: right;
+}
+.rebar-edit-table input:focus {
+    outline: none; border-color: var(--primary-light);
+    box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+}
+
+/* Report headings */
+.mathjax-report h4 {
+    font-size: .9rem; color: var(--primary-dark);
+    border-bottom: 1px solid var(--gray-200);
+    padding-bottom: .25rem; margin: 1rem 0 .5rem;
+}
+
 @media (max-width: 768px) {
     .split-layout { flex-direction: column; }
     .split-right { width: 100%; }
     .results-split { flex-direction: column; }
+    .col-layout { flex-direction: column; }
+    .col-layout-form { flex: 1; width: 100%; }
+    .col-layout-results { width: 100%; }
+    .col-layout-results .results-panel { position: static; }
 }
 
 @media (max-width: 640px) {

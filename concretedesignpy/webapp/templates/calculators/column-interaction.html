@@ -7,70 +7,190 @@
     <h1>Column P-M Interaction Diagram &amp; Rebar Layout</h1>
     <p class="ref">NSCP 2015 / ACI 318-19 &mdash; Strain Compatibility Method</p>
 
-    <form id="calc-form" class="calc-form">
-        <div class="form-section">
-            <h3>Material</h3>
-            <div class="form-row">
-                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="0.1" required></div>
-                <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="0.1" required></div>
-            </div>
-        </div>
-
-        <div class="form-section">
-            <h3>Section</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="450" required></div>
-                <div class="form-group"><label>Depth, h (mm)</label><input type="number" name="h" value="450" required></div>
-                <div class="form-group"><label>Cover (mm)</label><input type="number" name="cover" value="40" required></div>
-                <div class="form-group">
-                    <label>Confinement</label>
-                    <select name="confinement">
-                        <option value="tied" selected>Tied</option>
-                        <option value="spiral">Spiral</option>
-                    </select>
+    <div class="col-layout">
+        <div class="col-layout-form">
+            <form id="calc-form" class="calc-form">
+                <div class="form-section">
+                    <h3>Material Properties</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="0.1" required></div>
+                        <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="0.1" required></div>
+                    </div>
                 </div>
-            </div>
+
+                <div class="form-section">
+                    <h3>Section Geometry</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="450" required></div>
+                        <div class="form-group"><label>Depth, h (mm)</label><input type="number" name="h" value="450" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Cover (mm)</label><input type="number" name="cover" value="40" required></div>
+                        <div class="form-group">
+                            <label>Confinement</label>
+                            <select name="confinement">
+                                <option value="tied" selected>Tied</option>
+                                <option value="spiral">Spiral</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Reinforcement
+                        <span class="rebar-mode-toggle">
+                            <label><input type="radio" name="rebar_mode" value="auto" checked> Auto</label>
+                            <label><input type="radio" name="rebar_mode" value="manual"> Manual</label>
+                        </span>
+                    </h3>
+
+                    <div id="rebar-auto">
+                        <div class="form-row">
+                            <div class="form-group"><label>Total bars</label><input type="number" name="n_bars" value="12" required></div>
+                            <div class="form-group"><label>Bar diameter (mm)</label><input type="number" name="d_bar" value="25" required></div>
+                            <div class="form-group"><label>Bars per side</label><input type="number" name="n_bars_side" value="0" placeholder="auto"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Bars along width (nx)</label><input type="number" name="nx" value="4"></div>
+                            <div class="form-group"><label>Bars along depth (ny)</label><input type="number" name="ny" value="4"></div>
+                        </div>
+                    </div>
+
+                    <div id="rebar-manual" style="display:none;">
+                        <p class="hint" style="text-align:left;margin-bottom:.5rem;">Enter individual bar positions. Y = from section center (mm), Z = from bottom (mm).</p>
+                        <div class="rebar-table-wrap">
+                            <table class="rebar-edit-table" id="rebar-table">
+                                <thead>
+                                    <tr><th>Bar #</th><th>Area (mm&sup2;)</th><th>Y from ctr (mm)</th><th>Z from bot (mm)</th><th></th></tr>
+                                </thead>
+                                <tbody id="rebar-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div style="display:flex;gap:.5rem;margin-top:.5rem;">
+                            <button type="button" class="btn-secondary" onclick="addRebarRow()">+ Add Bar</button>
+                            <button type="button" class="btn-secondary" onclick="generateDefaultBars()">Generate from Section</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Demand Check <small>(optional)</small></h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Pu (kN)</label><input type="number" name="pu_demand" value="" step="0.1" placeholder="factored axial"></div>
+                        <div class="form-group"><label>Mu (kN-m)</label><input type="number" name="mu_demand" value="" step="0.1" placeholder="factored moment"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary">Generate Diagram</button>
+            </form>
         </div>
 
-        <div class="form-section">
-            <h3>Reinforcement</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Total bars</label><input type="number" name="n_bars" value="12" required></div>
-                <div class="form-group"><label>Bar diameter (mm)</label><input type="number" name="d_bar" value="25" required></div>
-                <div class="form-group"><label>Bars per side</label><input type="number" name="n_bars_side" value="0" placeholder="auto"></div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>Bars along width (nx)</label><input type="number" name="nx" value="4"></div>
-                <div class="form-group"><label>Bars along depth (ny)</label><input type="number" name="ny" value="4"></div>
+        <div class="col-layout-results">
+            <div id="results" class="results-panel" style="display:none;">
+                <h2>Results</h2>
+                <div id="chart-pm" class="results-diagram" style="text-align:center;"></div>
+                <div id="svg-rebar" class="results-diagram" style="text-align:center;margin-top:1rem;"></div>
+                <div id="results-content" style="margin-top:1rem;"></div>
             </div>
         </div>
-
-        <div class="form-section">
-            <h3>Demand Check <small>(optional)</small></h3>
-            <div class="form-row">
-                <div class="form-group"><label>Pu (kN)</label><input type="number" name="pu_demand" value="" step="0.1" placeholder="factored axial"></div>
-                <div class="form-group"><label>Mu (kN-m)</label><input type="number" name="mu_demand" value="" step="0.1" placeholder="factored moment"></div>
-            </div>
-        </div>
-
-        <button type="submit" class="btn-primary">Generate Diagram</button>
-    </form>
-
-    <div id="results" class="results-panel" style="display:none;">
-        <h2>Results</h2>
-        <div class="results-split">
-            <div id="svg-pm" class="results-diagram"></div>
-            <div id="svg-rebar" class="results-diagram"></div>
-        </div>
-        <div id="results-content"></div>
-        <div id="results-report" class="report-panel"></div>
     </div>
+
+    <div id="results-report" class="report-panel" style="display:none;"></div>
 </div>
 
 <script>
+// Rebar mode toggle
+document.querySelectorAll('input[name="rebar_mode"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        document.getElementById('rebar-auto').style.display = this.value === 'auto' ? '' : 'none';
+        document.getElementById('rebar-manual').style.display = this.value === 'manual' ? '' : 'none';
+        if (this.value === 'manual' && document.getElementById('rebar-tbody').children.length === 0) {
+            generateDefaultBars();
+        }
+    });
+});
+
+var rebarCounter = 0;
+
+function addRebarRow(area, y, z) {
+    rebarCounter++;
+    var tbody = document.getElementById('rebar-tbody');
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + rebarCounter + '</td>'
+        + '<td><input type="number" class="rb-area" value="' + (area || 490.9) + '" step="0.1"></td>'
+        + '<td><input type="number" class="rb-y" value="' + (y || 0) + '" step="0.1"></td>'
+        + '<td><input type="number" class="rb-z" value="' + (z || 0) + '" step="0.1"></td>'
+        + '<td><button type="button" class="btn-remove" onclick="this.closest(\'tr\').remove();renumberBars();">&times;</button></td>';
+    tbody.appendChild(tr);
+}
+
+function renumberBars() {
+    var rows = document.getElementById('rebar-tbody').querySelectorAll('tr');
+    rebarCounter = 0;
+    rows.forEach(function(row) {
+        rebarCounter++;
+        row.cells[0].textContent = rebarCounter;
+    });
+}
+
+function generateDefaultBars() {
+    var f = document.getElementById('calc-form');
+    var b = parseFloat(f.b.value) || 450;
+    var h = parseFloat(f.h.value) || 450;
+    var cover = parseFloat(f.cover.value) || 40;
+    var d_bar = parseFloat(f.d_bar.value) || 25;
+    var nx = parseInt(f.nx.value) || 4;
+    var ny = parseInt(f.ny.value) || 4;
+    var tie = d_bar <= 32 ? 10 : 12;
+    var d_prime = cover + tie + d_bar / 2.0;
+    var area = Math.PI * d_bar * d_bar / 4.0;
+
+    // Clear table
+    document.getElementById('rebar-tbody').innerHTML = '';
+    rebarCounter = 0;
+
+    // Generate perimeter bars (nx along width, ny along depth)
+    var x_min = -b / 2.0 + d_prime;
+    var x_max = b / 2.0 - d_prime;
+    var z_min = d_prime;
+    var z_max = h - d_prime;
+
+    // Top row
+    for (var i = 0; i < nx; i++) {
+        var y = nx > 1 ? x_min + i * (x_max - x_min) / (nx - 1) : 0;
+        addRebarRow(area.toFixed(1), y.toFixed(1), z_max.toFixed(1));
+    }
+    // Side bars (excluding corners)
+    for (var j = 1; j < ny - 1; j++) {
+        var z = z_max - j * (z_max - z_min) / (ny - 1);
+        addRebarRow(area.toFixed(1), x_min.toFixed(1), z.toFixed(1));
+        addRebarRow(area.toFixed(1), x_max.toFixed(1), z.toFixed(1));
+    }
+    // Bottom row
+    for (var i = 0; i < nx; i++) {
+        var y = nx > 1 ? x_min + i * (x_max - x_min) / (nx - 1) : 0;
+        addRebarRow(area.toFixed(1), y.toFixed(1), z_min.toFixed(1));
+    }
+}
+
+function getManualBars() {
+    var bars = [];
+    var rows = document.getElementById('rebar-tbody').querySelectorAll('tr');
+    rows.forEach(function(row) {
+        bars.push({
+            area: parseFloat(row.querySelector('.rb-area').value),
+            y: parseFloat(row.querySelector('.rb-y').value),
+            z: parseFloat(row.querySelector('.rb-z').value),
+        });
+    });
+    return bars;
+}
+
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var f = this;
+    var isManual = f.rebar_mode.value === 'manual';
+
     var payload = {
         fc: parseFloat(f.fc.value),
         fy: parseFloat(f.fy.value),
@@ -78,26 +198,43 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         h: parseFloat(f.h.value),
         cover: parseFloat(f.cover.value),
         confinement: f.confinement.value,
-        n_bars: parseInt(f.n_bars.value),
-        d_bar: parseFloat(f.d_bar.value),
-        n_bars_side: parseInt(f.n_bars_side.value) || 0,
-        nx: parseInt(f.nx.value) || 0,
-        ny: parseInt(f.ny.value) || 0,
     };
+
+    if (isManual) {
+        payload.manual_bars = getManualBars();
+        payload.d_bar = 25;
+        payload.n_bars = payload.manual_bars.length;
+    } else {
+        payload.n_bars = parseInt(f.n_bars.value);
+        payload.d_bar = parseFloat(f.d_bar.value);
+        payload.n_bars_side = parseInt(f.n_bars_side.value) || 0;
+        payload.nx = parseInt(f.nx.value) || 0;
+        payload.ny = parseInt(f.ny.value) || 0;
+    }
+
     if (f.pu_demand.value) payload.pu_demand = parseFloat(f.pu_demand.value);
     if (f.mu_demand.value) payload.mu_demand = parseFloat(f.mu_demand.value);
 
     submitCalc('/api/column/interaction', payload, function(result) {
-        document.getElementById('svg-pm').innerHTML = result.svg_pm || '';
+        // Matplotlib chart (base64 PNG)
+        if (result.chart_pm) {
+            document.getElementById('chart-pm').innerHTML = '<img src="' + result.chart_pm + '" alt="P-M Interaction Diagram" style="max-width:100%;border-radius:4px;">';
+        }
         document.getElementById('svg-rebar').innerHTML = result.svg_rebar || '';
 
+        // Build detailed calculation report
         var r = result;
         var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
-        tex += '<p><b>Reference:</b> NSCP 2015 / ACI 318-19 &mdash; Strain Compatibility</p>';
+        tex += '<p><b>Reference:</b> NSCP 2015 / ACI 318-19 &mdash; Strain Compatibility Method</p>';
 
-        tex += '<p><b>Given:</b> \\( f\'_c = ' + payload.fc + ' \\text{ MPa} \\), ';
+        // Section properties
+        tex += '<h4>Section Properties</h4>';
+        tex += '<p>\\( f\'_c = ' + payload.fc + ' \\text{ MPa} \\), ';
         tex += '\\( f_y = ' + payload.fy + ' \\text{ MPa} \\), ';
-        tex += '\\( b = ' + payload.b + ' \\text{ mm} \\), \\( h = ' + payload.h + ' \\text{ mm} \\)</p>';
+        tex += '\\( E_s = 200{,}000 \\text{ MPa} \\)</p>';
+        tex += '<p>\\( b = ' + payload.b + ' \\text{ mm} \\), \\( h = ' + payload.h + ' \\text{ mm} \\)</p>';
+        tex += '<p>\\( A_g = ' + r.ag + ' \\text{ mm}^2 \\), ';
+        tex += '\\( I_g = ' + r.ig + ' \\text{ mm}^4 \\)</p>';
         tex += '<p>\\( \\beta_1 = ' + r.beta1 + ' \\), ';
         tex += '\\( d_{eff} = ' + r.d_eff + ' \\text{ mm} \\), ';
         tex += '\\( d\' = ' + r.d_prime + ' \\text{ mm} \\)</p>';
@@ -106,32 +243,71 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         tex += '\\( \\rho = ' + r.rho + ' \\)</p>';
         tex += '<p>Confinement: <b>' + r.confinement + '</b></p>';
 
-        tex += '<p><b>Pure Compression:</b> \\[ P_o = 0.85 f\'_c (A_g - A_{st}) + f_y A_{st} = ' + r.pure_compression_kn + ' \\text{ kN} \\]</p>';
+        // Axial capacity
+        tex += '<h4>Axial Load Capacity</h4>';
+        tex += '<p><b>Pure Compression:</b></p>';
+        tex += '<p>\\[ P_o = 0.85 f\'_c (A_g - A_{st}) + f_y A_{st} = ' + r.pure_compression_kn + ' \\text{ kN} \\]</p>';
         tex += '<p>\\[ \\phi P_{n,max} = ' + r.phi_pn_max_kn + ' \\text{ kN} \\]</p>';
-        tex += '<p><b>Pure Tension:</b> \\( P_t = ' + r.pure_tension_kn + ' \\text{ kN} \\)</p>';
+        tex += '<p><b>Pure Tension:</b> \\( P_t = f_y \\cdot A_{st} = ' + r.pure_tension_kn + ' \\text{ kN} \\)</p>';
 
+        // Key points
         if (r.balanced_point) {
-            tex += '<p><b>Balanced Point:</b> \\( \\phi P_n = ' + r.balanced_point.pu + ' \\text{ kN} \\), ';
+            tex += '<h4>Balanced Condition</h4>';
+            tex += '<p>\\( c_b = ' + r.balanced_point.c + ' \\text{ mm} \\), ';
+            tex += '\\( a_b = ' + r.balanced_point.a + ' \\text{ mm} \\)</p>';
+            tex += '<p>\\( \\phi P_n = ' + r.balanced_point.pu + ' \\text{ kN} \\), ';
             tex += '\\( \\phi M_n = ' + r.balanced_point.mu + ' \\text{ kN-m} \\)</p>';
+            tex += '<p>\\( \\phi = ' + r.balanced_point.phi + ' \\) (' + r.balanced_point.classification + ')</p>';
+
+            // Per-bar strain/stress table at balanced point
+            if (r.balanced_steel_detail) {
+                tex += '<p><b>Steel Forces at Balanced Point:</b></p>';
+                tex += '<table class="result-table" style="font-size:.8rem;">';
+                tex += '<tr><th>Bar</th><th>As (mm&sup2;)</th><th>ds (mm)</th><th>&epsilon;s</th><th>fs (MPa)</th><th>Force (kN)</th></tr>';
+                r.balanced_steel_detail.forEach(function(bar) {
+                    tex += '<tr><td>' + bar.bar + '</td><td>' + bar.as_mm2 + '</td><td>' + bar.ds_mm + '</td>';
+                    tex += '<td>' + bar.strain.toFixed(6) + '</td><td>' + bar.fs_mpa + '</td><td>' + bar.force_kn + '</td></tr>';
+                });
+                tex += '</table>';
+                var cc_bal = r.balanced_point.cc_kn || '—';
+                var fs_bal = r.balanced_point.fs_total_kn || '—';
+                tex += '<p>\\( C_c = 0.85 f\'_c \\cdot a \\cdot b = ' + cc_bal + ' \\text{ kN} \\)</p>';
+                tex += '<p>\\( \\Sigma F_s = ' + fs_bal + ' \\text{ kN} \\)</p>';
+            }
         }
         if (r.max_moment_point) {
-            tex += '<p><b>Max Moment:</b> \\( \\phi M_{n,max} = ' + r.max_moment_point.mu + ' \\text{ kN-m} \\) ';
+            tex += '<h4>Maximum Moment Point</h4>';
+            tex += '<p>\\( \\phi M_{n,max} = ' + r.max_moment_point.mu + ' \\text{ kN-m} \\) ';
             tex += 'at \\( \\phi P_n = ' + r.max_moment_point.pu + ' \\text{ kN} \\)</p>';
         }
 
+        // Demand check
         if (r.demand_check) {
             var dc = r.demand_check;
-            tex += '<hr><p><b>Demand Check:</b></p>';
+            tex += '<h4>Demand / Capacity Check</h4>';
             tex += '<p>\\( P_u = ' + payload.pu_demand + ' \\text{ kN} \\), \\( M_u = ' + payload.mu_demand + ' \\text{ kN-m} \\)</p>';
             tex += '<p>\\( \\phi M_n = ' + dc.phi_mn_capacity + ' \\text{ kN-m} \\)</p>';
             tex += '<p>D/C Ratio: \\( \\frac{M_u}{\\phi M_n} = ' + dc.dc_ratio + ' \\)</p>';
-            tex += '<p><b>Status:</b> ' + dc.status + '</p>';
+            var statusClass = dc.status === 'OK' ? 'status-pass' : 'status-fail';
+            tex += '<p>Status: <span class="' + statusClass + '">' + dc.status + '</span></p>';
         }
 
-        tex += '<p><b>Bar Depths from Compression Face:</b> ' + r.bar_depths.join(', ') + ' mm</p>';
+        // Bar depths summary
+        tex += '<h4>Bar Layout Summary</h4>';
+        tex += '<p><b>Bar Depths from Compression Face:</b></p>';
+        tex += '<table class="result-table" style="font-size:.8rem;">';
+        tex += '<tr><th>Bar</th><th>ds (mm)</th><th>As (mm&sup2;)</th></tr>';
+        for (var i = 0; i < r.bar_depths.length; i++) {
+            tex += '<tr><td>' + (i + 1) + '</td><td>' + r.bar_depths[i] + '</td><td>' + (r.bar_areas ? r.bar_areas[i] : '—') + '</td></tr>';
+        }
+        tex += '</table>';
+
         tex += '<p><b>Total Interaction Points:</b> ' + r.points.length + '</p>';
         tex += '</div>';
-        document.getElementById('results-report').innerHTML = tex;
+
+        var reportDiv = document.getElementById('results-report');
+        reportDiv.style.display = '';
+        reportDiv.innerHTML = tex;
         if (window.MathJax) MathJax.typeset();
     });
 });

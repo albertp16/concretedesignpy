@@ -329,6 +329,79 @@ def svg_interaction_diagram(points, title="P-M Interaction Diagram", demand=None
     return svg
 
 
+def matplotlib_interaction_diagram(points, title="P-M Interaction Diagram", demand=None):
+    """
+    Generate P-M interaction diagram using matplotlib, returned as base64 PNG.
+
+    Parameters
+    ----------
+    points : list of dict
+        Each has 'mu', 'pu', 'mn', 'pn' keys (factored and nominal values).
+    title : str
+    demand : tuple or None
+        (Pu_kN, Mu_kNm) demand point to plot.
+
+    Returns
+    -------
+    str : base64-encoded PNG image data URI
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import io
+    import base64
+
+    fig, ax = plt.subplots(figsize=(7, 5.5))
+
+    # Extract data
+    mu_vals = [abs(p["mu"]) for p in points]
+    pu_vals = [p["pu"] for p in points]
+    mn_vals = [abs(p.get("mn", p["mu"])) for p in points]
+    pn_vals = [p.get("pn", p["pu"]) for p in points]
+
+    # Plot nominal curve (dashed, lighter)
+    ax.plot(mn_vals, pn_vals, color="#93c5fd", linewidth=1.5, linestyle="--",
+            label="Pn, Mn (nominal)", zorder=2)
+
+    # Plot factored curve (solid, bold)
+    ax.plot(mu_vals, pu_vals, color="#1e40af", linewidth=2.5,
+            label="\u03c6Pn, \u03c6Mn (factored)", zorder=3)
+    ax.scatter(mu_vals, pu_vals, color="#1e40af", s=12, zorder=4)
+
+    # Demand point
+    if demand is not None:
+        pu_d, mu_d = demand
+        ax.plot(abs(mu_d), pu_d, "o", color="#dc2626", markersize=10,
+                markerfacecolor="none", markeredgewidth=2.5, zorder=5)
+        ax.plot(abs(mu_d), pu_d, "o", color="#dc2626", markersize=3, zorder=6)
+        ax.annotate(f"Pu={pu_d:.0f}, Mu={abs(mu_d):.0f}",
+                    xy=(abs(mu_d), pu_d), xytext=(12, 8),
+                    textcoords="offset points", fontsize=9, color="#dc2626",
+                    fontweight="bold")
+
+    # Zero line
+    ax.axhline(y=0, color="#999", linewidth=0.5, linestyle="--")
+
+    # Labels and title
+    ax.set_xlabel("Moment, \u03c6Mn (kN-m)", fontsize=11)
+    ax.set_ylabel("Axial, \u03c6Pn (kN)", fontsize=11)
+    ax.set_title(title, fontsize=13, fontweight="bold", color="#1e3a8a")
+    ax.legend(loc="upper right", fontsize=9)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(left=0)
+
+    fig.tight_layout()
+
+    # Convert to base64
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                facecolor="white", edgecolor="none")
+    plt.close(fig)
+    buf.seek(0)
+    b64 = base64.b64encode(buf.read()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
+
+
 def svg_rebar_section(section_data, width, height):
     """
     Generate SVG of rebar layout in rectangular section.

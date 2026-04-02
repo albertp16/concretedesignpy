@@ -266,6 +266,7 @@ def generate_interaction_diagram(
     points = []
     balanced_point = None
     max_moment_point = None
+    balanced_steel_detail = None
 
     for c in c_values:
         a = beta1 * c
@@ -349,6 +350,19 @@ def generate_interaction_diagram(
         mn_knm = mn / 1e6
         mu_knm = mu / 1e6
 
+        # Per-bar detail for report
+        bar_detail = []
+        for k in range(n_actual):
+            sf = steel_forces[k]
+            bar_detail.append({
+                "bar": k + 1,
+                "as_mm2": round(bar_as[k], 1),
+                "ds_mm": round(sf["ds"], 2),
+                "strain": round(sf["es"], 6),
+                "fs_mpa": round(sf["fs"], 2),
+                "force_kn": round(sf["force"] / 1000.0, 2),
+            })
+
         point = {
             "c": round(c, 2),
             "a": round(min(a, h), 2),
@@ -359,6 +373,9 @@ def generate_interaction_diagram(
             "phi": round(phi, 4),
             "classification": classify,
             "es_tension": round(net_tensile_strain, 6),
+            "cc_kn": round(cc / 1000.0, 2),
+            "fs_total_kn": round(fs_total / 1000.0, 2),
+            "steel_forces": bar_detail,
         }
         points.append(point)
 
@@ -366,6 +383,7 @@ def generate_interaction_diagram(
         ey = fy / es_mod
         if balanced_point is None and net_tensile_strain >= ey:
             balanced_point = point
+            balanced_steel_detail = bar_detail
 
         # Track maximum moment point
         if max_moment_point is None or abs(mu_knm) > abs(max_moment_point["mu"]):
@@ -390,19 +408,26 @@ def generate_interaction_diagram(
     pnmax_kn = pn_max / 1000.0
     phi_c = 0.75 if confinement == "spiral" else 0.65
 
+    # Gross moment of inertia
+    ig = b * h ** 3 / 12.0
+
     return {
         "points": points,
         "pure_compression_kn": round(po_kn, 2),
         "pure_tension_kn": round(pt_kn, 2),
         "phi_pn_max_kn": round(phi_c * pnmax_kn, 2),
         "balanced_point": balanced_point,
+        "balanced_steel_detail": balanced_steel_detail,
         "max_moment_point": max_moment_point,
         "beta1": round(beta1, 4),
         "d_eff": round(d_eff, 2),
         "d_prime": round(d_prime, 2),
         "bar_depths": [round(d, 2) for d in bar_ds],
+        "bar_areas": [round(a, 1) for a in bar_as],
         "n_bars_actual": n_actual,
         "ast_total": round(ast_total, 2),
+        "ag": round(ag, 0),
+        "ig": round(ig, 0),
         "rho": round(ast_total / ag, 6),
         "confinement": confinement,
     }

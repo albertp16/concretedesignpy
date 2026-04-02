@@ -14,7 +14,7 @@ from concretedesignpy.calculators.column_flexural import (
 )
 from concretedesignpy.calculators.rebar_layout import section_generate_rect
 from concretedesignpy.calculators.diagrams import (
-    svg_interaction_diagram,
+    matplotlib_interaction_diagram,
     svg_rebar_section,
 )
 
@@ -28,20 +28,36 @@ def interaction_diagram():
     try:
         b = float(data["b"])
         h = float(data["h"])
-        d_bar = float(data["d_bar"])
+        d_bar = float(data.get("d_bar", 25))
         cover = float(data.get("cover", 40))
         confinement = data.get("confinement", "tied")
+
+        # Manual bar input: list of {area, y, z} objects
+        # y = distance from center (mm), z = distance from bottom (mm)
+        manual_bars = data.get("manual_bars")
+        bar_coords = None
+        bar_areas = None
+
+        if manual_bars and len(manual_bars) > 0:
+            # Convert z-from-bottom to distance-from-top (compression face)
+            bar_coords = [h - float(bar["z"]) for bar in manual_bars]
+            bar_areas = [float(bar["area"]) for bar in manual_bars]
+            n_bars = len(manual_bars)
+        else:
+            n_bars = int(data["n_bars"])
 
         result = generate_interaction_diagram(
             fc=float(data["fc"]),
             fy=float(data["fy"]),
             b=b, h=h,
-            n_bars=int(data["n_bars"]),
+            n_bars=n_bars,
             d_bar=d_bar,
             n_bars_side=int(data.get("n_bars_side", 0)),
             cover=cover,
             confinement=confinement,
             n_points=int(data.get("n_points", 32)),
+            bar_coords=bar_coords,
+            bar_areas=bar_areas,
         )
 
         # Demand check (if Pu and Mu provided)
@@ -55,8 +71,8 @@ def interaction_diagram():
             )
             result["demand_check"] = capacity
 
-        # SVG interaction diagram (with demand point if provided)
-        result["svg_pm"] = svg_interaction_diagram(
+        # Matplotlib interaction diagram (base64 PNG)
+        result["chart_pm"] = matplotlib_interaction_diagram(
             result["points"],
             demand=(float(pu_demand), float(mu_demand))
             if pu_demand is not None and mu_demand is not None
@@ -74,6 +90,11 @@ def interaction_diagram():
             )
             result["svg_rebar"] = svg_rebar_section(layout, b, h)
             result["rebar_layout"] = layout
+
+        # Strip per-point steel_forces from points to reduce payload
+        # (keep only the balanced point detail sent separately)
+        for pt in result["points"]:
+            pt.pop("steel_forces", None)
 
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
