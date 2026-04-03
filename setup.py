@@ -22,6 +22,8 @@ setup(
         'matplotlib',
         'numpy',
         'flask>=2.0',
+        'gunicorn',
+        'openpyxl',
     ],
     extras_require={
         'dev': ['pytest'],

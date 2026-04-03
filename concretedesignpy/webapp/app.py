@@ -42,5 +42,8 @@ def create_app():
 
 def main():
     """Entry point for the console script."""
+    import os
     app = create_app()
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("RAILWAY_ENVIRONMENT") is None
+    app.run(debug=debug, host="0.0.0.0", port=port)

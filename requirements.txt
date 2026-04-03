@@ -1,0 +1,5 @@
+flask>=2.0
+numpy
+matplotlib
+gunicorn
+openpyxl
