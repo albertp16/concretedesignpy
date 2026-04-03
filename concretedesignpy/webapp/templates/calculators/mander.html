@@ -231,25 +231,25 @@ function renderConfinementChart(result) {
 
     var layout = {
         title: { text: "Confined Strength Determination &mdash; Mander et al. (1988) Fig. 5<br><sup>Lateral Confining Stresses for Rectangular Section</sup>",
-                 font: { size: 13 } },
+                 font: { size: 13 }, y: 0.98, yanchor: 'top' },
         xaxis: {
-            title: { text: "Confined Strength Ratio (f'cc/f'c)", font: { color: '#dc2626', size: 13 } },
+            title: { text: "Confined Strength Ratio (f'cc/f'c)", font: { color: '#dc2626', size: 13 }, standoff: 10 },
             range: [0, 2.5], dtick: 0.5, gridcolor: '#e5e7eb', zeroline: false,
             side: 'top',
         },
         yaxis: {
             title: { text: "Largest Effective Confining Stress Ratio (f'lx/f'x)", font: { color: '#2563eb', size: 12 } },
-            range: [-0.02, yMax], dtick: 0.02, gridcolor: '#e5e7eb', zeroline: false,
+            range: [yMax, -0.02], dtick: 0.02, gridcolor: '#e5e7eb', zeroline: false,
             autorange: false,
         },
         showlegend: true,
         legend: {
-            x: 0.5, xanchor: 'center', y: -0.15, yanchor: 'top',
+            x: 0.5, xanchor: 'center', y: -0.08, yanchor: 'top',
             orientation: 'h', font: { size: 9 },
             bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#d1d5db', borderwidth: 1,
         },
-        height: 700,
-        margin: { t: 80, r: 30, b: 120, l: 80 },
+        height: 750,
+        margin: { t: 100, r: 30, b: 140, l: 80 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
         hovermode: 'closest',
     };
