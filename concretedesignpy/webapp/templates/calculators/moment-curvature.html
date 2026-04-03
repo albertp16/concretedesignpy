@@ -1,43 +1,90 @@
 {% extends "base.html" %}
 {% block title %}Moment-Curvature - ConcreteDesignPy{% endblock %}
 
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<style>
+.mc-layout { display: flex; gap: 2rem; align-items: flex-start; }
+.mc-left { flex: 0 0 480px; }
+.mc-right { flex: 1; min-width: 0; }
+.mc-right .results-panel { position: sticky; top: 1rem; }
+.mc-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.report-section {
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.report-section h4 {
+    font-size: .95rem; color: var(--primary-dark); margin: 0 0 .75rem;
+    padding-bottom: .35rem; border-bottom: 2px solid var(--primary-light);
+}
+.report-eq { padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0; font-size: .9rem; }
+.report-ref { font-size: .78rem; color: #3b82f6; font-style: italic; margin: 0; }
+.report-table {
+    width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0;
+}
+.report-table th {
+    background: var(--primary-dark); color: #fff; padding: .45rem .6rem;
+    text-align: center; font-weight: 600; font-size: .78rem;
+}
+.report-table td {
+    padding: .4rem .6rem; text-align: center; border-bottom: 1px solid var(--gray-200);
+    font-family: "SF Mono","Fira Code",monospace; font-size: .8rem;
+}
+.report-table tr:nth-child(even) { background: var(--gray-50); }
+.report-result {
+    background: #dcfce7; padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0;
+    font-size: .95rem; font-weight: 700;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Moment-Curvature Analysis</h1>
     <p class="ref">6-Point M-&phi; Diagram &mdash; NSCP 2015 / ACI 318-19</p>
 
-    <form id="calc-form" class="calc-form">
-        <div class="form-section">
-            <h3>Section</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="450" required></div>
-                <div class="form-group"><label>Height, h (mm)</label><input type="number" name="h" value="600" required></div>
-                <div class="form-group"><label>Eff. depth, d (mm)</label><input type="number" name="d" value="550" required></div>
+    <div class="mc-layout">
+        <div class="mc-left">
+            <form id="calc-form" class="calc-form">
+                <div class="form-section">
+                    <h3>Section</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="450" required></div>
+                        <div class="form-group"><label>Height, h (mm)</label><input type="number" name="h" value="600" required></div>
+                        <div class="form-group"><label>Eff. depth, d (mm)</label><input type="number" name="d" value="550" required></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>Material &amp; Steel</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="0.1" required></div>
+                        <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="0.1" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>As tension (mm&sup2;)</label><input type="number" name="as_tension" value="1980" step="1" required></div>
+                        <div class="form-group"><label>Es (MPa)</label><input type="number" name="es" value="200000"></div>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%;">Analyze</button>
+            </form>
+        </div>
+
+        <div class="mc-right">
+            <div id="results" class="results-panel" style="display:none;">
+                <h2>Results</h2>
+                <div id="results-summary"></div>
+                <div id="chart-mphi" style="width:100%;"></div>
             </div>
         </div>
-
-        <div class="form-section">
-            <h3>Material &amp; Steel</h3>
-            <div class="form-row">
-                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="0.1" required></div>
-                <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="0.1" required></div>
-                <div class="form-group"><label>As tension (mm&sup2;)</label><input type="number" name="as_tension" value="1980" step="1" required></div>
-                <div class="form-group"><label>Es (MPa)</label><input type="number" name="es" value="200000"></div>
-            </div>
-        </div>
-
-        <button type="submit" class="btn-primary">Analyze</button>
-    </form>
-
-    <div id="results" class="results-panel" style="display:none;">
-        <h2>Results</h2>
-        <div class="results-split">
-            <div id="results-svg" class="results-diagram"></div>
-            <div id="results-content"></div>
-        </div>
-        <div id="results-report" class="report-panel"></div>
     </div>
+
+    <div class="mc-charts" style="display:none;" id="charts-row">
+        <div id="chart-section" style="width:100%;"></div>
+        <div id="chart-strain-stress" style="width:100%;"></div>
+    </div>
+
+    <div id="results-report" style="display:none; margin-top:1.5rem;"></div>
 </div>
 
 <script>
@@ -51,72 +98,295 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     };
     submitCalc('/api/section/moment-curvature', payload, function(result) {
         var pts = result.points || [];
-        if (pts.length > 0) {
-            document.getElementById('results-svg').innerHTML = drawMCSvg(pts);
-        }
+        var sp = result.section_properties || {};
 
-        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
-        tex += '<p><b>Reference:</b> NSCP 2015 / ACI 318-19</p>';
-        tex += '<p><b>6-Point M-&phi; Analysis</b></p>';
-        tex += '<table class="result-table"><tr><th>Point</th><th>&phi; (1/mm)</th><th>M (kN-m)</th></tr>';
+        // ── Summary Table ──
+        var s = '<table class="report-table">';
+        s += '<tr><th>Point</th><th>Event</th><th>&phi; (1/mm)</th><th>M (kN-m)</th></tr>';
         for (var i = 0; i < pts.length; i++) {
             var p = pts[i];
-            tex += '<tr><td>P' + p.point + '</td><td>' + (p.phi ? p.phi.toExponential(4) : '0') + '</td><td>' + (p.moment_knm || 0).toFixed(2) + '</td></tr>';
+            s += '<tr><td>P' + p.point + '</td><td style="text-align:left;">' + p.event + '</td>';
+            s += '<td>' + (p.phi ? p.phi.toExponential(4) : '0') + '</td>';
+            s += '<td>' + (p.moment_knm || 0).toFixed(2) + '</td></tr>';
         }
-        tex += '</table>';
-        tex += '</div>';
-        document.getElementById('results-report').innerHTML = tex;
-        if (window.MathJax) MathJax.typeset();
+        s += '</table>';
+        document.getElementById('results-summary').innerHTML = s;
+
+        // ── Chart 1: M-phi Plotly ──
+        renderMPhiChart(pts);
+
+        // ── Chart 2: Section Visualization ──
+        renderSectionChart(payload, sp);
+
+        // ── Chart 3: Strain-Stress at Ultimate ──
+        renderStrainStressChart(payload, sp, pts);
+
+        // Show charts row
+        document.getElementById('charts-row').style.display = '';
+
+        // ── Full Report ──
+        renderReport(payload, sp, pts);
     });
 });
 
-function drawMCSvg(points) {
-    var phis = points.map(function(p) { return p.phi || 0; });
-    var moments = points.map(function(p) { return p.moment_knm || 0; });
-    var maxPhi = Math.max.apply(null, phis) * 1.15;
-    var maxM = Math.max.apply(null, moments) * 1.15;
-    if (maxPhi === 0) maxPhi = 1;
-    if (maxM === 0) maxM = 1;
-
-    var W = 500, H = 320, pad = 55;
-    var pw = W - 2 * pad, ph = H - 2 * pad;
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:500px">';
-
-    for (var gi = 0; gi <= 4; gi++) {
-        var gy = pad + (gi / 4) * ph;
-        s += '<line x1="' + pad + '" y1="' + gy + '" x2="' + (pad + pw) + '" y2="' + gy + '" stroke="#e5e7eb" stroke-width="1"/>';
-        var mv = maxM * (1 - gi / 4);
-        s += '<text x="' + (pad - 5) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="9" fill="#666">' + mv.toFixed(0) + '</text>';
-    }
-    for (var gj = 0; gj <= 4; gj++) {
-        var gx = pad + (gj / 4) * pw;
-        s += '<line x1="' + gx + '" y1="' + pad + '" x2="' + gx + '" y2="' + (pad + ph) + '" stroke="#e5e7eb" stroke-width="1"/>';
-        var pv = maxPhi * (gj / 4);
-        s += '<text x="' + gx + '" y="' + (pad + ph + 14) + '" text-anchor="middle" font-size="9" fill="#666">' + pv.toExponential(1) + '</text>';
+function renderMPhiChart(pts) {
+    var phis = [0], moments = [0];
+    for (var i = 0; i < pts.length; i++) {
+        phis.push(pts[i].phi || 0);
+        moments.push(pts[i].moment_knm || 0);
     }
 
-    s += '<line x1="' + pad + '" y1="' + pad + '" x2="' + pad + '" y2="' + (pad + ph) + '" stroke="#333" stroke-width="1.5"/>';
-    s += '<line x1="' + pad + '" y1="' + (pad + ph) + '" x2="' + (pad + pw) + '" y2="' + (pad + ph) + '" stroke="#333" stroke-width="1.5"/>';
-    s += '<text x="' + (pad + pw / 2) + '" y="' + (H - 5) + '" text-anchor="middle" font-size="10" fill="#333">Curvature (1/mm)</text>';
-    s += '<text x="12" y="' + (pad + ph / 2) + '" text-anchor="middle" font-size="10" fill="#333" transform="rotate(-90 12 ' + (pad + ph / 2) + ')">Moment (kN-m)</text>';
+    var traces = [
+        {
+            x: phis, y: moments, mode: 'lines+markers',
+            name: 'M-\u03c6 Curve',
+            line: { color: '#2563eb', width: 2.5 },
+            marker: { size: 8, color: '#2563eb' },
+        },
+    ];
 
-    var path = '';
-    for (var i = 0; i < points.length; i++) {
-        var x = pad + (phis[i] / maxPhi) * pw;
-        var y = pad + ph - (moments[i] / maxM) * ph;
-        path += (i === 0 ? 'M' : 'L') + x + ',' + y;
+    // Add point labels
+    for (var j = 0; j < pts.length; j++) {
+        traces.push({
+            x: [pts[j].phi], y: [pts[j].moment_knm],
+            mode: 'markers+text', showlegend: false,
+            marker: { size: 10, color: '#dc2626', symbol: 'circle' },
+            text: ['P' + pts[j].point],
+            textposition: 'top right',
+            textfont: { size: 10, color: '#dc2626', family: 'Arial' },
+        });
     }
-    s += '<path d="' + path + '" fill="none" stroke="#2563eb" stroke-width="2"/>';
 
-    for (var j = 0; j < points.length; j++) {
-        var px = pad + (phis[j] / maxPhi) * pw;
-        var py = pad + ph - (moments[j] / maxM) * ph;
-        s += '<circle cx="' + px + '" cy="' + py + '" r="4" fill="#2563eb"/>';
-        s += '<text x="' + (px + 6) + '" y="' + (py - 6) + '" font-size="9" fill="#2563eb">P' + points[j].point + '</text>';
+    var layout = {
+        title: { text: 'Moment-Curvature Diagram', font: { size: 14 } },
+        xaxis: { title: 'Curvature, \u03c6 (1/mm)', rangemode: 'tozero', gridcolor: '#e5e7eb', tickformat: '.2e' },
+        yaxis: { title: 'Moment, M (kN-m)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
+        height: 450,
+        margin: { t: 40, r: 20, b: 60, l: 70 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        showlegend: false,
+        hovermode: 'closest',
+    };
+    Plotly.newPlot('chart-mphi', traces, layout, { responsive: true, displayModeBar: false });
+}
+
+function renderSectionChart(payload, sp) {
+    var b = payload.b, h = payload.h, d = payload.d;
+    var kd = sp.kd || 0;
+    var cover = h - d;
+
+    // Build section shapes
+    var shapes = [
+        // Outer section rectangle
+        { type: 'rect', x0: 0, y0: 0, x1: b, y1: h, line: { color: '#333', width: 2 }, fillcolor: 'rgba(200,200,200,0.15)' },
+        // Neutral axis line
+        { type: 'line', x0: -30, y0: h - kd, x1: b + 30, y1: h - kd, line: { color: '#dc2626', width: 2, dash: 'dash' } },
+        // Effective depth line
+        { type: 'line', x0: -20, y0: h - d, x1: b + 20, y1: h - d, line: { color: '#2563eb', width: 1.5, dash: 'dot' } },
+    ];
+
+    // Tension rebar (bottom)
+    var nBars = Math.round(payload.as_tension / (Math.PI * 12.5 * 12.5));
+    if (nBars < 2) nBars = 2;
+    if (nBars > 10) nBars = 10;
+    var barR = 12;
+    var spacing = (b - 2 * cover) / (nBars - 1);
+    var rebarX = [], rebarY = [];
+    for (var i = 0; i < nBars; i++) {
+        var cx = cover + i * spacing;
+        rebarX.push(cx);
+        rebarY.push(h - d);
     }
 
-    s += '</svg>';
-    return s;
+    var traces = [
+        // Rebar markers
+        {
+            x: rebarX, y: rebarY, mode: 'markers', name: 'Tension Steel',
+            marker: { size: 14, color: '#1e40af', symbol: 'circle', line: { width: 2, color: '#fff' } },
+        },
+        // Compression zone fill
+        {
+            x: [0, b, b, 0, 0], y: [h, h, h - kd, h - kd, h],
+            fill: 'toself', fillcolor: 'rgba(239,68,68,0.15)',
+            line: { color: 'rgba(239,68,68,0.4)', width: 1 },
+            name: 'Compression Zone', mode: 'lines',
+        },
+    ];
+
+    var annotations = [
+        { x: b + 40, y: h - kd, text: 'NA (kd=' + kd.toFixed(1) + ')', showarrow: false, font: { size: 10, color: '#dc2626' } },
+        { x: b + 40, y: h - d, text: 'd=' + d + 'mm', showarrow: false, font: { size: 10, color: '#2563eb' } },
+        { x: b / 2, y: h + 25, text: 'b=' + b + 'mm', showarrow: false, font: { size: 10, color: '#333' } },
+        { x: -45, y: h / 2, text: 'h=' + h + 'mm', showarrow: false, font: { size: 10, color: '#333' }, textangle: -90 },
+    ];
+
+    var layout = {
+        title: { text: 'Cross-Section', font: { size: 14 } },
+        xaxis: { visible: false, range: [-80, b + 100], scaleanchor: 'y' },
+        yaxis: { visible: false, range: [-30, h + 50] },
+        shapes: shapes,
+        annotations: annotations,
+        height: 450,
+        margin: { t: 40, r: 20, b: 20, l: 20 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        showlegend: false,
+    };
+    Plotly.newPlot('chart-section', traces, layout, { responsive: true, displayModeBar: false });
+}
+
+function renderStrainStressChart(payload, sp, pts) {
+    var h = payload.h, d = payload.d, b = payload.b;
+    var kd = sp.kd || 0;
+    var fc = payload.fc, fy = payload.fy, es = payload.es;
+    var ecu = 0.003;
+
+    // Strain profile at ultimate (Point 6)
+    var strainTop = -ecu;
+    var strainAtD = ecu * (d - kd) / kd;
+    var strainBot = ecu * (h - kd) / kd;
+
+    // Heights from bottom
+    var yTop = h, yNA = h - kd, yD = h - d, yBot = 0;
+
+    var strainTrace = {
+        x: [strainTop, 0, strainAtD],
+        y: [yTop, yNA, yD],
+        mode: 'lines+markers', name: 'Strain at Ultimate',
+        line: { color: '#dc2626', width: 2.5 },
+        marker: { size: 6 },
+        xaxis: 'x', yaxis: 'y',
+    };
+
+    // Stress profile (simplified)
+    var stressTop = -0.85 * fc;
+    var stressSteel = Math.min(strainAtD * es, fy);
+
+    var stressTrace = {
+        x: [stressTop, stressTop, 0, 0, stressSteel],
+        y: [yTop, yNA, yNA, yD, yD],
+        mode: 'lines+markers', name: 'Stress at Ultimate',
+        line: { color: '#2563eb', width: 2.5 },
+        marker: { size: 6 },
+        xaxis: 'x2', yaxis: 'y',
+    };
+
+    var layout = {
+        title: { text: 'Strain & Stress at Ultimate (Point 6)', font: { size: 14 } },
+        xaxis: {
+            title: 'Strain', domain: [0, 0.45], zeroline: true, zerolinecolor: '#999',
+            gridcolor: '#e5e7eb', tickformat: '.4f',
+        },
+        xaxis2: {
+            title: 'Stress (MPa)', domain: [0.55, 1], zeroline: true, zerolinecolor: '#999',
+            gridcolor: '#e5e7eb', anchor: 'y',
+        },
+        yaxis: { title: 'Height (mm)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        height: 450,
+        margin: { t: 40, r: 20, b: 60, l: 60 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        showlegend: true,
+        legend: { x: 0.5, xanchor: 'center', y: -0.2, orientation: 'h', font: { size: 10 } },
+        shapes: [
+            { type: 'line', x0: -0.01, y0: yNA, x1: 0.01, y1: yNA, xref: 'x', line: { color: '#999', width: 1, dash: 'dot' } },
+        ],
+    };
+    Plotly.newPlot('chart-strain-stress', [strainTrace, stressTrace], layout, { responsive: true, displayModeBar: false });
+}
+
+function renderReport(payload, sp, pts) {
+    var h = '';
+
+    // Section Properties
+    h += '<div class="report-section">';
+    h += '<h4>1. Section Properties</h4>';
+    h += '<p class="report-ref">NSCP 2015 / ACI 318-19</p>';
+    h += '<div class="report-eq">\\[ E_c = 4700\\sqrt{f\'_c} = 4700\\sqrt{' + payload.fc + '} = ' + sp.ec + ' \\text{ MPa} \\]</div>';
+    h += '<div class="report-eq">\\[ n = \\frac{E_s}{E_c} = \\frac{' + payload.es + '}{' + sp.ec + '} = ' + sp.n + ' \\]</div>';
+    h += '<div class="report-eq">\\[ f_r = 0.62\\sqrt{f\'_c} = 0.62\\sqrt{' + payload.fc + '} = ' + sp.fr + ' \\text{ MPa} \\]</div>';
+    h += '</div>';
+
+    // Uncracked Section
+    h += '<div class="report-section">';
+    h += '<h4>2. Uncracked Transformed Section</h4>';
+    h += '<div class="report-eq">\\[ I_g = \\frac{bh^3}{12} = \\frac{' + payload.b + ' \\times ' + payload.h + '^3}{12} = ' + sp.ig.toExponential(4) + ' \\text{ mm}^4 \\]</div>';
+    h += '<div class="report-eq">\\[ \\bar{y} = ' + sp.y_bar + ' \\text{ mm (from top)} \\]</div>';
+    h += '<div class="report-eq">\\[ I_t = ' + sp.it.toExponential(4) + ' \\text{ mm}^4 \\text{ (transformed)} \\]</div>';
+    h += '</div>';
+
+    // Cracked Section
+    h += '<div class="report-section">';
+    h += '<h4>3. Cracked Section Analysis</h4>';
+    h += '<div class="report-eq">\\[ \\frac{b}{2} k_d^2 + n A_s k_d - n A_s d = 0 \\]</div>';
+    h += '<div class="report-eq">\\[ k_d = ' + sp.kd + ' \\text{ mm (cracked neutral axis depth)} \\]</div>';
+    h += '<div class="report-eq">\\[ I_{cr} = \\frac{b \\cdot k_d^3}{3} + n A_s (d - k_d)^2 = ' + sp.icr.toExponential(4) + ' \\text{ mm}^4 \\]</div>';
+    h += '</div>';
+
+    // 6-Point M-phi Table
+    h += '<div class="report-section">';
+    h += '<h4>4. 6-Point Moment-Curvature Results</h4>';
+    h += '<table class="report-table">';
+    h += '<tr><th>Point</th><th>Event</th><th>&phi; (1/mm)</th><th>&phi; (rad/m)</th><th>M (kN-m)</th></tr>';
+    for (var i = 0; i < pts.length; i++) {
+        var p = pts[i];
+        var phiRadM = ((p.phi || 0) * 1000).toExponential(4);
+        h += '<tr><td>P' + p.point + '</td><td style="text-align:left;">' + p.event + '</td>';
+        h += '<td>' + (p.phi ? p.phi.toExponential(4) : '0') + '</td>';
+        h += '<td>' + phiRadM + '</td>';
+        h += '<td>' + (p.moment_knm || 0).toFixed(2) + '</td></tr>';
+    }
+    h += '</table>';
+    h += '</div>';
+
+    // Key Calculations for Each Point
+    h += '<div class="report-section">';
+    h += '<h4>5. Key Point Derivations</h4>';
+
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>P1 &mdash; Just Before Cracking:</b></p>';
+    h += '<div class="report-eq">\\[ M_{cr} = \\frac{f_r \\cdot I_t}{h - \\bar{y}} \\quad ; \\quad \\phi_1 = \\frac{M_{cr}}{E_c \\cdot I_t} \\]</div>';
+
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>P2 &mdash; Just After Cracking:</b></p>';
+    h += '<div class="report-eq">\\[ M = M_{cr} \\quad ; \\quad \\phi_2 = \\frac{M_{cr}}{E_c \\cdot I_{cr}} \\]</div>';
+
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>P3 &mdash; Elastic Limit (0.45f\'c):</b></p>';
+    h += '<div class="report-eq">\\[ \\varepsilon_c = \\frac{0.45 f\'_c}{E_c} \\quad ; \\quad \\phi_3 = \\frac{\\varepsilon_c}{k_d} \\]</div>';
+
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>P4 &mdash; Steel Yields:</b></p>';
+    h += '<div class="report-eq">\\[ \\varepsilon_y = \\frac{f_y}{E_s} \\quad ; \\quad \\phi_4 = \\frac{\\varepsilon_y}{d - k_d} \\]</div>';
+
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>P5 &mdash; Concrete Peak Strain (&epsilon;<sub>co</sub> = 0.002):</b></p>';
+    h += '<div class="report-eq">\\[ c = \\frac{A_s f_y}{0.85 f\'_c \\beta_1 b} \\quad ; \\quad \\phi_5 = \\frac{\\varepsilon_{co}}{c} \\]</div>';
+
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>P6 &mdash; Concrete Ultimate (&epsilon;<sub>cu</sub> = 0.003):</b></p>';
+    h += '<div class="report-eq">\\[ \\phi_6 = \\frac{\\varepsilon_{cu}}{c} \\quad ; \\quad M_u = A_s f_y \\left(d - \\frac{a}{2}\\right) \\]</div>';
+    h += '</div>';
+
+    // QAQC Comparison
+    h += '<div class="report-section">';
+    h += '<h4>6. QAQC &mdash; Method Comparison</h4>';
+    h += '<p class="report-ref">Comparison between simplified 6-point method (this tool) and fiber layer method (Excel reference)</p>';
+    h += '<table class="report-table">';
+    h += '<tr><th>Aspect</th><th>This Tool (6-Point)</th><th>Excel (Fiber Layer)</th></tr>';
+    h += '<tr><td style="text-align:left;">Method</td><td>Closed-form 6 key points</td><td>20-layer fiber discretization</td></tr>';
+    h += '<tr><td style="text-align:left;">Curvature range</td><td>0 to &epsilon;<sub>cu</sub>/c</td><td>0 to &epsilon;<sub>y</sub> (incremental)</td></tr>';
+    h += '<tr><td style="text-align:left;">Axial load</td><td>Not included (pure flexure)</td><td>Included (P = ' + 194 + ' kips)</td></tr>';
+    h += '<tr><td style="text-align:left;">Stress-strain model</td><td>Linear elastic + Whitney block</td><td>Elastic-perfectly-plastic steel, parabolic concrete</td></tr>';
+    h += '<tr><td style="text-align:left;">Units</td><td>SI (MPa, mm, kN-m)</td><td>Imperial (ksi, in, in-kips)</td></tr>';
+    h += '<tr><td style="text-align:left;">Resolution</td><td>6 discrete points</td><td>20 incremental points</td></tr>';
+    h += '<tr><td style="text-align:left;">Best for</td><td>Quick design checks, code compliance</td><td>Detailed nonlinear analysis, P-M interaction</td></tr>';
+    h += '</table>';
+
+    h += '<p style="font-size:.85rem;margin-top:.75rem;"><b>Validation Notes:</b></p>';
+    h += '<ul style="font-size:.85rem;color:var(--gray-600);margin:.25rem 0 0 1.5rem;">';
+    h += '<li>Both methods produce bilinear-like curves with initial stiff (uncracked) and post-cracking regions</li>';
+    h += '<li>Cracking moment and yield point should be close between methods for same section properties</li>';
+    h += '<li>The fiber method captures nonlinear stress distribution more accurately near ultimate</li>';
+    h += '<li>For pure flexure without axial load, the 6-point method provides reliable design values per ACI 318</li>';
+    h += '</ul>';
+    h += '</div>';
+
+    document.getElementById('results-report').style.display = '';
+    document.getElementById('results-report').innerHTML = h;
+    if (window.MathJax) MathJax.typeset();
 }
 </script>
 {% endblock %}
