@@ -55,36 +55,6 @@ python run.py
 
 Then open [http://localhost:5000](http://localhost:5000) in your browser.
 
-## Deploy to Railway
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
-
-1. Connect your GitHub repository to [Railway](https://railway.app)
-2. Railway auto-detects Python and uses `requirements.txt`
-3. The `Procfile` starts gunicorn on the assigned `$PORT`
-4. No environment variables required — the app works out of the box
-
-### Manual deploy
-
-```bash
-# Install Railway CLI
-npm i -g @railway/cli
-
-# Login and deploy
-railway login
-railway init
-railway up
-```
-
-### Configuration
-
-| File | Purpose |
-|---|---|
-| `Procfile` | Gunicorn start command for Railway/Heroku |
-| `railway.json` | Railway-specific build and deploy config |
-| `requirements.txt` | Python dependencies for Railway/Nixpacks |
-| `setup.py` | Package definition with entry points |
-
 ## Project Structure
 
 ```
