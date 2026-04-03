@@ -267,6 +267,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             var xMax = pp.epsilon_ty + 0.004;
             // Clamp actual epsilon marker to curve range for display
             var markerX = Math.min(pp.actual_epsilon, xMax);
+            var phiUsed = pp.actual_phi_other;
             var traces = [
                 {
                     x: pp.strains, y: pp.phi_spiral,
@@ -280,9 +281,24 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
                 },
                 {
                     x: [markerX, markerX],
-                    y: [0.6, 0.95],
+                    y: [0.6, phiUsed],
                     name: 'Actual \u03b5\u209c', mode: 'lines',
                     line: { color: 'red', width: 2, dash: 'dot' },
+                    showlegend: true,
+                },
+                {
+                    x: [0, markerX],
+                    y: [phiUsed, phiUsed],
+                    name: '\u03c6 = ' + phiUsed.toFixed(4),
+                    mode: 'lines',
+                    line: { color: 'red', width: 2, dash: 'dot' },
+                    showlegend: true,
+                },
+                {
+                    x: [markerX], y: [phiUsed],
+                    mode: 'markers',
+                    marker: { color: 'red', size: 8 },
+                    showlegend: false,
                 },
             ];
             var layout = {
