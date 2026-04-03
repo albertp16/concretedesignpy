@@ -28,6 +28,16 @@
     background: #dcfce7; padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0;
     font-size: .95rem; font-weight: 700;
 }
+.report-ref {
+    font-size: .78rem; color: #3b82f6; font-style: italic; margin: 0;
+}
+.report-placeholder {
+    border: 2px dashed var(--gray-300); border-radius: 6px; padding: 2rem;
+    text-align: center; color: var(--gray-400); font-size: .85rem; margin: .75rem 0;
+    background: var(--gray-50); min-height: 120px; display: flex;
+    align-items: center; justify-content: center; flex-direction: column; gap: .5rem;
+}
+.report-placeholder svg { width: 32px; height: 32px; opacity: .4; }
 </style>
 {% endblock %}
 
@@ -230,10 +240,26 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         var fyh = payload.fy_transverse;
         var h = '';
 
+        // ── Report Header ──
+        h += '<div class="report-section">';
+        h += '<h4>Mander\'s Confined Concrete Model &mdash; Calculation Report</h4>';
+        h += '<p class="report-ref">Reference: Mander, J.B., Priestley, M.J.N., and Park, R. (1988). "Theoretical Stress-Strain Model for Confined Concrete." <i>Journal of Structural Engineering</i>, ASCE, Vol. 114, No. 8, pp. 1804-1826.</p>';
+        h += '</div>';
+
+        // ── Placeholder: Section Diagram ──
+        h += '<div class="report-section">';
+        h += '<h4>Section Geometry &amp; Effectively Confined Core</h4>';
+        h += '<p class="report-ref">Ref: Mander et al. (1988) &mdash; Fig. 2: Effectively confined core for rectangular hoop reinforcement</p>';
+        h += '<div class="report-placeholder">';
+        h += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="7" y1="3" x2="7" y2="21"/><line x1="17" y1="3" x2="17" y2="21"/><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="17" x2="21" y2="17"/></svg>';
+        h += '<span>Insert section diagram here (Section x-x &amp; Section z-z showing effectively confined core)</span>';
+        h += '</div>';
+        h += '</div>';
+
         // Section 1: Core Dimensions
         h += '<div class="report-section">';
         h += '<h4>1. Core Dimensions</h4>';
-        h += '<p style="font-size:.85rem;color:var(--gray-500);">Center-to-center of perimeter hoops</p>';
+        h += '<p class="report-ref">Concrete core dimensions to center lines of perimeter hoops &mdash; Mander et al. (1988), Fig. 2</p>';
         h += '<div class="report-eq">\\[ b_c = b - 2 \\cdot \\text{cover} + d_{bt} = ' + payload.b + ' - 2 \\times ' + payload.cover + ' + ' + payload.db_tie + ' = ' + r.bc + ' \\text{ mm} \\]</div>';
         h += '<div class="report-eq">\\[ d_c = h - 2 \\cdot \\text{cover} + d_{bt} = ' + payload.h + ' - 2 \\times ' + payload.cover + ' + ' + payload.db_tie + ' = ' + r.dc + ' \\text{ mm} \\]</div>';
         h += '</div>';
@@ -250,7 +276,8 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
 
         // Section 3: Area of Core Section
         h += '<div class="report-section">';
-        h += '<h4>3. Area of Core of Section, A<sub>c</sub></h4>';
+        h += '<h4>3. Area of Core of Section within Center Lines of Perimeter Hoops, A<sub>c</sub></h4>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Eq. referenced in confinement effectiveness derivation</p>';
         h += '<div class="report-eq">\\[ A_c = b_c \\times d_c = ' + r.bc + ' \\times ' + r.dc + ' = ' + r.ac + ' \\text{ mm}^2 \\]</div>';
         h += '</div>';
 
@@ -262,73 +289,107 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
 
         // Section 5: Clear Spacings
         h += '<div class="report-section">';
-        h += '<h4>5. Clear Spacings Between Longitudinal Bars, w\'<sub>i</sub></h4>';
+        h += '<h4>5. Clear Spacings Between Adjacent Longitudinal Bars, w\'<sub>i</sub></h4>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Fig. 2: Arching action between longitudinal bars</p>';
         if (r.wi_x && r.wi_x.length > 0) {
-            h += '<p style="font-size:.85rem;"><b>y-direction (along b<sub>c</sub>):</b></p>';
+            h += '<p style="font-size:.85rem;"><b>y-direction (along b<sub>c</sub>), n = ' + r.wi_x.length + ':</b></p>';
             h += '<table class="report-table"><tr><th>i</th><th>w\'<sub>yi</sub> (mm)</th><th>w\'<sub>yi</sub><sup>2</sup> (mm<sup>2</sup>)</th></tr>';
             r.wi_x.forEach(function(w, i) {
-                h += '<tr><td>' + (i+1) + '</td><td>' + w + '</td><td>' + (w*w).toFixed(2) + '</td></tr>';
+                h += '<tr><td>' + (i+1) + '</td><td>' + w.toFixed(2) + '</td><td>' + (w*w).toFixed(2) + '</td></tr>';
             });
             h += '</table>';
-            h += '<div class="report-eq">\\[ \\sum w\'^2_{yi} = ' + r.sum_wi2_x + ' \\text{ mm}^2 \\]</div>';
+            h += '<div class="report-eq">\\[ \\sum_{i=1}^{n} w\'^2_{yi} = ' + r.sum_wi2_x.toFixed(2) + ' \\text{ mm}^2 \\]</div>';
         }
         if (r.wi_y && r.wi_y.length > 0) {
-            h += '<p style="font-size:.85rem;"><b>z-direction (along d<sub>c</sub>):</b></p>';
+            h += '<p style="font-size:.85rem;"><b>z-direction (along d<sub>c</sub>), m = ' + r.wi_y.length + ':</b></p>';
             h += '<table class="report-table"><tr><th>j</th><th>w\'<sub>zj</sub> (mm)</th><th>w\'<sub>zj</sub><sup>2</sup> (mm<sup>2</sup>)</th></tr>';
             r.wi_y.forEach(function(w, i) {
-                h += '<tr><td>' + (i+1) + '</td><td>' + w + '</td><td>' + (w*w).toFixed(2) + '</td></tr>';
+                h += '<tr><td>' + (i+1) + '</td><td>' + w.toFixed(2) + '</td><td>' + (w*w).toFixed(2) + '</td></tr>';
             });
             h += '</table>';
-            h += '<div class="report-eq">\\[ \\sum w\'^2_{zj} = ' + r.sum_wi2_y + ' \\text{ mm}^2 \\]</div>';
+            h += '<div class="report-eq">\\[ \\sum_{j=1}^{m} w\'^2_{zj} = ' + r.sum_wi2_y.toFixed(2) + ' \\text{ mm}^2 \\]</div>';
         }
         h += '</div>';
 
         // Section 6: Effectively Confined Core Area
         h += '<div class="report-section">';
         h += '<h4>6. Total Area of Effectively Confined Core Concrete, A<sub>e</sub></h4>';
-        h += '<div class="report-eq">\\[ s\' = s - d_{bt} = ' + payload.s_tie + ' - ' + payload.db_tie + ' = ' + r.s_prime + ' \\text{ mm} \\]</div>';
-        h += '<div class="report-eq">\\[ A_e = \\left( b_c d_c - \\frac{\\sum w\'^2_{yi} + \\sum w\'^2_{zj}}{6} \\right) \\left(1 - \\frac{s\'}{2 b_c}\\right) \\left(1 - \\frac{s\'}{2 d_c}\\right) \\]</div>';
-        h += '<div class="report-eq">\\[ A_e = \\left(' + r.bc + ' \\times ' + r.dc + ' - \\frac{' + r.sum_wi2_x + ' + ' + r.sum_wi2_y + '}{6}\\right) \\left(1 - \\frac{' + r.s_prime + '}{2 \\times ' + r.bc + '}\\right) \\left(1 - \\frac{' + r.s_prime + '}{2 \\times ' + r.dc + '}\\right) \\]</div>';
-        h += '<div class="report-eq">\\[ \\mathbf{A_e = ' + r.ae + ' \\text{ mm}^2} \\]</div>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Derived from arching action in plan (Fig. 2) and elevation</p>';
+        h += '<div class="report-eq">\\[ s\' = s - d_{bt} = ' + payload.s_tie + ' - ' + payload.db_tie + ' = ' + r.s_prime + ' \\text{ mm (clear spacing between hoops)} \\]</div>';
+        h += '<div class="report-eq">\\[ A_e = \\left( b_c d_c - \\frac{\\sum_{i=1}^{n} (w\'_{yi})^2 + \\sum_{j=1}^{m} (w\'_{zj})^2}{6} \\right) \\left(1 - \\frac{s\'}{2 b_c}\\right) \\left(1 - \\frac{s\'}{2 d_c}\\right) \\]</div>';
+        h += '<div class="report-eq">\\[ A_e = \\left(' + r.bc + ' \\times ' + r.dc + ' - \\frac{' + r.sum_wi2_x.toFixed(2) + ' + ' + r.sum_wi2_y.toFixed(2) + '}{6}\\right) \\left(1 - \\frac{' + r.s_prime + '}{2 \\times ' + r.bc + '}\\right) \\left(1 - \\frac{' + r.s_prime + '}{2 \\times ' + r.dc + '}\\right) \\]</div>';
+        h += '<div class="report-result">\\[ \\mathbf{A_e = ' + r.ae + ' \\text{ mm}^2} \\]</div>';
         h += '</div>';
 
         // Section 7: Confinement Effectiveness Coefficient
         h += '<div class="report-section">';
         h += '<h4>7. Confinement Effectiveness Coefficient, k<sub>e</sub></h4>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; k<sub>e</sub> = A<sub>e</sub> / A<sub>cc</sub>, should be &leq; 1.0</p>';
         h += '<div class="report-eq">\\[ k_e = \\frac{A_e}{A_{cc}} = \\frac{' + r.ae + '}{' + r.acc + '} \\]</div>';
         h += '<div class="report-result">\\[ \\mathbf{k_e = ' + r.ke + '} \\quad (\\leq 1.0) \\]</div>';
         h += '</div>';
 
         // Section 8: Transverse Steel Ratios
         h += '<div class="report-section">';
-        h += '<h4>8. Transverse Reinforcement Ratios</h4>';
-        h += '<p style="font-size:.85rem;"><b>Tie leg area:</b></p>';
+        h += '<h4>8. Transverse Reinforcement Ratios, &rho;<sub>y</sub> and &rho;<sub>z</sub></h4>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Ratio of volume of transverse confining steel to volume of confined concrete core</p>';
         h += '<div class="report-eq">\\[ A_{sp} = \\frac{\\pi d_{bt}^2}{4} = \\frac{\\pi \\times ' + payload.db_tie + '^2}{4} = ' + r.as_tie + ' \\text{ mm}^2 \\]</div>';
         h += '<div class="report-eq">\\[ A_{sy} = n_{\\text{legs},x} \\times A_{sp} = ' + payload.n_legs_x + ' \\times ' + r.as_tie + ' = ' + r.asy + ' \\text{ mm}^2 \\]</div>';
         h += '<div class="report-eq">\\[ A_{sz} = n_{\\text{legs},y} \\times A_{sp} = ' + payload.n_legs_y + ' \\times ' + r.as_tie + ' = ' + r.asz + ' \\text{ mm}^2 \\]</div>';
-        h += '<div class="report-eq">\\[ \\rho_y = \\frac{A_{sy}}{d_c \\times s} = \\frac{' + r.asy + '}{' + r.dc + ' \\times ' + payload.s_tie + '} = ' + r.rho_x + ' \\]</div>';
-        h += '<div class="report-eq">\\[ \\rho_z = \\frac{A_{sz}}{b_c \\times s} = \\frac{' + r.asz + '}{' + r.bc + ' \\times ' + payload.s_tie + '} = ' + r.rho_y + ' \\]</div>';
+        h += '<div class="report-eq">\\[ \\rho_y = \\frac{A_{sy}}{d_c \\cdot s} = \\frac{' + r.asy + '}{' + r.dc + ' \\times ' + payload.s_tie + '} = ' + r.rho_x + ' \\]</div>';
+        h += '<div class="report-eq">\\[ \\rho_z = \\frac{A_{sz}}{b_c \\cdot s} = \\frac{' + r.asz + '}{' + r.bc + ' \\times ' + payload.s_tie + '} = ' + r.rho_y + ' \\]</div>';
         h += '</div>';
 
         // Section 9: Effective Lateral Confining Stresses
         h += '<div class="report-section">';
-        h += '<h4>9. Effective Lateral Confining Stresses</h4>';
+        h += '<h4>9. Effective Lateral Confining Stresses on the Concrete, f\'<sub>ly</sub> and f\'<sub>lz</sub></h4>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; f\'<sub>l</sub> = k<sub>e</sub> &middot; &rho; &middot; f<sub>yh</sub></p>';
         h += '<div class="report-eq">\\[ f\'_{ly} = k_e \\cdot \\rho_y \\cdot f_{yh} = ' + r.ke + ' \\times ' + r.rho_x + ' \\times ' + fyh + ' = ' + r.fl_x + ' \\text{ MPa} \\]</div>';
         h += '<div class="report-eq">\\[ f\'_{lz} = k_e \\cdot \\rho_z \\cdot f_{yh} = ' + r.ke + ' \\times ' + r.rho_y + ' \\times ' + fyh + ' = ' + r.fl_y + ' \\text{ MPa} \\]</div>';
         h += '</div>';
 
-        // Section 10: Confined Concrete Strength
+        // ── Placeholder: Confined Strength Chart from Paper ──
+        h += '<div class="report-section">';
+        h += '<h4>Confined Strength Determination for Rectangular Sections</h4>';
+        h += '<p class="report-ref">Ref: Mander et al. (1988) &mdash; Fig. 5: Determination of confined concrete strength from lateral confining stresses for rectangular sections</p>';
+        h += '<div class="report-placeholder">';
+        h += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 20L8 10l5 6 4-8 4 12"/><circle cx="8" cy="10" r="1.5"/></svg>';
+        h += '<span>Insert Fig. 5 from Mander et al. (1988) &mdash; Biaxial confined strength determination chart</span>';
+        h += '</div>';
+        h += '</div>';
+
+        // Section 10: Confined Concrete Strength (with biaxial method)
         h += '<div class="report-section">';
         h += '<h4>10. Confined Concrete Strength, f\'<sub>cc</sub></h4>';
-        h += '<div class="report-eq">\\[ f\'_{l,\\text{eff}} = \\frac{f\'_{ly} + f\'_{lz}}{2} = \\frac{' + r.fl_x + ' + ' + r.fl_y + '}{2} = ' + r.fl_eff + ' \\text{ MPa} \\]</div>';
-        h += '<div class="report-eq">\\[ \\frac{f\'_{cc}}{f\'_{co}} = -1.254 + 2.254\\sqrt{1 + \\frac{7.94 f\'_l}{f\'_{co}}} - 2 \\frac{f\'_l}{f\'_{co}} \\]</div>';
-        h += '<div class="report-eq">\\[ \\frac{f\'_{cc}}{f\'_{co}} = ' + r.ratio + ' \\]</div>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Eq. 4 (equal confinement) or biaxial method per Fig. 5</p>';
+
+        // 10a: Effective confining stress
+        h += '<p style="font-size:.85rem;margin-top:.75rem;"><b>Effective lateral confining stress:</b></p>';
+        h += '<div class="report-eq">\\[ f\'_{l} = \\frac{f\'_{ly} + f\'_{lz}}{2} = \\frac{' + r.fl_x + ' + ' + r.fl_y + '}{2} = ' + r.fl_eff + ' \\text{ MPa} \\]</div>';
+
+        // 10b: Biaxial confinement parameters (6-step method)
+        var fl1 = Math.min(r.fl_x, r.fl_y);
+        var fl2 = Math.max(r.fl_x, r.fl_y);
+        var q_val = fl2 > 0 ? (fl1 / fl2).toFixed(4) : '0.0000';
+        h += '<p style="font-size:.85rem;margin-top:.75rem;"><b>Biaxial confinement parameters (Mander et al., 1988, Fig. 5):</b></p>';
+        h += '<div class="report-eq">\\[ \\text{1) } q = \\frac{f\'_{l1}}{f\'_{l2}} = \\frac{' + fl1.toFixed(4) + '}{' + fl2.toFixed(4) + '} = ' + q_val + ' \\quad (f\'_{l2} \\geq f\'_{l1}) \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{2) } A = 6.886 - (0.6069 + 17.275 q) \\, e^{-4.989 q} \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{3) } B = \\frac{4.5}{\\frac{5}{A} \\left( 0.9849 - 0.6306 \\, e^{-3.8939 q} \\right) - 0.1} - 5 \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{4) } x\' = \\frac{f\'_{l1} + f\'_{l2}}{2 f\'_{co}} = \\frac{' + fl1.toFixed(4) + ' + ' + fl2.toFixed(4) + '}{2 \\times ' + fc + '} = ' + (r.fl_eff / fc).toFixed(6) + ' \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{5) } k_1 = A \\left[ 0.1 + \\frac{0.9}{1 + B \\cdot x\'} \\right] \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{6) } f\'_{cc} = f\'_{co} \\left( 1.0 + k_1 \\cdot x\' \\right) \\]</div>';
+
+        // 10c: Equal confinement formula (Eq. 4)
+        h += '<p style="font-size:.85rem;margin-top:.75rem;"><b>For equal lateral confining stress (Eq. 4):</b></p>';
+        h += '<div class="report-eq">\\[ \\frac{f\'_{cc}}{f\'_{co}} = -1.254 + 2.254\\sqrt{1 + \\frac{7.94 \\, f\'_l}{f\'_{co}}} - 2 \\frac{f\'_l}{f\'_{co}} \\]</div>';
+        h += '<div class="report-eq">\\[ \\frac{f\'_{cc}}{f\'_{co}} = -1.254 + 2.254\\sqrt{1 + \\frac{7.94 \\times ' + r.fl_eff + '}{' + fc + '}} - 2 \\times \\frac{' + r.fl_eff + '}{' + fc + '} = ' + r.ratio + ' \\]</div>';
         h += '<div class="report-result">\\[ \\mathbf{f\'_{cc} = ' + r.ratio + ' \\times ' + fc + ' = ' + r.fcc + ' \\text{ MPa}} \\]</div>';
         h += '</div>';
 
         // Section 11: Confined Strain
         h += '<div class="report-section">';
         h += '<h4>11. Confined Concrete Strain, &epsilon;<sub>cc</sub></h4>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Eq. 5</p>';
         h += '<div class="report-eq">\\[ \\varepsilon_{cc} = \\varepsilon_{co} \\left[ 1 + 5 \\left( \\frac{f\'_{cc}}{f\'_{co}} - 1 \\right) \\right] \\]</div>';
         h += '<div class="report-eq">\\[ \\varepsilon_{cc} = ' + r.eco + ' \\left[ 1 + 5 \\left( ' + r.ratio + ' - 1 \\right) \\right] \\]</div>';
         h += '<div class="report-result">\\[ \\mathbf{\\varepsilon_{cc} = ' + r.ecc + '} \\]</div>';
@@ -337,17 +398,39 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         // Section 12: Ultimate Strain
         h += '<div class="report-section">';
         h += '<h4>12. Ultimate Strain for Confined Concrete, &epsilon;<sub>cu</sub></h4>';
-        h += '<div class="report-eq">\\[ \\varepsilon_{cu} = 0.004 + 1.4 \\frac{f\'_l \\cdot 0.01}{f\'_{cc}} \\quad \\text{but not less than } 3\\varepsilon_{cc} \\]</div>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Based on energy balance approach; Paulay and Priestley (1992) simplified expression</p>';
+        h += '<div class="report-eq">\\[ \\varepsilon_{cu} = 0.004 + 1.4 \\frac{f\'_l \\cdot \\varepsilon_{su}}{f\'_{cc}} \\quad \\text{where } \\varepsilon_{su} = 0.01 \\text{ (assumed)} \\]</div>';
+        h += '<div class="report-eq">\\[ \\varepsilon_{cu} = 0.004 + 1.4 \\times \\frac{' + r.fl_eff + ' \\times 0.01}{' + r.fcc + '} \\quad \\text{but not less than } 3\\varepsilon_{cc} = ' + (3 * r.ecc).toFixed(6) + ' \\]</div>';
         h += '<div class="report-result">\\[ \\mathbf{\\varepsilon_{cu} = ' + r.ecu + '} \\]</div>';
         h += '</div>';
 
         // Section 13: Stress-Strain Curve Parameters
         h += '<div class="report-section">';
-        h += '<h4>13. Stress-Strain Curve Parameters</h4>';
+        h += '<h4>13. Stress-Strain Relationship</h4>';
+        h += '<p class="report-ref">Mander et al. (1988) &mdash; Eqs. 6, 7, 8: Popovics (1973) base curve adapted for confined concrete</p>';
         h += '<div class="report-eq">\\[ E_c = 5000 \\sqrt{f\'_c} = 5000 \\sqrt{' + fc + '} = ' + r.ec + ' \\text{ MPa} \\]</div>';
         h += '<div class="report-eq">\\[ E_{\\sec} = \\frac{f\'_{cc}}{\\varepsilon_{cc}} = \\frac{' + r.fcc + '}{' + r.ecc + '} = ' + r.e_sec + ' \\text{ MPa} \\]</div>';
-        h += '<div class="report-eq">\\[ r = \\frac{E_c}{E_c - E_{\\sec}} = \\frac{' + r.ec + '}{' + r.ec + ' - ' + r.e_sec + '} = ' + r.r + ' \\]</div>';
-        h += '<div class="report-eq">\\[ f_c = \\frac{f\'_{cc} \\cdot x \\cdot r}{r - 1 + x^r} \\quad \\text{where } x = \\frac{\\varepsilon_c}{\\varepsilon_{cc}} \\]</div>';
+        h += '<div class="report-eq">\\[ r = \\frac{E_c}{E_c - E_{\\sec}} = \\frac{' + r.ec + '}{' + r.ec + ' - ' + r.e_sec + '} = ' + r.r + ' \\quad \\text{(Eq. 8)} \\]</div>';
+        h += '<div class="report-eq">\\[ f_c = \\frac{f\'_{cc} \\cdot x \\cdot r}{r - 1 + x^r} \\quad \\text{where } x = \\frac{\\varepsilon_c}{\\varepsilon_{cc}} \\quad \\text{(Eqs. 6 \\& 7)} \\]</div>';
+        h += '</div>';
+
+        // ── Summary Table ──
+        h += '<div class="report-section">';
+        h += '<h4>Summary of Results</h4>';
+        h += '<table class="report-table">';
+        h += '<tr><th>Parameter</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>';
+        h += '<tr><td>Core width</td><td>b<sub>c</sub></td><td>' + r.bc + '</td><td>mm</td></tr>';
+        h += '<tr><td>Core depth</td><td>d<sub>c</sub></td><td>' + r.dc + '</td><td>mm</td></tr>';
+        h += '<tr><td>Confinement effectiveness</td><td>k<sub>e</sub></td><td>' + r.ke + '</td><td>&mdash;</td></tr>';
+        h += '<tr><td>Lateral stress (y-dir)</td><td>f\'<sub>ly</sub></td><td>' + r.fl_x + '</td><td>MPa</td></tr>';
+        h += '<tr><td>Lateral stress (z-dir)</td><td>f\'<sub>lz</sub></td><td>' + r.fl_y + '</td><td>MPa</td></tr>';
+        h += '<tr style="background:#dcfce7;font-weight:700;"><td>Confined strength</td><td>f\'<sub>cc</sub></td><td>' + r.fcc + '</td><td>MPa</td></tr>';
+        h += '<tr style="background:#dcfce7;font-weight:700;"><td>Confined strain</td><td>&epsilon;<sub>cc</sub></td><td>' + r.ecc + '</td><td>&mdash;</td></tr>';
+        h += '<tr style="background:#dcfce7;font-weight:700;"><td>Ultimate strain</td><td>&epsilon;<sub>cu</sub></td><td>' + r.ecu + '</td><td>&mdash;</td></tr>';
+        h += '<tr><td>Elastic modulus</td><td>E<sub>c</sub></td><td>' + r.ec + '</td><td>MPa</td></tr>';
+        h += '<tr><td>Secant modulus</td><td>E<sub>sec</sub></td><td>' + r.e_sec + '</td><td>MPa</td></tr>';
+        h += '<tr><td>Curve parameter</td><td>r</td><td>' + r.r + '</td><td>&mdash;</td></tr>';
+        h += '</table>';
         h += '</div>';
 
         document.getElementById('results-report').innerHTML = h;
