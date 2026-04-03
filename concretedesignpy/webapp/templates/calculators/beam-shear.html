@@ -136,8 +136,9 @@
                 </div>
                 <div class="form-section">
                     <h3>Straining Actions</h3>
-                    <div class="form-row">
+                    <div class="form-row" style="flex-wrap:wrap;">
                         <div class="form-group"><label>Vu (kN)</label><input type="number" name="vu" value="500" step="0.1" required></div>
+                        <div class="form-group"><label>Tu (kN.m)</label><input type="number" name="tu" value="0" step="0.1"></div>
                         <div class="form-group"><label>Nu (kN) <small>+C/-T</small></label><input type="number" name="nu" value="10" step="0.1"></div>
                     </div>
                 </div>
@@ -180,7 +181,7 @@ function getPayload() {
         phi: parseFloat(f.phi.value),
         bw: parseFloat(f.bw.value), h: h_val,
         cc: parseFloat(f.cc.value), c: c_val, d: h_val - c_val,
-        vu: parseFloat(f.vu.value), nu: parseFloat(f.nu.value),
+        vu: parseFloat(f.vu.value), tu: parseFloat(f.tu.value || 0), nu: parseFloat(f.nu.value),
         s_chosen: parseFloat(f.s_chosen.value),
         n_legs: parseInt(f.n_legs.value),
         db_stirrup: parseFloat(f.db_stirrup.value),
@@ -290,30 +291,41 @@ function renderSectionChart(r, p) {
     shapes.push({ type: 'line', x0: cx - cr, y0: cy, x1: cx + cr, y1: cy, line: { color: '#dc2626', width: 2 } });
     shapes.push({ type: 'line', x0: cx, y0: cy - cr, x1: cx, y1: cy + cr, line: { color: '#dc2626', width: 2 } });
 
-    // ── 6. Dimension lines (left side) ──
+    // ── 6. Dimension lines (left side, matching reference exactly) ──
+    // Reference layout: h outermost, d next, c as bracket at bottom
     var padL = 80;
 
-    // h — outermost
-    var hx = -padL + 8;
+    // h — vertical line with serifs at top and bottom of beam
+    var hx = -padL + 5;
     shapes.push({ type: 'line', x0: hx, y0: 0, x1: hx, y1: h, line: { color: dimC, width: 1 } });
-    shapes.push({ type: 'line', x0: hx - 4, y0: 0, x1: -5, y1: 0, line: { color: dimC, width: 0.5 } });
-    shapes.push({ type: 'line', x0: hx - 4, y0: h, x1: -5, y1: h, line: { color: dimC, width: 0.5 } });
-    annotations.push({ x: hx - 6, y: h / 2, text: '<b>h</b>', textangle: -90,
+    // horizontal serifs
+    shapes.push({ type: 'line', x0: hx - 5, y0: 0, x1: -5, y1: 0, line: { color: dimC, width: 0.5 } });
+    shapes.push({ type: 'line', x0: hx - 5, y0: h, x1: -5, y1: h, line: { color: dimC, width: 0.5 } });
+    annotations.push({ x: hx - 8, y: h / 2, text: '<b>h</b>', textangle: -90,
         showarrow: false, font: { size: 14, color: dimC, family: 'Arial' } });
 
-    // d
-    var ddx = -padL + 30;
+    // d — from bottom of beam up to effective depth (d = h - c)
+    // d is measured from extreme compression fiber to centroid of tension rft
+    // In the diagram: from bottom (y=0) to y=d
+    var ddx = -padL + 28;
     shapes.push({ type: 'line', x0: ddx, y0: 0, x1: ddx, y1: d, line: { color: dimC, width: 1 } });
+    // horizontal serif at d level pointing to beam
     shapes.push({ type: 'line', x0: ddx - 3, y0: d, x1: -5, y1: d, line: { color: dimC, width: 0.5, dash: 'dot' } });
-    annotations.push({ x: ddx - 6, y: d / 2, text: '<b>d</b>', textangle: -90,
+    // serifs
+    shapes.push({ type: 'line', x0: ddx - 4, y0: 0, x1: ddx + 4, y1: 0, line: { color: dimC, width: 0.5 } });
+    shapes.push({ type: 'line', x0: ddx - 4, y0: d, x1: ddx + 4, y1: d, line: { color: dimC, width: 0.5 } });
+    annotations.push({ x: ddx - 8, y: d / 2, text: '<b>d</b>', textangle: -90,
         showarrow: false, font: { size: 14, color: dimC, family: 'Arial' } });
 
-    // c (bottom bracket)
-    var ccx = -padL + 50;
-    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx, y1: c, line: { color: dimC, width: 0.8 } });
-    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx + 6, y1: 0, line: { color: dimC, width: 0.8 } });
-    shapes.push({ type: 'line', x0: ccx, y0: c, x1: ccx + 6, y1: c, line: { color: dimC, width: 0.8 } });
-    annotations.push({ x: ccx - 5, y: c / 2, text: '<b>c</b>', textangle: -90,
+    // c — bracket from bottom of beam to bottom bar centroid
+    var ccx = -padL + 48;
+    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx, y1: c, line: { color: dimC, width: 1 } });
+    // bracket serifs (horizontal ticks at top and bottom)
+    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx + 8, y1: 0, line: { color: dimC, width: 0.8 } });
+    shapes.push({ type: 'line', x0: ccx, y0: c, x1: ccx + 8, y1: c, line: { color: dimC, width: 0.8 } });
+    // dotted line from c level to beam
+    shapes.push({ type: 'line', x0: ccx + 8, y0: c, x1: -5, y1: c, line: { color: dimC, width: 0.5, dash: 'dot' } });
+    annotations.push({ x: ccx - 6, y: c / 2, text: '<b>c</b>', textangle: -90,
         showarrow: false, font: { size: 12, color: dimC, family: 'Arial' } });
 
     // bw (bottom)
@@ -325,16 +337,45 @@ function renderSectionChart(r, p) {
         text: '<b>b<sub>w</sub></b>',
         showarrow: false, font: { size: 14, color: dimC, family: 'Arial' } });
 
-    // ── 7. Force indicators ──
+    // ── 7. Force indicators (matching reference colors) ──
 
-    // Vu arrow (dark blue, above beam)
-    var vuTail = h + 75, vuTip = h + 12;
-    shapes.push({ type: 'line', x0: bw * 0.45, y0: vuTail, x1: bw * 0.45, y1: vuTip, line: { color: '#1e3a8a', width: 4 } });
-    shapes.push({ type: 'line', x0: bw * 0.45 - 10, y0: vuTip + 16, x1: bw * 0.45, y1: vuTip, line: { color: '#1e3a8a', width: 3.5 } });
-    shapes.push({ type: 'line', x0: bw * 0.45 + 10, y0: vuTip + 16, x1: bw * 0.45, y1: vuTip, line: { color: '#1e3a8a', width: 3.5 } });
-    annotations.push({ x: bw * 0.45, y: vuTail + 8,
+    // Vu arrow (dark blue, above beam, pointing down)
+    var vuX = bw * 0.35;
+    var vuTail = h + 80, vuTip = h + 12;
+    shapes.push({ type: 'line', x0: vuX, y0: vuTail, x1: vuX, y1: vuTip, line: { color: '#1e3a8a', width: 4 } });
+    shapes.push({ type: 'line', x0: vuX - 10, y0: vuTip + 16, x1: vuX, y1: vuTip, line: { color: '#1e3a8a', width: 3.5 } });
+    shapes.push({ type: 'line', x0: vuX + 10, y0: vuTip + 16, x1: vuX, y1: vuTip, line: { color: '#1e3a8a', width: 3.5 } });
+    annotations.push({ x: vuX, y: vuTail + 10,
         text: '<b><i>V<sub>u</sub></i></b>',
         showarrow: false, font: { size: 18, color: '#dc2626', family: 'Arial' } });
+
+    // Tu curved arrow (dark blue arc + arrowhead, right of Vu)
+    // Draw as arc segments using short line segments approximating a curve
+    var tuCx = bw * 0.7, tuCy = h + 50, tuR = 28;
+    var arcPts = 20;
+    // Arc from ~200deg to ~340deg (bottom-left to bottom-right, curving right)
+    for (var i = 0; i < arcPts; i++) {
+        var a1 = (200 + i * 140 / arcPts) * Math.PI / 180;
+        var a2 = (200 + (i + 1) * 140 / arcPts) * Math.PI / 180;
+        shapes.push({ type: 'line',
+            x0: tuCx + tuR * Math.cos(a1), y0: tuCy + tuR * Math.sin(a1),
+            x1: tuCx + tuR * Math.cos(a2), y1: tuCy + tuR * Math.sin(a2),
+            line: { color: '#1e3a8a', width: 3 } });
+    }
+    // Arrowhead at end of arc (~340 degrees)
+    var aEnd = 340 * Math.PI / 180;
+    var ax = tuCx + tuR * Math.cos(aEnd), ay = tuCy + tuR * Math.sin(aEnd);
+    var aDir = aEnd + Math.PI / 2; // perpendicular to tangent
+    shapes.push({ type: 'line', x0: ax, y0: ay,
+        x1: ax + 10 * Math.cos(aDir + 0.5), y1: ay + 10 * Math.sin(aDir + 0.5),
+        line: { color: '#1e3a8a', width: 3 } });
+    shapes.push({ type: 'line', x0: ax, y0: ay,
+        x1: ax + 10 * Math.cos(aDir - 0.7), y1: ay + 10 * Math.sin(aDir - 0.7),
+        line: { color: '#1e3a8a', width: 3 } });
+
+    annotations.push({ x: tuCx + tuR + 15, y: tuCy,
+        text: '<b><i>T<sub>u</sub></i></b>',
+        showarrow: false, font: { size: 18, color: '#16a34a', family: 'Arial' } });
 
     // Nu label (red, at centroid above +)
     annotations.push({ x: cx, y: cy + 35,
@@ -344,7 +385,7 @@ function renderSectionChart(r, p) {
     // ── 8. Right-side labels (Av, As) with leader lines ──
     var lx = bw + 55;
 
-    // Av (mid-height, pointing to stirrup leg)
+    // Av (mid-height)
     var avY = (topBarY + botBarY) / 2;
     shapes.push({ type: 'line', x0: sRight + 3, y0: avY, x1: lx - 3, y1: avY, line: { color: dimC, width: 0.8 } });
     annotations.push({ x: lx, y: avY, text: '<b><i>A<sub>v</sub></i></b>',
@@ -356,7 +397,7 @@ function renderSectionChart(r, p) {
         showarrow: false, font: { size: 14, color: '#dc2626', family: 'Arial' }, xanchor: 'left' });
 
     var xMin = -padL - 5, xMax = lx + 35;
-    var yMin = bwy - 22, yMax = vuTail + 35;
+    var yMin = bwy - 22, yMax = vuTail + 40;
 
     Plotly.newPlot('chart-section', [barTrace], {
         title: { text: 'RC Beam Cross-Section', font: { size: 13 } },
