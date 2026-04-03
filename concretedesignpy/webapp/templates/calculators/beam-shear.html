@@ -51,7 +51,34 @@
     margin-left: .5rem;
 }
 .btn-export:hover { background: #15803d; }
+.btn-print {
+    background: #7c3aed; color: #fff; border: none; padding: .45rem 1.25rem;
+    border-radius: 4px; font-size: .82rem; font-weight: 600; cursor: pointer;
+}
+.btn-print:hover { background: #6d28d9; }
 .btn-actions { display: flex; gap: .5rem; align-items: center; margin-top: .75rem; }
+
+/* Print styles */
+@media print {
+    body { background: #fff !important; }
+    .navbar, .disclaimer-bar, .footer, .calc-form, .back-link,
+    .btn-actions, .btn-primary, .btn-export, .btn-print,
+    .ref { display: none !important; }
+    .calc-page { padding: 0 !important; }
+    .calc-page h1 { display: none !important; }
+    #results-area { display: block !important; }
+    .report-header {
+        border: 2px solid #1e3a8a !important; border-radius: 0 !important;
+        page-break-after: avoid; margin-bottom: 1rem;
+    }
+    .st-charts { page-break-inside: avoid; }
+    .st-section { page-break-inside: avoid; }
+    .st-eq { border-left-width: 3px !important; }
+    .st-eq.result-eq { background: #dcfce7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .st-eq.fail-eq { background: #fef2f2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .st-section h4 { color: #1e3a8a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .st-section h4 .aci { color: #3b82f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 </style>
 {% endblock %}
 
@@ -111,6 +138,7 @@
         <div class="btn-actions">
             <button type="submit" class="btn-primary">Calculate</button>
             <button type="button" id="btn-export" class="btn-export" style="display:none;">Export to Excel</button>
+            <button type="button" id="btn-print" class="btn-print" style="display:none;">Print Report</button>
         </div>
     </form>
 
@@ -427,6 +455,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         }
         var r = data.result;
         document.getElementById('btn-export').style.display = 'inline-block';
+        document.getElementById('btn-print').style.display = 'inline-block';
         renderHeader(payload);
         renderSectionChart(r, payload);
         renderShearChart(r, payload);
@@ -435,6 +464,10 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     .catch(function(err) {
         document.getElementById('report').innerHTML = '<div class="error-msg">Request failed: ' + err.message + '</div>';
     });
+});
+
+document.getElementById('btn-print').addEventListener('click', function() {
+    window.print();
 });
 
 document.getElementById('btn-export').addEventListener('click', function() {
