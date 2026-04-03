@@ -44,13 +44,6 @@
 .header-form { margin-bottom: 1.25rem; }
 .header-form .form-row { flex-wrap: wrap; }
 
-/* Export button */
-.btn-export {
-    background: #16a34a; color: #fff; border: none; padding: .45rem 1.25rem;
-    border-radius: 4px; font-size: .82rem; font-weight: 600; cursor: pointer;
-    margin-left: .5rem;
-}
-.btn-export:hover { background: #15803d; }
 .btn-print {
     background: #7c3aed; color: #fff; border: none; padding: .45rem 1.25rem;
     border-radius: 4px; font-size: .82rem; font-weight: 600; cursor: pointer;
@@ -58,11 +51,32 @@
 .btn-print:hover { background: #6d28d9; }
 .btn-actions { display: flex; gap: .5rem; align-items: center; margin-top: .75rem; }
 
+/* Split layout: inputs left, output right */
+.shear-layout {
+    display: flex; gap: 1.5rem; align-items: flex-start;
+}
+.shear-layout-left {
+    flex: 0 0 420px; min-width: 0;
+}
+.shear-layout-right {
+    flex: 1; min-width: 0;
+}
+.shear-layout-right .st-charts {
+    flex-direction: column;
+}
+.shear-layout-right .st-charts > div {
+    min-width: 0 !important; flex: none !important;
+}
+@media (max-width: 1000px) {
+    .shear-layout { flex-direction: column; }
+    .shear-layout-left { flex: none; width: 100%; }
+}
+
 /* Print styles */
 @media print {
     body { background: #fff !important; }
     .navbar, .disclaimer-bar, .footer, .calc-form, .back-link,
-    .btn-actions, .btn-primary, .btn-export, .btn-print,
+    .btn-actions, .btn-primary, .btn-print,
     .ref { display: none !important; }
     .calc-page { padding: 0 !important; }
     .calc-page h1 { display: none !important; }
@@ -88,70 +102,67 @@
     <h1>Beam Shear Design</h1>
     <p class="ref">ACI 318M-14 / NSCP 2015</p>
 
-    <form id="calc-form" class="calc-form">
-        <!-- Project Header -->
-        <div class="form-section header-form">
-            <h3>Project Header</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Company Name</label><input type="text" name="company" value="Albert Pamonag Engineering Consultancy"></div>
-                <div class="form-group"><label>Project Name</label><input type="text" name="project" value=""></div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>Job No.</label><input type="text" name="job_no" value=""></div>
-                <div class="form-group"><label>Prepared By</label><input type="text" name="prepared_by" value=""></div>
-                <div class="form-group"><label>Checked By</label><input type="text" name="checked_by" value=""></div>
-            </div>
+    <div class="shear-layout">
+        <div class="shear-layout-left">
+            <form id="calc-form" class="calc-form">
+                <div class="form-section header-form">
+                    <h3>Project Header</h3>
+                    <div class="form-row" style="flex-wrap:wrap;">
+                        <div class="form-group" style="flex:1 1 100%;"><label>Company Name</label><input type="text" name="company" value="Albert Pamonag Engineering Consultancy"></div>
+                        <div class="form-group"><label>Project Name</label><input type="text" name="project" value=""></div>
+                        <div class="form-group"><label>Job No.</label><input type="text" name="job_no" value=""></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Prepared By</label><input type="text" name="prepared_by" value=""></div>
+                        <div class="form-group"><label>Checked By</label><input type="text" name="checked_by" value=""></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>Material Properties</h3>
+                    <div class="form-row" style="flex-wrap:wrap;">
+                        <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="40" step="0.1" required></div>
+                        <div class="form-group"><label>fyv (MPa)</label><input type="number" name="fyv" value="420" step="0.1" required></div>
+                        <div class="form-group"><label>&phi;</label><input type="number" name="phi" value="0.75" step="0.01"></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>Section Dimensions &amp; Covers</h3>
+                    <div class="form-row" style="flex-wrap:wrap;">
+                        <div class="form-group"><label>bw (mm)</label><input type="number" name="bw" value="300" required></div>
+                        <div class="form-group"><label>h (mm)</label><input type="number" name="h" value="800" required></div>
+                        <div class="form-group"><label>Cc (mm)</label><input type="number" name="cc" value="30" required></div>
+                        <div class="form-group"><label>c (mm)</label><input type="number" name="c" value="100" required></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>Straining Actions</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Vu (kN)</label><input type="number" name="vu" value="500" step="0.1" required></div>
+                        <div class="form-group"><label>Nu (kN) <small>+C/-T</small></label><input type="number" name="nu" value="10" step="0.1"></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>Stirrup Reinforcement</h3>
+                    <div class="form-row" style="flex-wrap:wrap;">
+                        <div class="form-group"><label>s (mm)</label><input type="number" name="s_chosen" value="150" required></div>
+                        <div class="form-group"><label>Legs</label><input type="number" name="n_legs" value="4" required></div>
+                        <div class="form-group"><label>db (mm)</label><input type="number" name="db_stirrup" value="10" required></div>
+                    </div>
+                </div>
+                <div class="btn-actions">
+                    <button type="submit" class="btn-primary">Calculate</button>
+                    <button type="button" id="btn-print" class="btn-print" style="display:none;">Print Report</button>
+                </div>
+            </form>
         </div>
 
-        <div class="form-section">
-            <h3>Material Properties</h3>
-            <div class="form-row">
-                <div class="form-group"><label>f'c - Concrete Strength (MPa)</label><input type="number" name="fc" value="40" step="0.1" required></div>
-                <div class="form-group"><label>fyv - Stirrup Yield Strength (MPa)</label><input type="number" name="fyv" value="420" step="0.1" required></div>
-                <div class="form-group"><label>&phi; - Strength Reduction Factor</label><input type="number" name="phi" value="0.75" step="0.01"></div>
-            </div>
+        <div class="shear-layout-right" id="results-area" style="display:none;">
+            <div id="chart-section" style="margin-bottom:12px;"></div>
+            <div id="chart-shear" style="margin-bottom:12px;"></div>
+            <div id="chart-vc-nu" style="margin-bottom:12px;"></div>
+            <div id="report-header"></div>
+            <div id="report"></div>
         </div>
-        <div class="form-section">
-            <h3>Section Dimensions &amp; Covers</h3>
-            <div class="form-row">
-                <div class="form-group"><label>bw - Width of Beam (mm)</label><input type="number" name="bw" value="300" required></div>
-                <div class="form-group"><label>h - Height of Beam (mm)</label><input type="number" name="h" value="800" required></div>
-                <div class="form-group"><label>Cc - Clear Cover to Links (mm)</label><input type="number" name="cc" value="30" required></div>
-                <div class="form-group"><label>c - Cover to Rft Centroid (mm)</label><input type="number" name="c" value="100" required></div>
-            </div>
-        </div>
-        <div class="form-section">
-            <h3>Straining Actions - Ultimate</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Vu - Shear Force (kN)</label><input type="number" name="vu" value="500" step="0.1" required></div>
-                <div class="form-group"><label>Nu - Axial Force (kN) <small>+comp / -tens</small></label><input type="number" name="nu" value="10" step="0.1"></div>
-            </div>
-        </div>
-        <div class="form-section">
-            <h3>Chosen Stirrup Reinforcement</h3>
-            <div class="form-row">
-                <div class="form-group"><label>s - Stirrup Spacing (mm)</label><input type="number" name="s_chosen" value="150" required></div>
-                <div class="form-group"><label>No. of Stirrup Legs</label><input type="number" name="n_legs" value="4" required></div>
-                <div class="form-group"><label>db - Stirrup Diameter (mm)</label><input type="number" name="db_stirrup" value="10" required></div>
-            </div>
-        </div>
-        <div class="btn-actions">
-            <button type="submit" class="btn-primary">Calculate</button>
-            <button type="button" id="btn-export" class="btn-export" style="display:none;">Export to Excel</button>
-            <button type="button" id="btn-print" class="btn-print" style="display:none;">Print Report</button>
-        </div>
-    </form>
-
-    <div id="results-area" style="display:none;">
-        <div class="st-charts" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:1.5rem;">
-            <div id="chart-section" style="flex:0 0 380px;min-width:340px;"></div>
-            <div style="flex:1;min-width:400px;display:flex;flex-direction:column;gap:12px;">
-                <div id="chart-shear"></div>
-                <div id="chart-vc-nu"></div>
-            </div>
-        </div>
-        <div id="report-header"></div>
-        <div id="report"></div>
     </div>
 </div>
 
@@ -218,166 +229,181 @@ function renderShearChart(r, p) {
 }
 
 function renderSectionChart(r, p) {
+    // RC Beam Cross-Section matching ACI 318M-14 reference rendering
     var bw = p.bw, h = p.h, cc = p.cc, c = p.c, d = p.d, db = p.db_stirrup;
     var nLegs = p.n_legs;
-    var pad = 100;
+
+    // Geometry: bar positions
+    var botBarY = cc + db;          // bottom bar centerline
+    var topBarY = h - cc - db;      // top bar centerline
+    // Stirrup leg X positions (evenly spaced across the width)
+    var sLeft = cc + db / 2;
+    var sRight = bw - cc - db / 2;
+    var legX = [];
+    for (var i = 0; i < nLegs; i++) {
+        legX.push(sLeft + i * (sRight - sLeft) / (nLegs - 1));
+    }
 
     var shapes = [], annotations = [];
     var dimColor = '#374151';
-    var aFont = { size: 10, color: dimColor, family: 'Arial' };
+    var green = '#16a34a';
+    var darkGreen = '#14532d';
 
-    // Beam outline (concrete)
+    // 1. Concrete beam outline
     shapes.push({ type: 'rect', x0: 0, y0: 0, x1: bw, y1: h,
-        line: { color: '#1e3a8a', width: 2.5 }, fillcolor: 'rgba(219,234,254,0.15)' });
+        line: { color: '#1e3a8a', width: 3 },
+        fillcolor: 'rgba(229,231,235,0.3)' });
 
-    // Outer stirrup rectangle
-    var sx0 = cc + db/2, sy0 = cc + db/2, sx1 = bw - cc - db/2, sy1 = h - cc - db/2;
-    shapes.push({ type: 'rect', x0: sx0, y0: sy0, x1: sx1, y1: sy1,
-        line: { color: '#16a34a', width: 2 }, fillcolor: 'rgba(0,0,0,0)' });
+    // 2. Outer stirrup rectangle - horizontal sides aligned with bar rows
+    shapes.push({ type: 'rect', x0: sLeft, y0: botBarY, x1: sRight, y1: topBarY,
+        line: { color: green, width: 2 }, fillcolor: 'rgba(0,0,0,0)' });
 
-    // Internal stirrup legs (vertical lines for each leg)
-    // nLegs = total vertical legs across width. 2 are the outer stirrup sides.
-    // Extra legs are interior vertical ties evenly spaced.
+    // 3. Stirrup hooks at 4 corners (small diagonal ticks)
+    var hk = 12; // hook length
+    // Bottom-left hook (inward-up)
+    shapes.push({ type: 'line', x0: sLeft, y0: botBarY, x1: sLeft + hk, y1: botBarY + hk,
+        line: { color: green, width: 2 } });
+    // Bottom-right hook
+    shapes.push({ type: 'line', x0: sRight, y0: botBarY, x1: sRight - hk, y1: botBarY + hk,
+        line: { color: green, width: 2 } });
+    // Top-left hook
+    shapes.push({ type: 'line', x0: sLeft, y0: topBarY, x1: sLeft + hk, y1: topBarY - hk,
+        line: { color: green, width: 2 } });
+    // Top-right hook
+    shapes.push({ type: 'line', x0: sRight, y0: topBarY, x1: sRight - hk, y1: topBarY - hk,
+        line: { color: green, width: 2 } });
+
+    // 4. Internal stirrup legs (vertical lines between bar rows)
     if (nLegs > 2) {
-        var nInner = nLegs - 2;
-        var innerSpacing = (sx1 - sx0) / (nInner + 1);
-        for (var i = 1; i <= nInner; i++) {
-            var lx = sx0 + i * innerSpacing;
-            shapes.push({ type: 'line', x0: lx, y0: sy0, x1: lx, y1: sy1,
-                line: { color: '#16a34a', width: 1.5 } });
+        for (var i = 1; i < nLegs - 1; i++) {
+            shapes.push({ type: 'line', x0: legX[i], y0: botBarY, x1: legX[i], y1: topBarY,
+                line: { color: green, width: 1.5 } });
+            // Small hooks at top and bottom of each internal leg
+            shapes.push({ type: 'line', x0: legX[i], y0: botBarY, x1: legX[i] + 8, y1: botBarY + 8,
+                line: { color: green, width: 1.5 } });
+            shapes.push({ type: 'line', x0: legX[i], y0: topBarY, x1: legX[i] + 8, y1: topBarY - 8,
+                line: { color: green, width: 1.5 } });
         }
     }
 
-    // Rebar positions: bars at each stirrup leg position, top & bottom
+    // 5. Rebar circles
     var barTraceX = [], barTraceY = [];
-    var legXPositions = [];
+    // Bottom bars at each leg position
     for (var i = 0; i < nLegs; i++) {
-        legXPositions.push(sx0 + i * (sx1 - sx0) / (nLegs - 1));
+        barTraceX.push(legX[i]);
+        barTraceY.push(botBarY);
     }
-
-    // Bottom bars (tension) at each leg
-    var botY = c;
-    for (var i = 0; i < nLegs; i++) {
-        barTraceX.push(legXPositions[i]);
-        barTraceY.push(botY);
-    }
-    // Top bars at corner legs only
-    var topY = h - c;
-    barTraceX.push(legXPositions[0]);
-    barTraceY.push(topY);
-    barTraceX.push(legXPositions[nLegs - 1]);
-    barTraceY.push(topY);
+    // Top bars at outer 2 positions only
+    barTraceX.push(legX[0]); barTraceY.push(topBarY);
+    barTraceX.push(legX[nLegs - 1]); barTraceY.push(topBarY);
 
     var barTrace = {
         x: barTraceX, y: barTraceY, mode: 'markers',
-        marker: { size: 11, color: '#16a34a', symbol: 'circle',
-                  line: { width: 2, color: '#14532d' } },
+        marker: { size: 13, color: green, symbol: 'circle',
+                  line: { width: 2.5, color: darkGreen } },
         hoverinfo: 'skip', showlegend: false,
     };
 
-    // ── Dimension lines ──
+    // 6. Centroid marker (+) at center of beam
+    var cxm = bw / 2, cym = h / 2;
+    var cr = 15;
+    shapes.push({ type: 'line', x0: cxm - cr, y0: cym, x1: cxm + cr, y1: cym,
+        line: { color: '#dc2626', width: 1.5 } });
+    shapes.push({ type: 'line', x0: cxm, y0: cym - cr, x1: cxm, y1: cym + cr,
+        line: { color: '#dc2626', width: 1.5 } });
 
-    // h (far left)
-    var hx = -pad + 15;
+    // ── Dimension lines (left side, like reference) ──
+    var padL = 90;
+
+    // h dimension (outermost left)
+    var hx = -padL + 10;
     shapes.push({ type: 'line', x0: hx, y0: 0, x1: hx, y1: h,
-        line: { color: dimColor, width: 1.2 } });
-    shapes.push({ type: 'line', x0: hx - 6, y0: 0, x1: -8, y1: 0,
+        line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: hx - 5, y0: 0, x1: -5, y1: 0,
         line: { color: dimColor, width: 0.5 } });
-    shapes.push({ type: 'line', x0: hx - 6, y0: h, x1: -8, y1: h,
+    shapes.push({ type: 'line', x0: hx - 5, y0: h, x1: -5, y1: h,
         line: { color: dimColor, width: 0.5 } });
-    // arrowheads via small lines
-    shapes.push({ type: 'line', x0: hx - 4, y0: 8, x1: hx, y1: 0, line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: hx + 4, y0: 8, x1: hx, y1: 0, line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: hx - 4, y0: h - 8, x1: hx, y1: h, line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: hx + 4, y0: h - 8, x1: hx, y1: h, line: { color: dimColor, width: 1 } });
-    annotations.push({ x: hx, y: h / 2, text: '<b>h</b><br>' + h + ' mm', textangle: -90,
-        showarrow: false, font: aFont, xanchor: 'right', xshift: -8 });
+    annotations.push({ x: hx - 8, y: h / 2, text: '<b>h</b>', textangle: -90,
+        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' } });
 
-    // d (second from left)
-    var dx = -pad + 45;
-    shapes.push({ type: 'line', x0: dx, y0: 0, x1: dx, y1: d,
-        line: { color: '#dc2626', width: 1.2 } });
-    shapes.push({ type: 'line', x0: dx - 4, y0: 8, x1: dx, y1: 0, line: { color: '#dc2626', width: 1 } });
-    shapes.push({ type: 'line', x0: dx + 4, y0: 8, x1: dx, y1: 0, line: { color: '#dc2626', width: 1 } });
-    shapes.push({ type: 'line', x0: dx - 4, y0: d - 8, x1: dx, y1: d, line: { color: '#dc2626', width: 1 } });
-    shapes.push({ type: 'line', x0: dx + 4, y0: d - 8, x1: dx, y1: d, line: { color: '#dc2626', width: 1 } });
-    annotations.push({ x: dx, y: d / 2, text: '<b>d</b><br>' + v(d,0) + ' mm', textangle: -90,
-        showarrow: false, font: { size: 9, color: '#dc2626', family: 'Arial' }, xanchor: 'right', xshift: -6 });
+    // d dimension
+    var ddx = -padL + 35;
+    shapes.push({ type: 'line', x0: ddx, y0: 0, x1: ddx, y1: d,
+        line: { color: '#1e40af', width: 1 } });
+    shapes.push({ type: 'line', x0: ddx - 3, y0: d, x1: -5, y1: d,
+        line: { color: '#1e40af', width: 0.5, dash: 'dot' } });
+    annotations.push({ x: ddx - 8, y: d / 2, text: '<b>d</b>', textangle: -90,
+        showarrow: false, font: { size: 13, color: '#1e40af', family: 'Arial' } });
 
-    // c (bottom left)
-    var cx = -pad + 70;
-    shapes.push({ type: 'line', x0: cx, y0: 0, x1: cx, y1: c,
+    // c dimension (bottom)
+    var ccx = -padL + 55;
+    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx, y1: c,
         line: { color: dimColor, width: 0.8 } });
-    shapes.push({ type: 'line', x0: cx - 3, y0: 6, x1: cx, y1: 0, line: { color: dimColor, width: 0.8 } });
-    shapes.push({ type: 'line', x0: cx + 3, y0: 6, x1: cx, y1: 0, line: { color: dimColor, width: 0.8 } });
-    shapes.push({ type: 'line', x0: cx - 3, y0: c - 6, x1: cx, y1: c, line: { color: dimColor, width: 0.8 } });
-    shapes.push({ type: 'line', x0: cx + 3, y0: c - 6, x1: cx, y1: c, line: { color: dimColor, width: 0.8 } });
-    annotations.push({ x: cx, y: c / 2, text: '<b>c</b><br>' + v(c,0), textangle: -90,
-        showarrow: false, font: { size: 8, color: dimColor, family: 'Arial' }, xanchor: 'right', xshift: -4 });
+    annotations.push({ x: ccx - 6, y: c / 2, text: '<b>c</b>', textangle: -90,
+        showarrow: false, font: { size: 11, color: dimColor, family: 'Arial' } });
 
-    // bw (bottom)
-    var by = -pad + 30;
-    shapes.push({ type: 'line', x0: 0, y0: by, x1: bw, y1: by,
-        line: { color: dimColor, width: 1.2 } });
-    shapes.push({ type: 'line', x0: 0, y0: by - 6, x1: 0, y1: -8,
+    // bw dimension (bottom)
+    var bwy = -55;
+    shapes.push({ type: 'line', x0: 0, y0: bwy, x1: bw, y1: bwy,
+        line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: 0, y0: bwy - 5, x1: 0, y1: -5,
         line: { color: dimColor, width: 0.5 } });
-    shapes.push({ type: 'line', x0: bw, y0: by - 6, x1: bw, y1: -8,
+    shapes.push({ type: 'line', x0: bw, y0: bwy - 5, x1: bw, y1: -5,
         line: { color: dimColor, width: 0.5 } });
-    shapes.push({ type: 'line', x0: 8, y0: by - 4, x1: 0, y1: by, line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: 8, y0: by + 4, x1: 0, y1: by, line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: bw - 8, y0: by - 4, x1: bw, y1: by, line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: bw - 8, y0: by + 4, x1: bw, y1: by, line: { color: dimColor, width: 1 } });
-    annotations.push({ x: bw / 2, y: by, text: '<b>b<sub>w</sub></b> = ' + bw + ' mm',
-        showarrow: false, font: aFont, yanchor: 'top', yshift: -8 });
+    annotations.push({ x: bw / 2, y: bwy - 10,
+        text: '<b>b<sub>w</sub></b>',
+        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' } });
 
-    // ── Force arrows ──
+    // ── Force arrows (top and right, like reference) ──
 
-    // Vu arrow (top center, pointing down into beam)
-    var vuTipY = h + 15;
-    var vuTailY = h + pad - 20;
-    shapes.push({ type: 'line', x0: bw/2, y0: vuTailY, x1: bw/2, y1: vuTipY,
-        line: { color: '#dc2626', width: 3 } });
-    // arrowhead
-    shapes.push({ type: 'line', x0: bw/2 - 8, y0: vuTipY + 14, x1: bw/2, y1: vuTipY, line: { color: '#dc2626', width: 2.5 } });
-    shapes.push({ type: 'line', x0: bw/2 + 8, y0: vuTipY + 14, x1: bw/2, y1: vuTipY, line: { color: '#dc2626', width: 2.5 } });
-    annotations.push({ x: bw/2, y: vuTailY + 5,
-        text: '<b>V<sub>u</sub> = ' + p.vu + ' kN</b>',
-        font: { size: 12, color: '#dc2626', family: 'Arial' },
-        showarrow: false, yanchor: 'bottom' });
+    // Vu arrow: above beam, pointing down
+    var vuTop = h + 80;
+    var vuTip = h + 10;
+    shapes.push({ type: 'line', x0: bw * 0.4, y0: vuTop, x1: bw * 0.4, y1: vuTip,
+        line: { color: '#1e3a8a', width: 3.5 } });
+    shapes.push({ type: 'line', x0: bw * 0.4 - 10, y0: vuTip + 18, x1: bw * 0.4, y1: vuTip,
+        line: { color: '#1e3a8a', width: 3 } });
+    shapes.push({ type: 'line', x0: bw * 0.4 + 10, y0: vuTip + 18, x1: bw * 0.4, y1: vuTip,
+        line: { color: '#1e3a8a', width: 3 } });
+    annotations.push({ x: bw * 0.4, y: vuTop + 8,
+        text: '<b>V<sub>u</sub></b>',
+        showarrow: false, font: { size: 16, color: '#dc2626', family: 'Arial' } });
 
-    // Nu arrow (right side, horizontal, pointing into beam = compression)
-    if (p.nu !== 0) {
-        var nuTipX = bw + 15;
-        var nuTailX = bw + pad - 15;
-        var nuY = h / 2;
-        shapes.push({ type: 'line', x0: nuTailX, y0: nuY, x1: nuTipX, y1: nuY,
-            line: { color: '#1e40af', width: 2.5 } });
-        shapes.push({ type: 'line', x0: nuTipX + 12, y0: nuY - 7, x1: nuTipX, y1: nuY, line: { color: '#1e40af', width: 2 } });
-        shapes.push({ type: 'line', x0: nuTipX + 12, y0: nuY + 7, x1: nuTipX, y1: nuY, line: { color: '#1e40af', width: 2 } });
-        annotations.push({ x: nuTailX + 5, y: nuY,
-            text: '<b>N<sub>u</sub> = ' + p.nu + ' kN</b>',
-            font: { size: 11, color: '#1e40af', family: 'Arial' },
-            showarrow: false, xanchor: 'left', yanchor: 'bottom', yshift: 4 });
-    }
+    // Nu text inside beam at centroid
+    annotations.push({ x: cxm, y: cym + 30,
+        text: '<b>N<sub>u</sub></b>',
+        showarrow: false, font: { size: 16, color: '#dc2626', family: 'Arial' } });
 
-    // Labels: Av (right side, mid-height)
-    annotations.push({ x: bw + 12, y: h * 0.65,
-        text: '<b>A<sub>v</sub></b>', font: { size: 11, color: '#16a34a', family: 'Arial' },
-        showarrow: true, ax: sx1, ay: h * 0.65,
-        arrowhead: 0, arrowwidth: 1, arrowcolor: '#16a34a' });
+    // ── Right-side labels with horizontal lines (Av, As) ──
+    var labelX = bw + 60;
 
-    // As label (right side, at bottom bar level)
-    annotations.push({ x: bw + 12, y: botY,
-        text: '<b>A<sub>s</sub></b>', font: { size: 11, color: '#16a34a', family: 'Arial' },
-        showarrow: true, ax: legXPositions[nLegs - 1] + 5, ay: botY,
-        arrowhead: 0, arrowwidth: 1, arrowcolor: '#16a34a' });
+    // Av label (at mid-height, with line to stirrup)
+    var avY = (topBarY + botBarY) / 2 + 40;
+    shapes.push({ type: 'line', x0: sRight + 5, y0: avY, x1: labelX - 5, y1: avY,
+        line: { color: dimColor, width: 0.8 } });
+    annotations.push({ x: labelX, y: avY,
+        text: '<b>A<sub>v</sub></b>',
+        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' }, xanchor: 'left' });
+
+    // As label (at bottom bar level)
+    shapes.push({ type: 'line', x0: sRight + 5, y0: botBarY, x1: labelX - 5, y1: botBarY,
+        line: { color: dimColor, width: 0.8 } });
+    annotations.push({ x: labelX, y: botBarY,
+        text: '<b>A<sub>s</sub></b>',
+        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' }, xanchor: 'left' });
+
+    var xMin = -padL - 5;
+    var xMax = labelX + 40;
+    var yMin = bwy - 25;
+    var yMax = vuTop + 35;
 
     Plotly.newPlot('chart-section', [barTrace], {
         title: { text: 'RC Beam Cross-Section', font: { size: 13 } },
-        xaxis: { range: [-pad - 5, bw + pad + 10], visible: false, fixedrange: true },
-        yaxis: { range: [-pad - 5, h + pad + 10], visible: false, fixedrange: true, scaleanchor: 'x', scaleratio: 1 },
+        xaxis: { range: [xMin, xMax], visible: false, fixedrange: true },
+        yaxis: { range: [yMin, yMax], visible: false, fixedrange: true,
+                 scaleanchor: 'x', scaleratio: 1 },
         shapes: shapes, annotations: annotations,
-        height: 560, margin: { t: 35, r: 5, b: 5, l: 5 },
+        height: 600, margin: { t: 35, r: 5, b: 5, l: 5 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
         hovermode: false,
     }, { responsive: true, displaylogo: false, staticPlot: true });
@@ -588,7 +614,6 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             return;
         }
         var r = data.result;
-        document.getElementById('btn-export').style.display = 'inline-block';
         document.getElementById('btn-print').style.display = 'inline-block';
         renderHeader(payload);
         renderSectionChart(r, payload);
@@ -605,21 +630,6 @@ document.getElementById('btn-print').addEventListener('click', function() {
     window.print();
 });
 
-document.getElementById('btn-export').addEventListener('click', function() {
-    if (!_lastPayload) return;
-    fetch('/api/beam/shear-design/export', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(_lastPayload),
-    })
-    .then(function(res) { return res.blob(); })
-    .then(function(blob) {
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = 'Beam_Shear_Design_ACI318M14.xlsx';
-        a.click();
-        URL.revokeObjectURL(url);
-    });
-});
+
 </script>
 {% endblock %}
