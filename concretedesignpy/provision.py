@@ -229,7 +229,8 @@ def generate_phi_plot_data(
     dict with keys: epsilon_ty, phi_spiral, phi_other, actual_epsilon, actual_phi_spiral, actual_phi_other
     """
     epsilon_ty = fy / es
-    epsilon_max = max(0.007, actual_epsilon * 1.5, epsilon_ty + 0.003 + 0.002)
+    # Fixed curve range: slightly past the tension-controlled limit (epsilon_ty + 0.003)
+    epsilon_max = epsilon_ty + 0.004
 
     strains = [i * epsilon_max / num_points for i in range(num_points + 1)]
 
