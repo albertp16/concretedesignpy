@@ -103,14 +103,25 @@ def confined_stress_strain(
         for _ in range(n_bars_y - 1):
             wi_y.append(spacing_y - db_main)
 
-    sum_wi2 = sum(w ** 2 for w in wi_x + wi_y)
+    sum_wi2_x = sum(w ** 2 for w in wi_x)
+    sum_wi2_y = sum(w ** 2 for w in wi_y)
+    sum_wi2 = sum_wi2_x + sum_wi2_y
+
+    # Core area and effective concrete core
+    ac = bc * dc
+    acc = ac * (1 - rho_cc)
 
     # Confinement effectiveness
     s_prime = s_tie - db_tie
-    ke = ((1 - sum_wi2 / (6 * bc * dc))
-          * (1 - s_prime / (2 * bc))
-          * (1 - s_prime / (2 * dc))
-          / (1 - rho_cc))
+    ae_factor1 = 1 - sum_wi2 / (6 * bc * dc)
+    ae_factor2 = (1 - s_prime / (2 * bc))
+    ae_factor3 = (1 - s_prime / (2 * dc))
+    ae = bc * dc * ae_factor1 * ae_factor2 * ae_factor3
+    ke = ae / acc
+
+    # Total transverse steel area per direction
+    asy = n_legs_x * as_tie
+    asz = n_legs_y * as_tie
 
     # Effective lateral confining stresses
     fl_x = ke * rho_x * fy_transverse
@@ -150,7 +161,11 @@ def confined_stress_strain(
         "ecc": round(ecc, 6),
         "bc": round(bc, 2),
         "dc": round(dc, 2),
+        "ac": round(ac, 2),
+        "acc": round(acc, 2),
+        "ae": round(ae, 2),
         "ke": round(ke, 4),
+        "s_prime": round(s_prime, 2),
         "fl_x": round(fl_x, 4),
         "fl_y": round(fl_y, 4),
         "fl_eff": round(fl_eff, 4),
@@ -158,6 +173,15 @@ def confined_stress_strain(
         "rho_x": round(rho_x, 6),
         "rho_y": round(rho_y, 6),
         "rho_cc": round(rho_cc, 6),
+        "n_total": n_total,
+        "as_main": round(as_main, 2),
+        "as_tie": round(as_tie, 2),
+        "asy": round(asy, 2),
+        "asz": round(asz, 2),
+        "wi_x": [round(w, 2) for w in wi_x],
+        "wi_y": [round(w, 2) for w in wi_y],
+        "sum_wi2_x": round(sum_wi2_x, 2),
+        "sum_wi2_y": round(sum_wi2_y, 2),
         "eco": eco,
         "e_sec": round(e_sec, 2),
         "ec": round(ec, 2),

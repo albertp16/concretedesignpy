@@ -1,6 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Mander Confined Concrete - ConcreteDesignPy{% endblock %}
-{% block head %}<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<style>
+.report-section {
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.report-section h4 {
+    font-size: .95rem; color: var(--primary-dark); margin: 0 0 .75rem;
+    padding-bottom: .35rem; border-bottom: 2px solid var(--primary-light);
+}
+.report-eq { background: var(--gray-50); padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0; font-size: .9rem; }
+.report-table {
+    width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0;
+}
+.report-table th {
+    background: var(--primary-dark); color: #fff; padding: .35rem .5rem;
+    text-align: center; font-weight: 600; font-size: .75rem;
+}
+.report-table td {
+    padding: .3rem .5rem; text-align: center; border-bottom: 1px solid var(--gray-200);
+    font-family: "SF Mono","Fira Code",monospace; font-size: .78rem;
+}
+.report-table tr:nth-child(even) { background: var(--gray-50); }
+.report-result {
+    background: #dcfce7; padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0;
+    font-size: .95rem; font-weight: 700;
+}
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="calc-page">
@@ -197,17 +226,131 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         renderStressStrainChart(r);
         renderConfinementChart(r);
 
-        var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
-        tex += '<p><b>Reference:</b> Mander, Priestley & Park (1988)</p>';
-        if (r.ke !== undefined) tex += '<p>\\[ k_e = ' + r.ke + ' \\]</p>';
-        if (r.rho_x !== undefined) tex += '<p>\\[ \\rho_x = ' + r.rho_x + ' \\], \\( \\rho_y = ' + r.rho_y + ' \\)</p>';
-        if (r.fl_x !== undefined) tex += '<p>\\[ f\'_{l,x} = k_e \\rho_x f_{yh} = ' + r.fl_x + ' \\text{ MPa} \\]</p>';
-        if (r.fl_y !== undefined) tex += '<p>\\[ f\'_{l,y} = k_e \\rho_y f_{yh} = ' + r.fl_y + ' \\text{ MPa} \\]</p>';
-        if (r.fcc !== undefined) tex += '<p><b>Confined Strength:</b> \\[ f\'_{cc} = ' + r.fcc + ' \\text{ MPa} \\]</p>';
-        if (r.ecc !== undefined) tex += '<p>\\[ \\varepsilon_{cc} = ' + r.ecc + ' \\]</p>';
-        if (r.ecu !== undefined) tex += '<p><b>Ultimate Strain:</b> \\[ \\varepsilon_{cu} = ' + r.ecu + ' \\]</p>';
-        tex += '</div>';
-        document.getElementById('results-report').innerHTML = tex;
+        var fc = payload.fc;
+        var fyh = payload.fy_transverse;
+        var h = '';
+
+        // Section 1: Core Dimensions
+        h += '<div class="report-section">';
+        h += '<h4>1. Core Dimensions</h4>';
+        h += '<p style="font-size:.85rem;color:var(--gray-500);">Center-to-center of perimeter hoops</p>';
+        h += '<div class="report-eq">\\[ b_c = b - 2 \\cdot \\text{cover} + d_{bt} = ' + payload.b + ' - 2 \\times ' + payload.cover + ' + ' + payload.db_tie + ' = ' + r.bc + ' \\text{ mm} \\]</div>';
+        h += '<div class="report-eq">\\[ d_c = h - 2 \\cdot \\text{cover} + d_{bt} = ' + payload.h + ' - 2 \\times ' + payload.cover + ' + ' + payload.db_tie + ' = ' + r.dc + ' \\text{ mm} \\]</div>';
+        h += '</div>';
+
+        // Section 2: Longitudinal Reinforcement
+        h += '<div class="report-section">';
+        h += '<h4>2. Longitudinal Reinforcement</h4>';
+        h += '<div class="report-eq">\\[ n_{\\text{total}} = 2(n_x + n_y) - 4 = 2(' + payload.n_bars_x + ' + ' + payload.n_bars_y + ') - 4 = ' + r.n_total + ' \\text{ bars} \\]</div>';
+        h += '<div class="report-eq">\\[ A_{s,\\text{bar}} = \\frac{\\pi d_b^2}{4} = \\frac{\\pi \\times ' + payload.db_main + '^2}{4} = ' + r.as_main + ' \\text{ mm}^2 \\]</div>';
+        var as_total = (r.n_total * r.as_main).toFixed(2);
+        h += '<div class="report-eq">\\[ A_{s,\\text{total}} = n_{\\text{total}} \\times A_{s,\\text{bar}} = ' + r.n_total + ' \\times ' + r.as_main + ' = ' + as_total + ' \\text{ mm}^2 \\]</div>';
+        h += '<div class="report-eq">\\[ \\rho_{cc} = \\frac{A_{s,\\text{total}}}{b_c \\times d_c} = \\frac{' + as_total + '}{' + r.bc + ' \\times ' + r.dc + '} = ' + r.rho_cc + ' \\]</div>';
+        h += '</div>';
+
+        // Section 3: Area of Core Section
+        h += '<div class="report-section">';
+        h += '<h4>3. Area of Core of Section, A<sub>c</sub></h4>';
+        h += '<div class="report-eq">\\[ A_c = b_c \\times d_c = ' + r.bc + ' \\times ' + r.dc + ' = ' + r.ac + ' \\text{ mm}^2 \\]</div>';
+        h += '</div>';
+
+        // Section 4: Area of Effective Concrete Core
+        h += '<div class="report-section">';
+        h += '<h4>4. Area of Effective Concrete Core, A<sub>cc</sub></h4>';
+        h += '<div class="report-eq">\\[ A_{cc} = A_c (1 - \\rho_{cc}) = ' + r.ac + ' \\times (1 - ' + r.rho_cc + ') = ' + r.acc + ' \\text{ mm}^2 \\]</div>';
+        h += '</div>';
+
+        // Section 5: Clear Spacings
+        h += '<div class="report-section">';
+        h += '<h4>5. Clear Spacings Between Longitudinal Bars, w\'<sub>i</sub></h4>';
+        if (r.wi_x && r.wi_x.length > 0) {
+            h += '<p style="font-size:.85rem;"><b>y-direction (along b<sub>c</sub>):</b></p>';
+            h += '<table class="report-table"><tr><th>i</th><th>w\'<sub>yi</sub> (mm)</th><th>w\'<sub>yi</sub><sup>2</sup> (mm<sup>2</sup>)</th></tr>';
+            r.wi_x.forEach(function(w, i) {
+                h += '<tr><td>' + (i+1) + '</td><td>' + w + '</td><td>' + (w*w).toFixed(2) + '</td></tr>';
+            });
+            h += '</table>';
+            h += '<div class="report-eq">\\[ \\sum w\'^2_{yi} = ' + r.sum_wi2_x + ' \\text{ mm}^2 \\]</div>';
+        }
+        if (r.wi_y && r.wi_y.length > 0) {
+            h += '<p style="font-size:.85rem;"><b>z-direction (along d<sub>c</sub>):</b></p>';
+            h += '<table class="report-table"><tr><th>j</th><th>w\'<sub>zj</sub> (mm)</th><th>w\'<sub>zj</sub><sup>2</sup> (mm<sup>2</sup>)</th></tr>';
+            r.wi_y.forEach(function(w, i) {
+                h += '<tr><td>' + (i+1) + '</td><td>' + w + '</td><td>' + (w*w).toFixed(2) + '</td></tr>';
+            });
+            h += '</table>';
+            h += '<div class="report-eq">\\[ \\sum w\'^2_{zj} = ' + r.sum_wi2_y + ' \\text{ mm}^2 \\]</div>';
+        }
+        h += '</div>';
+
+        // Section 6: Effectively Confined Core Area
+        h += '<div class="report-section">';
+        h += '<h4>6. Total Area of Effectively Confined Core Concrete, A<sub>e</sub></h4>';
+        h += '<div class="report-eq">\\[ s\' = s - d_{bt} = ' + payload.s_tie + ' - ' + payload.db_tie + ' = ' + r.s_prime + ' \\text{ mm} \\]</div>';
+        h += '<div class="report-eq">\\[ A_e = \\left( b_c d_c - \\frac{\\sum w\'^2_{yi} + \\sum w\'^2_{zj}}{6} \\right) \\left(1 - \\frac{s\'}{2 b_c}\\right) \\left(1 - \\frac{s\'}{2 d_c}\\right) \\]</div>';
+        h += '<div class="report-eq">\\[ A_e = \\left(' + r.bc + ' \\times ' + r.dc + ' - \\frac{' + r.sum_wi2_x + ' + ' + r.sum_wi2_y + '}{6}\\right) \\left(1 - \\frac{' + r.s_prime + '}{2 \\times ' + r.bc + '}\\right) \\left(1 - \\frac{' + r.s_prime + '}{2 \\times ' + r.dc + '}\\right) \\]</div>';
+        h += '<div class="report-eq">\\[ \\mathbf{A_e = ' + r.ae + ' \\text{ mm}^2} \\]</div>';
+        h += '</div>';
+
+        // Section 7: Confinement Effectiveness Coefficient
+        h += '<div class="report-section">';
+        h += '<h4>7. Confinement Effectiveness Coefficient, k<sub>e</sub></h4>';
+        h += '<div class="report-eq">\\[ k_e = \\frac{A_e}{A_{cc}} = \\frac{' + r.ae + '}{' + r.acc + '} \\]</div>';
+        h += '<div class="report-result">\\[ \\mathbf{k_e = ' + r.ke + '} \\quad (\\leq 1.0) \\]</div>';
+        h += '</div>';
+
+        // Section 8: Transverse Steel Ratios
+        h += '<div class="report-section">';
+        h += '<h4>8. Transverse Reinforcement Ratios</h4>';
+        h += '<p style="font-size:.85rem;"><b>Tie leg area:</b></p>';
+        h += '<div class="report-eq">\\[ A_{sp} = \\frac{\\pi d_{bt}^2}{4} = \\frac{\\pi \\times ' + payload.db_tie + '^2}{4} = ' + r.as_tie + ' \\text{ mm}^2 \\]</div>';
+        h += '<div class="report-eq">\\[ A_{sy} = n_{\\text{legs},x} \\times A_{sp} = ' + payload.n_legs_x + ' \\times ' + r.as_tie + ' = ' + r.asy + ' \\text{ mm}^2 \\]</div>';
+        h += '<div class="report-eq">\\[ A_{sz} = n_{\\text{legs},y} \\times A_{sp} = ' + payload.n_legs_y + ' \\times ' + r.as_tie + ' = ' + r.asz + ' \\text{ mm}^2 \\]</div>';
+        h += '<div class="report-eq">\\[ \\rho_y = \\frac{A_{sy}}{d_c \\times s} = \\frac{' + r.asy + '}{' + r.dc + ' \\times ' + payload.s_tie + '} = ' + r.rho_x + ' \\]</div>';
+        h += '<div class="report-eq">\\[ \\rho_z = \\frac{A_{sz}}{b_c \\times s} = \\frac{' + r.asz + '}{' + r.bc + ' \\times ' + payload.s_tie + '} = ' + r.rho_y + ' \\]</div>';
+        h += '</div>';
+
+        // Section 9: Effective Lateral Confining Stresses
+        h += '<div class="report-section">';
+        h += '<h4>9. Effective Lateral Confining Stresses</h4>';
+        h += '<div class="report-eq">\\[ f\'_{ly} = k_e \\cdot \\rho_y \\cdot f_{yh} = ' + r.ke + ' \\times ' + r.rho_x + ' \\times ' + fyh + ' = ' + r.fl_x + ' \\text{ MPa} \\]</div>';
+        h += '<div class="report-eq">\\[ f\'_{lz} = k_e \\cdot \\rho_z \\cdot f_{yh} = ' + r.ke + ' \\times ' + r.rho_y + ' \\times ' + fyh + ' = ' + r.fl_y + ' \\text{ MPa} \\]</div>';
+        h += '</div>';
+
+        // Section 10: Confined Concrete Strength
+        h += '<div class="report-section">';
+        h += '<h4>10. Confined Concrete Strength, f\'<sub>cc</sub></h4>';
+        h += '<div class="report-eq">\\[ f\'_{l,\\text{eff}} = \\frac{f\'_{ly} + f\'_{lz}}{2} = \\frac{' + r.fl_x + ' + ' + r.fl_y + '}{2} = ' + r.fl_eff + ' \\text{ MPa} \\]</div>';
+        h += '<div class="report-eq">\\[ \\frac{f\'_{cc}}{f\'_{co}} = -1.254 + 2.254\\sqrt{1 + \\frac{7.94 f\'_l}{f\'_{co}}} - 2 \\frac{f\'_l}{f\'_{co}} \\]</div>';
+        h += '<div class="report-eq">\\[ \\frac{f\'_{cc}}{f\'_{co}} = ' + r.ratio + ' \\]</div>';
+        h += '<div class="report-result">\\[ \\mathbf{f\'_{cc} = ' + r.ratio + ' \\times ' + fc + ' = ' + r.fcc + ' \\text{ MPa}} \\]</div>';
+        h += '</div>';
+
+        // Section 11: Confined Strain
+        h += '<div class="report-section">';
+        h += '<h4>11. Confined Concrete Strain, &epsilon;<sub>cc</sub></h4>';
+        h += '<div class="report-eq">\\[ \\varepsilon_{cc} = \\varepsilon_{co} \\left[ 1 + 5 \\left( \\frac{f\'_{cc}}{f\'_{co}} - 1 \\right) \\right] \\]</div>';
+        h += '<div class="report-eq">\\[ \\varepsilon_{cc} = ' + r.eco + ' \\left[ 1 + 5 \\left( ' + r.ratio + ' - 1 \\right) \\right] \\]</div>';
+        h += '<div class="report-result">\\[ \\mathbf{\\varepsilon_{cc} = ' + r.ecc + '} \\]</div>';
+        h += '</div>';
+
+        // Section 12: Ultimate Strain
+        h += '<div class="report-section">';
+        h += '<h4>12. Ultimate Strain for Confined Concrete, &epsilon;<sub>cu</sub></h4>';
+        h += '<div class="report-eq">\\[ \\varepsilon_{cu} = 0.004 + 1.4 \\frac{f\'_l \\cdot 0.01}{f\'_{cc}} \\quad \\text{but not less than } 3\\varepsilon_{cc} \\]</div>';
+        h += '<div class="report-result">\\[ \\mathbf{\\varepsilon_{cu} = ' + r.ecu + '} \\]</div>';
+        h += '</div>';
+
+        // Section 13: Stress-Strain Curve Parameters
+        h += '<div class="report-section">';
+        h += '<h4>13. Stress-Strain Curve Parameters</h4>';
+        h += '<div class="report-eq">\\[ E_c = 5000 \\sqrt{f\'_c} = 5000 \\sqrt{' + fc + '} = ' + r.ec + ' \\text{ MPa} \\]</div>';
+        h += '<div class="report-eq">\\[ E_{\\sec} = \\frac{f\'_{cc}}{\\varepsilon_{cc}} = \\frac{' + r.fcc + '}{' + r.ecc + '} = ' + r.e_sec + ' \\text{ MPa} \\]</div>';
+        h += '<div class="report-eq">\\[ r = \\frac{E_c}{E_c - E_{\\sec}} = \\frac{' + r.ec + '}{' + r.ec + ' - ' + r.e_sec + '} = ' + r.r + ' \\]</div>';
+        h += '<div class="report-eq">\\[ f_c = \\frac{f\'_{cc} \\cdot x \\cdot r}{r - 1 + x^r} \\quad \\text{where } x = \\frac{\\varepsilon_c}{\\varepsilon_{cc}} \\]</div>';
+        h += '</div>';
+
+        document.getElementById('results-report').innerHTML = h;
         if (window.MathJax) MathJax.typeset();
     });
 });
