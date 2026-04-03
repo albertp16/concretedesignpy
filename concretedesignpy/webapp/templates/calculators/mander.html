@@ -162,58 +162,94 @@ function renderStressStrainChart(result) {
     Plotly.newPlot('chart-stress-strain', traces, layout, config);
 }
 
-// ── Chart 2: Confined Strength Determination ──
+// ── Chart 2: Confined Strength Determination (Fig. 5) ──
 function renderConfinementChart(result) {
     var fc = parseFloat(document.querySelector('[name="fc"]').value);
-    var nPts = 31;
+    var nPts = 80;
+    var yMax = 0.38;
     var ratioVals = [];
-    for (var i = 0; i < nPts; i++) ratioVals.push(i * 0.3 / (nPts - 1));
+    for (var i = 0; i < nPts; i++) ratioVals.push(i * yMax / (nPts - 1));
 
-    // Reference curves for different fl1/fl2 ratios
-    var curves = [
-        { r: 0.0, name: "f'l1/f'l2 = 0", color: '#1e40af', dash: 'solid' },
-        { r: 0.1, name: "f'l1/f'l2 = 0.1", color: '#16a34a', dash: 'solid' },
-        { r: 0.2, name: "f'l1/f'l2 = 0.2", color: '#9333ea', dash: 'solid' },
+    // All fl1/fl2 ratio curves from 0 to 0.36 in steps of 0.02
+    var palette = [
+        '#2563eb','#dc2626','#65a30d','#9333ea','#0891b2','#ea580c',
+        '#1d4ed8','#7f1d1d','#4d7c0f','#581c87','#0e7490','#c2410c',
+        '#3b82f6','#b91c1c','#84cc16','#a855f7','#06b6d4','#f97316',
+        '#60a5fa',
     ];
-
     var traces = [];
-    curves.forEach(function(c) {
+    for (var ci = 0; ci <= 18; ci++) {
+        var rVal = ci * 0.02;
         var xVals = [], yVals = [];
         for (var i = 0; i < nPts; i++) {
-            xVals.push(manderSolver(c.r, ratioVals[i]));
-            yVals.push(-ratioVals[i]);
+            xVals.push(manderSolver(rVal, ratioVals[i]));
+            yVals.push(ratioVals[i]);
         }
-        traces.push({ x: xVals, y: yVals, mode: 'lines', name: c.name, line: { color: c.color, width: 2, dash: c.dash } });
-    });
+        traces.push({
+            x: xVals, y: yVals, mode: 'lines',
+            name: rVal.toFixed(2),
+            line: { color: palette[ci % palette.length], width: 1.8 },
+        });
+    }
 
-    // fl1 = fl2 (original Mander curve)
+    // fl1 = fl2 (original Mander Eq. 4 curve)
     var xEq = [], yEq = [];
     for (var i = 0; i < nPts; i++) {
         xEq.push(manderRatio(ratioVals[i]));
-        yEq.push(-ratioVals[i]);
+        yEq.push(ratioVals[i]);
     }
-    traces.push({ x: xEq, y: yEq, mode: 'lines', name: "f'l1 = f'l2", line: { color: '#f97316', width: 2.5, dash: 'dash' } });
+    traces.push({
+        x: xEq, y: yEq, mode: 'lines', name: "fl1 = fl2",
+        line: { color: '#dc2626', width: 3, dash: 'dash' },
+    });
 
-    // Mark the user's computed point
+    // Mark the user's computed point with projected lines
     if (result.ratio && result.fl_eff !== undefined && fc > 0) {
         var ptX = result.ratio;
-        var ptY = -(result.fl_eff / fc);
+        var ptY = result.fl_eff / fc;
+
+        // Horizontal projection line (y = ptY from x=0 to ptX)
         traces.push({
-            x: [ptX], y: [ptY], mode: 'markers+text', name: 'Current section',
-            marker: { size: 12, color: '#dc2626', symbol: 'star', line: { width: 1.5, color: '#fff' } },
-            text: ["(" + ptX.toFixed(3) + ", " + (-ptY).toFixed(3) + ")"],
-            textposition: 'top right', textfont: { size: 10, color: '#dc2626' },
+            x: [0, ptX], y: [ptY, ptY], mode: 'lines',
+            name: 'y = ' + ptY.toFixed(4),
+            line: { color: '#000', width: 2, dash: 'dash' },
+        });
+        // Vertical projection line (x = ptX from y=-0.02 to ptY)
+        traces.push({
+            x: [ptX, ptX], y: [-0.02, ptY], mode: 'lines',
+            name: 'x = ' + ptX.toFixed(2),
+            line: { color: '#dc2626', width: 2, dash: 'dashdot' },
+        });
+        // Marker point
+        traces.push({
+            x: [ptX], y: [ptY], mode: 'markers', name: "f'cc/f'c = " + ptX.toFixed(2),
+            marker: { size: 14, color: '#dc2626', symbol: 'circle',
+                      line: { width: 2, color: '#fff' } },
+            showlegend: false,
         });
     }
 
     var layout = {
-        title: { text: "Confined Strength Determination<br><sup>Lateral Confining Stresses for Rectangular Section</sup>", font: { size: 14 } },
-        xaxis: { title: "Confined Strength Ratio, f'cc/f'co", zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
-        yaxis: { title: "Largest Confining Stress Ratio, f'l2/f'co", gridcolor: '#e5e7eb' },
+        title: { text: "Confined Strength Determination &mdash; Mander et al. (1988) Fig. 5<br><sup>Lateral Confining Stresses for Rectangular Section</sup>",
+                 font: { size: 13 } },
+        xaxis: {
+            title: { text: "Confined Strength Ratio (f'cc/f'c)", font: { color: '#dc2626', size: 13 } },
+            range: [0, 2.5], dtick: 0.5, gridcolor: '#e5e7eb', zeroline: false,
+            side: 'top',
+        },
+        yaxis: {
+            title: { text: "Largest Effective Confining Stress Ratio (f'lx/f'x)", font: { color: '#2563eb', size: 12 } },
+            range: [-0.02, yMax], dtick: 0.02, gridcolor: '#e5e7eb', zeroline: false,
+            autorange: false,
+        },
         showlegend: true,
-        legend: { x: 0, xanchor: 'left', y: 0, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
-        height: 500,
-        margin: { t: 60, r: 20, b: 60, l: 75 },
+        legend: {
+            x: 0.5, xanchor: 'center', y: -0.15, yanchor: 'top',
+            orientation: 'h', font: { size: 9 },
+            bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#d1d5db', borderwidth: 1,
+        },
+        height: 700,
+        margin: { t: 80, r: 30, b: 120, l: 80 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
         hovermode: 'closest',
     };
