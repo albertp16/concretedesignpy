@@ -229,173 +229,134 @@ function renderShearChart(r, p) {
 }
 
 function renderSectionChart(r, p) {
-    // RC Beam Cross-Section matching ACI 318M-14 reference rendering
+    // RC Beam Cross-Section — matches ACI 318M-14 reference rendering
     var bw = p.bw, h = p.h, cc = p.cc, c = p.c, d = p.d, db = p.db_stirrup;
     var nLegs = p.n_legs;
 
-    // Geometry: bar positions
-    var botBarY = cc + db;          // bottom bar centerline
-    var topBarY = h - cc - db;      // top bar centerline
-    // Stirrup leg X positions (evenly spaced across the width)
+    // Bar positions
+    var botBarY = cc + db;
+    var topBarY = h - cc - db;
     var sLeft = cc + db / 2;
     var sRight = bw - cc - db / 2;
     var legX = [];
-    for (var i = 0; i < nLegs; i++) {
-        legX.push(sLeft + i * (sRight - sLeft) / (nLegs - 1));
-    }
+    for (var i = 0; i < nLegs; i++) legX.push(sLeft + i * (sRight - sLeft) / (nLegs - 1));
 
     var shapes = [], annotations = [];
-    var dimColor = '#374151';
-    var green = '#16a34a';
-    var darkGreen = '#14532d';
+    var dimC = '#374151';
+    var stC = '#374151'; // stirrup color: dark gray/black like reference
 
-    // 1. Concrete beam outline
+    // ── 1. Concrete outline (thick dark border, light gray fill) ──
     shapes.push({ type: 'rect', x0: 0, y0: 0, x1: bw, y1: h,
-        line: { color: '#1e3a8a', width: 3 },
-        fillcolor: 'rgba(229,231,235,0.3)' });
+        line: { color: '#1f2937', width: 3 }, fillcolor: 'rgba(243,244,246,0.5)' });
 
-    // 2. Outer stirrup rectangle - horizontal sides aligned with bar rows
+    // ── 2. Outer stirrup (solid dark lines, aligned to top/bottom bar rows) ──
     shapes.push({ type: 'rect', x0: sLeft, y0: botBarY, x1: sRight, y1: topBarY,
-        line: { color: green, width: 2 }, fillcolor: 'rgba(0,0,0,0)' });
+        line: { color: stC, width: 2 }, fillcolor: 'rgba(0,0,0,0)' });
 
-    // 3. Stirrup hooks at 4 corners (small diagonal ticks)
-    var hk = 12; // hook length
-    // Bottom-left hook (inward-up)
-    shapes.push({ type: 'line', x0: sLeft, y0: botBarY, x1: sLeft + hk, y1: botBarY + hk,
-        line: { color: green, width: 2 } });
-    // Bottom-right hook
-    shapes.push({ type: 'line', x0: sRight, y0: botBarY, x1: sRight - hk, y1: botBarY + hk,
-        line: { color: green, width: 2 } });
-    // Top-left hook
-    shapes.push({ type: 'line', x0: sLeft, y0: topBarY, x1: sLeft + hk, y1: topBarY - hk,
-        line: { color: green, width: 2 } });
-    // Top-right hook
-    shapes.push({ type: 'line', x0: sRight, y0: topBarY, x1: sRight - hk, y1: topBarY - hk,
-        line: { color: green, width: 2 } });
+    // Stirrup hooks at 4 outer corners (135-degree hooks inward)
+    var hk = 14;
+    shapes.push({ type: 'line', x0: sLeft, y0: botBarY, x1: sLeft + hk, y1: botBarY + hk, line: { color: stC, width: 2 } });
+    shapes.push({ type: 'line', x0: sRight, y0: botBarY, x1: sRight - hk, y1: botBarY + hk, line: { color: stC, width: 2 } });
+    shapes.push({ type: 'line', x0: sLeft, y0: topBarY, x1: sLeft + hk, y1: topBarY - hk, line: { color: stC, width: 2 } });
+    shapes.push({ type: 'line', x0: sRight, y0: topBarY, x1: sRight - hk, y1: topBarY - hk, line: { color: stC, width: 2 } });
 
-    // 4. Internal stirrup legs (vertical lines between bar rows)
+    // ── 3. Internal stirrup legs (vertical + hooks) ──
     if (nLegs > 2) {
         for (var i = 1; i < nLegs - 1; i++) {
             shapes.push({ type: 'line', x0: legX[i], y0: botBarY, x1: legX[i], y1: topBarY,
-                line: { color: green, width: 1.5 } });
-            // Small hooks at top and bottom of each internal leg
-            shapes.push({ type: 'line', x0: legX[i], y0: botBarY, x1: legX[i] + 8, y1: botBarY + 8,
-                line: { color: green, width: 1.5 } });
-            shapes.push({ type: 'line', x0: legX[i], y0: topBarY, x1: legX[i] + 8, y1: topBarY - 8,
-                line: { color: green, width: 1.5 } });
+                line: { color: stC, width: 1.5 } });
+            // hooks
+            shapes.push({ type: 'line', x0: legX[i], y0: botBarY, x1: legX[i] + 9, y1: botBarY + 9, line: { color: stC, width: 1.5 } });
+            shapes.push({ type: 'line', x0: legX[i], y0: topBarY, x1: legX[i] + 9, y1: topBarY - 9, line: { color: stC, width: 1.5 } });
         }
     }
 
-    // 5. Rebar circles
-    var barTraceX = [], barTraceY = [];
-    // Bottom bars at each leg position
-    for (var i = 0; i < nLegs; i++) {
-        barTraceX.push(legX[i]);
-        barTraceY.push(botBarY);
-    }
-    // Top bars at outer 2 positions only
-    barTraceX.push(legX[0]); barTraceY.push(topBarY);
-    barTraceX.push(legX[nLegs - 1]); barTraceY.push(topBarY);
+    // ── 4. Rebar circles (black fill like reference) ──
+    var barX = [], barY = [];
+    // Bottom bars at every leg
+    for (var i = 0; i < nLegs; i++) { barX.push(legX[i]); barY.push(botBarY); }
+    // Top bars at every leg (same count as bottom, like reference image)
+    for (var i = 0; i < nLegs; i++) { barX.push(legX[i]); barY.push(topBarY); }
 
     var barTrace = {
-        x: barTraceX, y: barTraceY, mode: 'markers',
-        marker: { size: 13, color: green, symbol: 'circle',
-                  line: { width: 2.5, color: darkGreen } },
+        x: barX, y: barY, mode: 'markers',
+        marker: { size: 12, color: '#1f2937', symbol: 'circle',
+                  line: { width: 1.5, color: '#000' } },
         hoverinfo: 'skip', showlegend: false,
     };
 
-    // 6. Centroid marker (+) at center of beam
-    var cxm = bw / 2, cym = h / 2;
-    var cr = 15;
-    shapes.push({ type: 'line', x0: cxm - cr, y0: cym, x1: cxm + cr, y1: cym,
-        line: { color: '#dc2626', width: 1.5 } });
-    shapes.push({ type: 'line', x0: cxm, y0: cym - cr, x1: cxm, y1: cym + cr,
-        line: { color: '#dc2626', width: 1.5 } });
+    // ── 5. Centroid + marker (red) ──
+    var cx = bw / 2, cy = h / 2, cr = 18;
+    shapes.push({ type: 'line', x0: cx - cr, y0: cy, x1: cx + cr, y1: cy, line: { color: '#dc2626', width: 2 } });
+    shapes.push({ type: 'line', x0: cx, y0: cy - cr, x1: cx, y1: cy + cr, line: { color: '#dc2626', width: 2 } });
 
-    // ── Dimension lines (left side, like reference) ──
-    var padL = 90;
+    // ── 6. Dimension lines (left side) ──
+    var padL = 80;
 
-    // h dimension (outermost left)
-    var hx = -padL + 10;
-    shapes.push({ type: 'line', x0: hx, y0: 0, x1: hx, y1: h,
-        line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: hx - 5, y0: 0, x1: -5, y1: 0,
-        line: { color: dimColor, width: 0.5 } });
-    shapes.push({ type: 'line', x0: hx - 5, y0: h, x1: -5, y1: h,
-        line: { color: dimColor, width: 0.5 } });
-    annotations.push({ x: hx - 8, y: h / 2, text: '<b>h</b>', textangle: -90,
-        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' } });
+    // h — outermost
+    var hx = -padL + 8;
+    shapes.push({ type: 'line', x0: hx, y0: 0, x1: hx, y1: h, line: { color: dimC, width: 1 } });
+    shapes.push({ type: 'line', x0: hx - 4, y0: 0, x1: -5, y1: 0, line: { color: dimC, width: 0.5 } });
+    shapes.push({ type: 'line', x0: hx - 4, y0: h, x1: -5, y1: h, line: { color: dimC, width: 0.5 } });
+    annotations.push({ x: hx - 6, y: h / 2, text: '<b>h</b>', textangle: -90,
+        showarrow: false, font: { size: 14, color: dimC, family: 'Arial' } });
 
-    // d dimension
-    var ddx = -padL + 35;
-    shapes.push({ type: 'line', x0: ddx, y0: 0, x1: ddx, y1: d,
-        line: { color: '#1e40af', width: 1 } });
-    shapes.push({ type: 'line', x0: ddx - 3, y0: d, x1: -5, y1: d,
-        line: { color: '#1e40af', width: 0.5, dash: 'dot' } });
-    annotations.push({ x: ddx - 8, y: d / 2, text: '<b>d</b>', textangle: -90,
-        showarrow: false, font: { size: 13, color: '#1e40af', family: 'Arial' } });
+    // d
+    var ddx = -padL + 30;
+    shapes.push({ type: 'line', x0: ddx, y0: 0, x1: ddx, y1: d, line: { color: dimC, width: 1 } });
+    shapes.push({ type: 'line', x0: ddx - 3, y0: d, x1: -5, y1: d, line: { color: dimC, width: 0.5, dash: 'dot' } });
+    annotations.push({ x: ddx - 6, y: d / 2, text: '<b>d</b>', textangle: -90,
+        showarrow: false, font: { size: 14, color: dimC, family: 'Arial' } });
 
-    // c dimension (bottom)
-    var ccx = -padL + 55;
-    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx, y1: c,
-        line: { color: dimColor, width: 0.8 } });
-    annotations.push({ x: ccx - 6, y: c / 2, text: '<b>c</b>', textangle: -90,
-        showarrow: false, font: { size: 11, color: dimColor, family: 'Arial' } });
+    // c (bottom bracket)
+    var ccx = -padL + 50;
+    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx, y1: c, line: { color: dimC, width: 0.8 } });
+    shapes.push({ type: 'line', x0: ccx, y0: 0, x1: ccx + 6, y1: 0, line: { color: dimC, width: 0.8 } });
+    shapes.push({ type: 'line', x0: ccx, y0: c, x1: ccx + 6, y1: c, line: { color: dimC, width: 0.8 } });
+    annotations.push({ x: ccx - 5, y: c / 2, text: '<b>c</b>', textangle: -90,
+        showarrow: false, font: { size: 12, color: dimC, family: 'Arial' } });
 
-    // bw dimension (bottom)
-    var bwy = -55;
-    shapes.push({ type: 'line', x0: 0, y0: bwy, x1: bw, y1: bwy,
-        line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: 0, y0: bwy - 5, x1: 0, y1: -5,
-        line: { color: dimColor, width: 0.5 } });
-    shapes.push({ type: 'line', x0: bw, y0: bwy - 5, x1: bw, y1: -5,
-        line: { color: dimColor, width: 0.5 } });
+    // bw (bottom)
+    var bwy = -50;
+    shapes.push({ type: 'line', x0: 0, y0: bwy, x1: bw, y1: bwy, line: { color: dimC, width: 1 } });
+    shapes.push({ type: 'line', x0: 0, y0: bwy - 4, x1: 0, y1: -5, line: { color: dimC, width: 0.5 } });
+    shapes.push({ type: 'line', x0: bw, y0: bwy - 4, x1: bw, y1: -5, line: { color: dimC, width: 0.5 } });
     annotations.push({ x: bw / 2, y: bwy - 10,
         text: '<b>b<sub>w</sub></b>',
-        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' } });
+        showarrow: false, font: { size: 14, color: dimC, family: 'Arial' } });
 
-    // ── Force arrows (top and right, like reference) ──
+    // ── 7. Force indicators ──
 
-    // Vu arrow: above beam, pointing down
-    var vuTop = h + 80;
-    var vuTip = h + 10;
-    shapes.push({ type: 'line', x0: bw * 0.4, y0: vuTop, x1: bw * 0.4, y1: vuTip,
-        line: { color: '#1e3a8a', width: 3.5 } });
-    shapes.push({ type: 'line', x0: bw * 0.4 - 10, y0: vuTip + 18, x1: bw * 0.4, y1: vuTip,
-        line: { color: '#1e3a8a', width: 3 } });
-    shapes.push({ type: 'line', x0: bw * 0.4 + 10, y0: vuTip + 18, x1: bw * 0.4, y1: vuTip,
-        line: { color: '#1e3a8a', width: 3 } });
-    annotations.push({ x: bw * 0.4, y: vuTop + 8,
-        text: '<b>V<sub>u</sub></b>',
-        showarrow: false, font: { size: 16, color: '#dc2626', family: 'Arial' } });
+    // Vu arrow (dark blue, above beam)
+    var vuTail = h + 75, vuTip = h + 12;
+    shapes.push({ type: 'line', x0: bw * 0.45, y0: vuTail, x1: bw * 0.45, y1: vuTip, line: { color: '#1e3a8a', width: 4 } });
+    shapes.push({ type: 'line', x0: bw * 0.45 - 10, y0: vuTip + 16, x1: bw * 0.45, y1: vuTip, line: { color: '#1e3a8a', width: 3.5 } });
+    shapes.push({ type: 'line', x0: bw * 0.45 + 10, y0: vuTip + 16, x1: bw * 0.45, y1: vuTip, line: { color: '#1e3a8a', width: 3.5 } });
+    annotations.push({ x: bw * 0.45, y: vuTail + 8,
+        text: '<b><i>V<sub>u</sub></i></b>',
+        showarrow: false, font: { size: 18, color: '#dc2626', family: 'Arial' } });
 
-    // Nu text inside beam at centroid
-    annotations.push({ x: cxm, y: cym + 30,
-        text: '<b>N<sub>u</sub></b>',
-        showarrow: false, font: { size: 16, color: '#dc2626', family: 'Arial' } });
+    // Nu label (red, at centroid above +)
+    annotations.push({ x: cx, y: cy + 35,
+        text: '<b><i>N<sub>u</sub></i></b>',
+        showarrow: false, font: { size: 18, color: '#dc2626', family: 'Arial' } });
 
-    // ── Right-side labels with horizontal lines (Av, As) ──
-    var labelX = bw + 60;
+    // ── 8. Right-side labels (Av, As) with leader lines ──
+    var lx = bw + 55;
 
-    // Av label (at mid-height, with line to stirrup)
-    var avY = (topBarY + botBarY) / 2 + 40;
-    shapes.push({ type: 'line', x0: sRight + 5, y0: avY, x1: labelX - 5, y1: avY,
-        line: { color: dimColor, width: 0.8 } });
-    annotations.push({ x: labelX, y: avY,
-        text: '<b>A<sub>v</sub></b>',
-        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' }, xanchor: 'left' });
+    // Av (mid-height, pointing to stirrup leg)
+    var avY = (topBarY + botBarY) / 2;
+    shapes.push({ type: 'line', x0: sRight + 3, y0: avY, x1: lx - 3, y1: avY, line: { color: dimC, width: 0.8 } });
+    annotations.push({ x: lx, y: avY, text: '<b><i>A<sub>v</sub></i></b>',
+        showarrow: false, font: { size: 14, color: '#dc2626', family: 'Arial' }, xanchor: 'left' });
 
-    // As label (at bottom bar level)
-    shapes.push({ type: 'line', x0: sRight + 5, y0: botBarY, x1: labelX - 5, y1: botBarY,
-        line: { color: dimColor, width: 0.8 } });
-    annotations.push({ x: labelX, y: botBarY,
-        text: '<b>A<sub>s</sub></b>',
-        showarrow: false, font: { size: 13, color: dimColor, family: 'Arial' }, xanchor: 'left' });
+    // As (at bottom bar level)
+    shapes.push({ type: 'line', x0: sRight + 3, y0: botBarY, x1: lx - 3, y1: botBarY, line: { color: dimC, width: 0.8 } });
+    annotations.push({ x: lx, y: botBarY, text: '<b><i>A<sub>s</sub></i></b>',
+        showarrow: false, font: { size: 14, color: '#dc2626', family: 'Arial' }, xanchor: 'left' });
 
-    var xMin = -padL - 5;
-    var xMax = labelX + 40;
-    var yMin = bwy - 25;
-    var yMax = vuTop + 35;
+    var xMin = -padL - 5, xMax = lx + 35;
+    var yMin = bwy - 22, yMax = vuTail + 35;
 
     Plotly.newPlot('chart-section', [barTrace], {
         title: { text: 'RC Beam Cross-Section', font: { size: 13 } },
