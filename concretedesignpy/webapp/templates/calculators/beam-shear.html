@@ -115,9 +115,9 @@
     </form>
 
     <div id="results-area" style="display:none;">
-        <div class="st-charts">
-            <div id="chart-shear"></div>
-            <div id="chart-capacity"></div>
+        <div class="st-charts" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:1.5rem;">
+            <div id="chart-section" style="flex:0 0 340px;min-width:300px;"></div>
+            <div id="chart-shear" style="flex:1;min-width:420px;"></div>
         </div>
         <div id="report-header"></div>
         <div id="report"></div>
@@ -186,33 +186,135 @@ function renderShearChart(r, p) {
     }, { responsive: true, displaylogo: false });
 }
 
-function renderCapacityChart(r, p) {
-    var phiVc = p.phi * r.vc;
-    var phiVs = p.phi * r.vs;
-    var phiVn = phiVc + phiVs;
-    var vu = p.vu;
+function renderSectionChart(r, p) {
+    var bw = p.bw, h = p.h, cc = p.cc, c = p.c, d = p.d, db = p.db_stirrup;
+    var nLegs = p.n_legs;
+    // Scale: draw in mm coordinates
+    var pad = 80; // padding for dimension lines
 
-    var traces = [
-        { x: ['\u03c6Vc', '\u03c6Vs', '\u03c6Vn', 'Vu'],
-          y: [phiVc, phiVs, phiVn, vu],
-          type: 'bar',
-          marker: {
-              color: ['#3b82f6', '#8b5cf6', phiVn >= vu ? '#16a34a' : '#dc2626', '#f97316'],
-          },
-          text: [v(phiVc,1) + ' kN', v(phiVs,1) + ' kN', v(phiVn,1) + ' kN', v(vu,1) + ' kN'],
-          textposition: 'outside',
-          textfont: { size: 11, weight: 600 },
-          hoverinfo: 'x+y',
-        },
-    ];
-    Plotly.newPlot('chart-capacity', traces, {
-        title: { text: 'Shear Capacity Breakdown', font: { size: 13 } },
-        xaxis: { title: '' },
-        yaxis: { title: 'Force (kN)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
-        height: 420, margin: { t: 40, r: 10, b: 40, l: 60 },
+    var shapes = [];
+    var annotations = [];
+
+    // Beam outline
+    shapes.push({ type: 'rect', x0: 0, y0: 0, x1: bw, y1: h,
+        line: { color: '#1e3a8a', width: 2 }, fillcolor: 'rgba(219,234,254,0.3)' });
+
+    // Stirrup rectangle (closed loop)
+    var sx0 = cc, sy0 = cc, sx1 = bw - cc, sy1 = h - cc;
+    shapes.push({ type: 'rect', x0: sx0, y0: sy0, x1: sx1, y1: sy1,
+        line: { color: '#16a34a', width: 1.5, dash: 'dash' }, fillcolor: 'rgba(0,0,0,0)' });
+
+    // Effective depth line (dashed)
+    var dLine = h - d;
+    shapes.push({ type: 'line', x0: -20, y0: h - c, x1: bw + 20, y1: h - c,
+        line: { color: '#dc2626', width: 1, dash: 'dot' } });
+
+    // Rebar circles - bottom bars (tension)
+    var barR = db * 1.8; // visual radius for bars
+    var botY = cc + db / 2 + barR;
+    var nBot = Math.max(nLegs, 3);
+    var xSpacing = (bw - 2 * cc - 2 * barR) / (nBot - 1);
+    var barTraceX = [], barTraceY = [];
+    for (var i = 0; i < nBot; i++) {
+        barTraceX.push(cc + barR + i * xSpacing);
+        barTraceY.push(botY);
+    }
+    // Top bars (2 minimum)
+    var topY = h - cc - db / 2 - barR;
+    for (var i = 0; i < 2; i++) {
+        barTraceX.push(cc + barR + i * (bw - 2 * cc - 2 * barR));
+        barTraceY.push(topY);
+    }
+    // Mid bars if n_legs > 2
+    if (nLegs > 2) {
+        var nMid = nLegs - 2;
+        var midSpacing = (h - 2 * cc - 2 * db - 2 * barR * 2) / (nMid + 1);
+        for (var i = 1; i <= nMid; i++) {
+            barTraceX.push(cc + barR);
+            barTraceY.push(botY + i * midSpacing);
+            barTraceX.push(bw - cc - barR);
+            barTraceY.push(botY + i * midSpacing);
+        }
+    }
+
+    var barTrace = {
+        x: barTraceX, y: barTraceY, mode: 'markers',
+        marker: { size: 12, color: '#16a34a', symbol: 'circle',
+                  line: { width: 1.5, color: '#14532d' } },
+        hoverinfo: 'skip', showlegend: false,
+    };
+
+    // Dimension annotations (outside beam)
+    var dimColor = '#374151';
+    var aFont = { size: 11, color: dimColor, family: 'Arial' };
+    var aFontBold = { size: 11, color: '#1e40af', family: 'Arial', weight: 700 };
+
+    // h dimension (left side)
+    shapes.push({ type: 'line', x0: -pad + 10, y0: 0, x1: -pad + 10, y1: h,
+        line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: -pad + 5, y0: 0, x1: -10, y1: 0,
+        line: { color: dimColor, width: 0.5 } });
+    shapes.push({ type: 'line', x0: -pad + 5, y0: h, x1: -10, y1: h,
+        line: { color: dimColor, width: 0.5 } });
+    annotations.push({ x: -pad + 10, y: h / 2, text: '<b>h</b> = ' + h, textangle: -90,
+        showarrow: false, font: aFont, xanchor: 'right', xshift: -6 });
+
+    // d dimension (left side, inner)
+    shapes.push({ type: 'line', x0: -pad + 35, y0: 0, x1: -pad + 35, y1: d,
+        line: { color: '#dc2626', width: 1 } });
+    annotations.push({ x: -pad + 35, y: d / 2, text: '<b>d</b> = ' + d, textangle: -90,
+        showarrow: false, font: { size: 10, color: '#dc2626', family: 'Arial' }, xanchor: 'right', xshift: -6 });
+
+    // c dimension (left, bottom)
+    shapes.push({ type: 'line', x0: -pad + 55, y0: 0, x1: -pad + 55, y1: c,
+        line: { color: dimColor, width: 0.8 } });
+    annotations.push({ x: -pad + 55, y: c / 2, text: '<b>c</b> = ' + c, textangle: -90,
+        showarrow: false, font: { size: 9, color: dimColor, family: 'Arial' }, xanchor: 'right', xshift: -5 });
+
+    // bw dimension (bottom)
+    shapes.push({ type: 'line', x0: 0, y0: -pad + 20, x1: bw, y1: -pad + 20,
+        line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: 0, y0: -pad + 15, x1: 0, y1: -10,
+        line: { color: dimColor, width: 0.5 } });
+    shapes.push({ type: 'line', x0: bw, y0: -pad + 15, x1: bw, y1: -10,
+        line: { color: dimColor, width: 0.5 } });
+    annotations.push({ x: bw / 2, y: -pad + 20, text: '<b>b<sub>w</sub></b> = ' + bw,
+        showarrow: false, font: aFont, yanchor: 'top', yshift: -4 });
+
+    // Load arrows - Vu (top, pointing down)
+    annotations.push({ x: bw / 2, y: h + pad - 15, ax: bw / 2, ay: h + pad + 25,
+        arrowhead: 2, arrowsize: 1.5, arrowwidth: 2.5, arrowcolor: '#dc2626',
+        text: '<b>V<sub>u</sub> = ' + p.vu + ' kN</b>', font: { size: 12, color: '#dc2626', family: 'Arial' },
+        showarrow: true, xanchor: 'center', yanchor: 'bottom' });
+
+    // Nu (right side, horizontal arrow)
+    if (p.nu !== 0) {
+        annotations.push({ x: bw + pad - 20, y: h / 2, ax: bw + pad + 20, ay: h / 2,
+            arrowhead: 2, arrowsize: 1.2, arrowwidth: 2, arrowcolor: '#1e40af',
+            text: '<b>N<sub>u</sub> = ' + p.nu + ' kN</b>', font: { size: 11, color: '#1e40af', family: 'Arial' },
+            showarrow: true, xanchor: 'left', xshift: 5 });
+    }
+
+    // Av label (right side)
+    annotations.push({ x: bw + 15, y: h / 2 + 50,
+        text: 'A<sub>v</sub>', font: { size: 11, color: '#16a34a', family: 'Arial', weight: 700 },
+        showarrow: true, ax: sx1 - 10, ay: h / 2 + 50,
+        arrowhead: 0, arrowwidth: 1, arrowcolor: '#16a34a' });
+
+    // As label (right side, bottom)
+    annotations.push({ x: bw + 15, y: botY,
+        text: 'A<sub>s</sub>', font: { size: 11, color: '#16a34a', family: 'Arial', weight: 700 },
+        showarrow: false, xanchor: 'left' });
+
+    Plotly.newPlot('chart-section', [barTrace], {
+        title: { text: 'RC Beam Cross-Section', font: { size: 13 } },
+        xaxis: { range: [-pad - 10, bw + pad + 40], visible: false, fixedrange: true },
+        yaxis: { range: [-pad - 10, h + pad + 40], visible: false, fixedrange: true, scaleanchor: 'x', scaleratio: 1 },
+        shapes: shapes, annotations: annotations,
+        height: 480, margin: { t: 35, r: 5, b: 5, l: 5 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
-        showlegend: false,
-    }, { responsive: true, displaylogo: false });
+        hovermode: false,
+    }, { responsive: true, displaylogo: false, staticPlot: true });
 }
 
 function renderHeader(p) {
@@ -326,8 +428,8 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         var r = data.result;
         document.getElementById('btn-export').style.display = 'inline-block';
         renderHeader(payload);
+        renderSectionChart(r, payload);
         renderShearChart(r, payload);
-        renderCapacityChart(r, payload);
         renderReport(r, payload);
     })
     .catch(function(err) {
