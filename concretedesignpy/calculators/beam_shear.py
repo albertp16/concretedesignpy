@@ -467,3 +467,99 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         "smax": round(smax, 0),
         "spacing_check": spacing_check,
     }
+
+
+def shear_design(fc, fyv, phi, bw, h, cc, c, d, vu, nu,
+                 s_chosen, n_legs, db_stirrup):
+    """
+    Beam shear design per ACI 318M-14 (shear only, no torsion).
+
+    Parameters
+    ----------
+    fc : float       Concrete compressive strength (MPa).
+    fyv : float      Yield strength of stirrups (MPa).
+    phi : float      Strength reduction factor for shear.
+    bw : float       Width of beam (mm).
+    h : float        Total height of beam (mm).
+    cc : float       Clear cover to links (mm).
+    c : float        Cover to centroid of reinforcement (mm).
+    d : float        Effective depth (mm).
+    vu : float       Factored shear force (kN).
+    nu : float       Factored axial force (kN), positive = compression.
+    s_chosen : float Chosen stirrup spacing (mm).
+    n_legs : int     Total number of stirrup legs.
+    db_stirrup : float  Stirrup bar diameter (mm).
+
+    Returns
+    -------
+    dict with all intermediate values for shear design report.
+    """
+    ag = bw * h  # gross area mm^2
+
+    # ── 1. Concrete shear strength Vc ──
+    if nu > 0:
+        vc_1 = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
+        vc_2 = 0.3 * math.sqrt(fc) * bw * d * (1 + 0.3 * nu * 1000 / ag) / 1000
+        vc = min(vc_1, vc_2)
+        vc_note = "with axial compression"
+    elif nu < 0:
+        vc = max(0, (1 + 0.29 * nu * 1000 / ag) * (math.sqrt(fc) / 6) * bw * d / 1000)
+        vc_note = "with axial tension"
+    else:
+        vc = (math.sqrt(fc) / 6) * bw * d / 1000
+        vc_note = "no axial load"
+
+    # ── 2. Required stirrup shear strength Vs ──
+    vs_max = (2.0 / 3.0) * math.sqrt(fc) * bw * d / 1000
+    vs_req = (vu - phi * vc) / phi
+
+    if vs_req <= 0:
+        vs = 0
+    elif vs_req > vs_max:
+        vs = vs_req
+    else:
+        vs = vs_req
+
+    vu_max = phi * (vc + vs_max)
+    shear_status = "SAFE" if vu <= vu_max else "UNSAFE"
+
+    # Av/s required for shear
+    av_s_req = (vu * 1000 - phi * vc * 1000) / (phi * fyv * d) if vs > 0 else 0
+
+    # ── 3. Minimum shear reinforcement ──
+    av_min_1 = (1.0 / 16.0) * math.sqrt(fc) * bw / fyv
+    av_min_2 = 0.35 * bw / fyv
+    av_min = max(av_min_1, av_min_2)
+
+    # Governing Av/s
+    av_s_govern = max(av_s_req, av_min)
+
+    # ── 4. Maximum spacing ──
+    if vs > (1.0 / 3.0) * math.sqrt(fc) * bw * d / 1000:
+        smax = min(300, d / 4)
+    else:
+        smax = min(600, d / 2)
+
+    # ── 5. Chosen reinforcement check ──
+    av_leg = math.pi * (db_stirrup / 2) ** 2
+    av_provided = n_legs * av_leg / s_chosen
+
+    spacing_ok = "OK" if s_chosen <= smax else "NOT OK"
+    rft_ok = "OK" if av_provided >= av_s_govern else "NOT OK"
+
+    return {
+        "vc": round(vc, 2),
+        "vc_note": vc_note,
+        "vs": round(max(vs, 0), 2),
+        "vs_req": round(max(vs_req, 0), 2),
+        "vs_max": round(vs_max, 2),
+        "vu_max": round(vu_max, 2),
+        "shear_status": shear_status,
+        "av_s_req": round(max(av_s_req, 0), 4),
+        "av_min": round(av_min, 4),
+        "av_s_govern": round(av_s_govern, 4),
+        "smax": round(smax, 0),
+        "av_provided": round(av_provided, 4),
+        "spacing_ok": spacing_ok,
+        "rft_ok": rft_ok,
+    }
