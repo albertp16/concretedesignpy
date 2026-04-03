@@ -144,8 +144,11 @@
 
     <div id="results-area" style="display:none;">
         <div class="st-charts" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:1.5rem;">
-            <div id="chart-section" style="flex:0 0 340px;min-width:300px;"></div>
-            <div id="chart-shear" style="flex:1;min-width:420px;"></div>
+            <div id="chart-section" style="flex:0 0 380px;min-width:340px;"></div>
+            <div style="flex:1;min-width:400px;display:flex;flex-direction:column;gap:12px;">
+                <div id="chart-shear"></div>
+                <div id="chart-vc-nu"></div>
+            </div>
         </div>
         <div id="report-header"></div>
         <div id="report"></div>
@@ -217,132 +220,244 @@ function renderShearChart(r, p) {
 function renderSectionChart(r, p) {
     var bw = p.bw, h = p.h, cc = p.cc, c = p.c, d = p.d, db = p.db_stirrup;
     var nLegs = p.n_legs;
-    // Scale: draw in mm coordinates
-    var pad = 80; // padding for dimension lines
+    var pad = 100;
 
-    var shapes = [];
-    var annotations = [];
+    var shapes = [], annotations = [];
+    var dimColor = '#374151';
+    var aFont = { size: 10, color: dimColor, family: 'Arial' };
 
-    // Beam outline
+    // Beam outline (concrete)
     shapes.push({ type: 'rect', x0: 0, y0: 0, x1: bw, y1: h,
-        line: { color: '#1e3a8a', width: 2 }, fillcolor: 'rgba(219,234,254,0.3)' });
+        line: { color: '#1e3a8a', width: 2.5 }, fillcolor: 'rgba(219,234,254,0.15)' });
 
-    // Stirrup rectangle (closed loop)
-    var sx0 = cc, sy0 = cc, sx1 = bw - cc, sy1 = h - cc;
+    // Outer stirrup rectangle
+    var sx0 = cc + db/2, sy0 = cc + db/2, sx1 = bw - cc - db/2, sy1 = h - cc - db/2;
     shapes.push({ type: 'rect', x0: sx0, y0: sy0, x1: sx1, y1: sy1,
-        line: { color: '#16a34a', width: 1.5, dash: 'dash' }, fillcolor: 'rgba(0,0,0,0)' });
+        line: { color: '#16a34a', width: 2 }, fillcolor: 'rgba(0,0,0,0)' });
 
-    // Effective depth line (dashed)
-    var dLine = h - d;
-    shapes.push({ type: 'line', x0: -20, y0: h - c, x1: bw + 20, y1: h - c,
-        line: { color: '#dc2626', width: 1, dash: 'dot' } });
-
-    // Rebar circles - bottom bars (tension)
-    var barR = db * 1.8; // visual radius for bars
-    var botY = cc + db / 2 + barR;
-    var nBot = Math.max(nLegs, 3);
-    var xSpacing = (bw - 2 * cc - 2 * barR) / (nBot - 1);
-    var barTraceX = [], barTraceY = [];
-    for (var i = 0; i < nBot; i++) {
-        barTraceX.push(cc + barR + i * xSpacing);
-        barTraceY.push(botY);
-    }
-    // Top bars (2 minimum)
-    var topY = h - cc - db / 2 - barR;
-    for (var i = 0; i < 2; i++) {
-        barTraceX.push(cc + barR + i * (bw - 2 * cc - 2 * barR));
-        barTraceY.push(topY);
-    }
-    // Mid bars if n_legs > 2
+    // Internal stirrup legs (vertical lines for each leg)
+    // nLegs = total vertical legs across width. 2 are the outer stirrup sides.
+    // Extra legs are interior vertical ties evenly spaced.
     if (nLegs > 2) {
-        var nMid = nLegs - 2;
-        var midSpacing = (h - 2 * cc - 2 * db - 2 * barR * 2) / (nMid + 1);
-        for (var i = 1; i <= nMid; i++) {
-            barTraceX.push(cc + barR);
-            barTraceY.push(botY + i * midSpacing);
-            barTraceX.push(bw - cc - barR);
-            barTraceY.push(botY + i * midSpacing);
+        var nInner = nLegs - 2;
+        var innerSpacing = (sx1 - sx0) / (nInner + 1);
+        for (var i = 1; i <= nInner; i++) {
+            var lx = sx0 + i * innerSpacing;
+            shapes.push({ type: 'line', x0: lx, y0: sy0, x1: lx, y1: sy1,
+                line: { color: '#16a34a', width: 1.5 } });
         }
     }
 
+    // Rebar positions: bars at each stirrup leg position, top & bottom
+    var barTraceX = [], barTraceY = [];
+    var legXPositions = [];
+    for (var i = 0; i < nLegs; i++) {
+        legXPositions.push(sx0 + i * (sx1 - sx0) / (nLegs - 1));
+    }
+
+    // Bottom bars (tension) at each leg
+    var botY = c;
+    for (var i = 0; i < nLegs; i++) {
+        barTraceX.push(legXPositions[i]);
+        barTraceY.push(botY);
+    }
+    // Top bars at corner legs only
+    var topY = h - c;
+    barTraceX.push(legXPositions[0]);
+    barTraceY.push(topY);
+    barTraceX.push(legXPositions[nLegs - 1]);
+    barTraceY.push(topY);
+
     var barTrace = {
         x: barTraceX, y: barTraceY, mode: 'markers',
-        marker: { size: 12, color: '#16a34a', symbol: 'circle',
-                  line: { width: 1.5, color: '#14532d' } },
+        marker: { size: 11, color: '#16a34a', symbol: 'circle',
+                  line: { width: 2, color: '#14532d' } },
         hoverinfo: 'skip', showlegend: false,
     };
 
-    // Dimension annotations (outside beam)
-    var dimColor = '#374151';
-    var aFont = { size: 11, color: dimColor, family: 'Arial' };
-    var aFontBold = { size: 11, color: '#1e40af', family: 'Arial', weight: 700 };
+    // ── Dimension lines ──
 
-    // h dimension (left side)
-    shapes.push({ type: 'line', x0: -pad + 10, y0: 0, x1: -pad + 10, y1: h,
-        line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: -pad + 5, y0: 0, x1: -10, y1: 0,
+    // h (far left)
+    var hx = -pad + 15;
+    shapes.push({ type: 'line', x0: hx, y0: 0, x1: hx, y1: h,
+        line: { color: dimColor, width: 1.2 } });
+    shapes.push({ type: 'line', x0: hx - 6, y0: 0, x1: -8, y1: 0,
         line: { color: dimColor, width: 0.5 } });
-    shapes.push({ type: 'line', x0: -pad + 5, y0: h, x1: -10, y1: h,
+    shapes.push({ type: 'line', x0: hx - 6, y0: h, x1: -8, y1: h,
         line: { color: dimColor, width: 0.5 } });
-    annotations.push({ x: -pad + 10, y: h / 2, text: '<b>h</b> = ' + h, textangle: -90,
-        showarrow: false, font: aFont, xanchor: 'right', xshift: -6 });
+    // arrowheads via small lines
+    shapes.push({ type: 'line', x0: hx - 4, y0: 8, x1: hx, y1: 0, line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: hx + 4, y0: 8, x1: hx, y1: 0, line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: hx - 4, y0: h - 8, x1: hx, y1: h, line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: hx + 4, y0: h - 8, x1: hx, y1: h, line: { color: dimColor, width: 1 } });
+    annotations.push({ x: hx, y: h / 2, text: '<b>h</b><br>' + h + ' mm', textangle: -90,
+        showarrow: false, font: aFont, xanchor: 'right', xshift: -8 });
 
-    // d dimension (left side, inner)
-    shapes.push({ type: 'line', x0: -pad + 35, y0: 0, x1: -pad + 35, y1: d,
-        line: { color: '#dc2626', width: 1 } });
-    annotations.push({ x: -pad + 35, y: d / 2, text: '<b>d</b> = ' + d, textangle: -90,
-        showarrow: false, font: { size: 10, color: '#dc2626', family: 'Arial' }, xanchor: 'right', xshift: -6 });
+    // d (second from left)
+    var dx = -pad + 45;
+    shapes.push({ type: 'line', x0: dx, y0: 0, x1: dx, y1: d,
+        line: { color: '#dc2626', width: 1.2 } });
+    shapes.push({ type: 'line', x0: dx - 4, y0: 8, x1: dx, y1: 0, line: { color: '#dc2626', width: 1 } });
+    shapes.push({ type: 'line', x0: dx + 4, y0: 8, x1: dx, y1: 0, line: { color: '#dc2626', width: 1 } });
+    shapes.push({ type: 'line', x0: dx - 4, y0: d - 8, x1: dx, y1: d, line: { color: '#dc2626', width: 1 } });
+    shapes.push({ type: 'line', x0: dx + 4, y0: d - 8, x1: dx, y1: d, line: { color: '#dc2626', width: 1 } });
+    annotations.push({ x: dx, y: d / 2, text: '<b>d</b><br>' + v(d,0) + ' mm', textangle: -90,
+        showarrow: false, font: { size: 9, color: '#dc2626', family: 'Arial' }, xanchor: 'right', xshift: -6 });
 
-    // c dimension (left, bottom)
-    shapes.push({ type: 'line', x0: -pad + 55, y0: 0, x1: -pad + 55, y1: c,
+    // c (bottom left)
+    var cx = -pad + 70;
+    shapes.push({ type: 'line', x0: cx, y0: 0, x1: cx, y1: c,
         line: { color: dimColor, width: 0.8 } });
-    annotations.push({ x: -pad + 55, y: c / 2, text: '<b>c</b> = ' + c, textangle: -90,
-        showarrow: false, font: { size: 9, color: dimColor, family: 'Arial' }, xanchor: 'right', xshift: -5 });
+    shapes.push({ type: 'line', x0: cx - 3, y0: 6, x1: cx, y1: 0, line: { color: dimColor, width: 0.8 } });
+    shapes.push({ type: 'line', x0: cx + 3, y0: 6, x1: cx, y1: 0, line: { color: dimColor, width: 0.8 } });
+    shapes.push({ type: 'line', x0: cx - 3, y0: c - 6, x1: cx, y1: c, line: { color: dimColor, width: 0.8 } });
+    shapes.push({ type: 'line', x0: cx + 3, y0: c - 6, x1: cx, y1: c, line: { color: dimColor, width: 0.8 } });
+    annotations.push({ x: cx, y: c / 2, text: '<b>c</b><br>' + v(c,0), textangle: -90,
+        showarrow: false, font: { size: 8, color: dimColor, family: 'Arial' }, xanchor: 'right', xshift: -4 });
 
-    // bw dimension (bottom)
-    shapes.push({ type: 'line', x0: 0, y0: -pad + 20, x1: bw, y1: -pad + 20,
-        line: { color: dimColor, width: 1 } });
-    shapes.push({ type: 'line', x0: 0, y0: -pad + 15, x1: 0, y1: -10,
+    // bw (bottom)
+    var by = -pad + 30;
+    shapes.push({ type: 'line', x0: 0, y0: by, x1: bw, y1: by,
+        line: { color: dimColor, width: 1.2 } });
+    shapes.push({ type: 'line', x0: 0, y0: by - 6, x1: 0, y1: -8,
         line: { color: dimColor, width: 0.5 } });
-    shapes.push({ type: 'line', x0: bw, y0: -pad + 15, x1: bw, y1: -10,
+    shapes.push({ type: 'line', x0: bw, y0: by - 6, x1: bw, y1: -8,
         line: { color: dimColor, width: 0.5 } });
-    annotations.push({ x: bw / 2, y: -pad + 20, text: '<b>b<sub>w</sub></b> = ' + bw,
-        showarrow: false, font: aFont, yanchor: 'top', yshift: -4 });
+    shapes.push({ type: 'line', x0: 8, y0: by - 4, x1: 0, y1: by, line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: 8, y0: by + 4, x1: 0, y1: by, line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: bw - 8, y0: by - 4, x1: bw, y1: by, line: { color: dimColor, width: 1 } });
+    shapes.push({ type: 'line', x0: bw - 8, y0: by + 4, x1: bw, y1: by, line: { color: dimColor, width: 1 } });
+    annotations.push({ x: bw / 2, y: by, text: '<b>b<sub>w</sub></b> = ' + bw + ' mm',
+        showarrow: false, font: aFont, yanchor: 'top', yshift: -8 });
 
-    // Load arrows - Vu (top, pointing down)
-    annotations.push({ x: bw / 2, y: h + pad - 15, ax: bw / 2, ay: h + pad + 25,
-        arrowhead: 2, arrowsize: 1.5, arrowwidth: 2.5, arrowcolor: '#dc2626',
-        text: '<b>V<sub>u</sub> = ' + p.vu + ' kN</b>', font: { size: 12, color: '#dc2626', family: 'Arial' },
-        showarrow: true, xanchor: 'center', yanchor: 'bottom' });
+    // ── Force arrows ──
 
-    // Nu (right side, horizontal arrow)
+    // Vu arrow (top center, pointing down into beam)
+    var vuTipY = h + 15;
+    var vuTailY = h + pad - 20;
+    shapes.push({ type: 'line', x0: bw/2, y0: vuTailY, x1: bw/2, y1: vuTipY,
+        line: { color: '#dc2626', width: 3 } });
+    // arrowhead
+    shapes.push({ type: 'line', x0: bw/2 - 8, y0: vuTipY + 14, x1: bw/2, y1: vuTipY, line: { color: '#dc2626', width: 2.5 } });
+    shapes.push({ type: 'line', x0: bw/2 + 8, y0: vuTipY + 14, x1: bw/2, y1: vuTipY, line: { color: '#dc2626', width: 2.5 } });
+    annotations.push({ x: bw/2, y: vuTailY + 5,
+        text: '<b>V<sub>u</sub> = ' + p.vu + ' kN</b>',
+        font: { size: 12, color: '#dc2626', family: 'Arial' },
+        showarrow: false, yanchor: 'bottom' });
+
+    // Nu arrow (right side, horizontal, pointing into beam = compression)
     if (p.nu !== 0) {
-        annotations.push({ x: bw + pad - 20, y: h / 2, ax: bw + pad + 20, ay: h / 2,
-            arrowhead: 2, arrowsize: 1.2, arrowwidth: 2, arrowcolor: '#1e40af',
-            text: '<b>N<sub>u</sub> = ' + p.nu + ' kN</b>', font: { size: 11, color: '#1e40af', family: 'Arial' },
-            showarrow: true, xanchor: 'left', xshift: 5 });
+        var nuTipX = bw + 15;
+        var nuTailX = bw + pad - 15;
+        var nuY = h / 2;
+        shapes.push({ type: 'line', x0: nuTailX, y0: nuY, x1: nuTipX, y1: nuY,
+            line: { color: '#1e40af', width: 2.5 } });
+        shapes.push({ type: 'line', x0: nuTipX + 12, y0: nuY - 7, x1: nuTipX, y1: nuY, line: { color: '#1e40af', width: 2 } });
+        shapes.push({ type: 'line', x0: nuTipX + 12, y0: nuY + 7, x1: nuTipX, y1: nuY, line: { color: '#1e40af', width: 2 } });
+        annotations.push({ x: nuTailX + 5, y: nuY,
+            text: '<b>N<sub>u</sub> = ' + p.nu + ' kN</b>',
+            font: { size: 11, color: '#1e40af', family: 'Arial' },
+            showarrow: false, xanchor: 'left', yanchor: 'bottom', yshift: 4 });
     }
 
-    // Av label (right side)
-    annotations.push({ x: bw + 15, y: h / 2 + 50,
-        text: 'A<sub>v</sub>', font: { size: 11, color: '#16a34a', family: 'Arial', weight: 700 },
-        showarrow: true, ax: sx1 - 10, ay: h / 2 + 50,
+    // Labels: Av (right side, mid-height)
+    annotations.push({ x: bw + 12, y: h * 0.65,
+        text: '<b>A<sub>v</sub></b>', font: { size: 11, color: '#16a34a', family: 'Arial' },
+        showarrow: true, ax: sx1, ay: h * 0.65,
         arrowhead: 0, arrowwidth: 1, arrowcolor: '#16a34a' });
 
-    // As label (right side, bottom)
-    annotations.push({ x: bw + 15, y: botY,
-        text: 'A<sub>s</sub>', font: { size: 11, color: '#16a34a', family: 'Arial', weight: 700 },
-        showarrow: false, xanchor: 'left' });
+    // As label (right side, at bottom bar level)
+    annotations.push({ x: bw + 12, y: botY,
+        text: '<b>A<sub>s</sub></b>', font: { size: 11, color: '#16a34a', family: 'Arial' },
+        showarrow: true, ax: legXPositions[nLegs - 1] + 5, ay: botY,
+        arrowhead: 0, arrowwidth: 1, arrowcolor: '#16a34a' });
 
     Plotly.newPlot('chart-section', [barTrace], {
         title: { text: 'RC Beam Cross-Section', font: { size: 13 } },
-        xaxis: { range: [-pad - 10, bw + pad + 40], visible: false, fixedrange: true },
-        yaxis: { range: [-pad - 10, h + pad + 40], visible: false, fixedrange: true, scaleanchor: 'x', scaleratio: 1 },
+        xaxis: { range: [-pad - 5, bw + pad + 10], visible: false, fixedrange: true },
+        yaxis: { range: [-pad - 5, h + pad + 10], visible: false, fixedrange: true, scaleanchor: 'x', scaleratio: 1 },
         shapes: shapes, annotations: annotations,
-        height: 480, margin: { t: 35, r: 5, b: 5, l: 5 },
+        height: 560, margin: { t: 35, r: 5, b: 5, l: 5 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
         hovermode: false,
     }, { responsive: true, displaylogo: false, staticPlot: true });
+}
+
+function renderVcNuChart(r, p) {
+    // ACI 318M-14 Figure R22.5.6.1: Vc/(sqrt(f'c)*bw*d) vs Nu/Ag
+    var fc = p.fc, bw = p.bw, d = p.d, h = p.h;
+    var ag = bw * h;
+    var sqrtFc = Math.sqrt(fc);
+
+    // X-axis: Nu/Ag in MPa (compression positive, tension negative)
+    // Generate curves from -4 to +8 MPa
+    var nuAgArr = [], vcCompArr = [], vcTensArr = [];
+    for (var x = -4; x <= 8; x += 0.1) {
+        nuAgArr.push(x);
+        // Compression Eq. 22.5.6.1: Vc = (1 + Nu/(14*Ag)) * sqrt(f'c)/6 * bw*d
+        // normalized: Vc/(sqrt(f'c)*bw*d) = (1 + (Nu/Ag)/14) / 6
+        var vcComp = (1 + x / 14) / 6;
+        vcCompArr.push(Math.max(vcComp, 0));
+        // Tension Eq. 22.5.7.1: Vc = (1 + 0.29*Nu/Ag * 1/(f'c? no)) ...
+        // normalized: Vc/(sqrt(f'c)*bw*d) = (1 + 0.29*(Nu/Ag)/sqrt(f'c)) / 6
+        // But Nu/Ag is in MPa, need to handle units: Nu is in N, Ag in mm^2
+        // Actually the ACI formula: Vc = (1 + 0.29*Nu/Ag) * lambda*sqrt(f'c)/6 * bw * d
+        // where Nu/Ag is in MPa. So normalized = (1 + 0.29*x) / 6
+        // But this only applies for tension (x < 0)
+        if (x <= 0) {
+            var vcTens = Math.max((1 + 0.29 * x) / 6, 0);
+            vcTensArr.push(vcTens);
+        } else {
+            vcTensArr.push(null);
+        }
+    }
+
+    // Upper bound: Table 22.5.6.1(b): 0.3*sqrt(f'c)*bw*d*(1+0.3*Nu/Ag)
+    // normalized: 0.3*(1+0.3*x)  -- but this is for compression only
+    var vcUpperArr = [];
+    for (var i = 0; i < nuAgArr.length; i++) {
+        var x = nuAgArr[i];
+        if (x >= 0) {
+            vcUpperArr.push(0.3 * (1 + 0.3 * x));
+        } else {
+            vcUpperArr.push(null);
+        }
+    }
+
+    // Design point
+    var nuAg_pt = p.nu * 1000 / ag; // Nu in N, Ag in mm^2 -> MPa
+    var vcNorm_pt = r.vc * 1000 / (sqrtFc * bw * d);
+
+    var traces = [
+        { x: nuAgArr, y: vcCompArr, mode: 'lines', name: 'Eq. (22.5.6.1)',
+          line: { color: '#16a34a', width: 2 } },
+        { x: nuAgArr, y: vcUpperArr, mode: 'lines', name: 'Table 22.5.6.1(b)',
+          line: { color: '#1e40af', width: 2, dash: 'dash' } },
+        { x: nuAgArr, y: vcTensArr, mode: 'lines', name: 'Eq. (22.5.7.1)',
+          line: { color: '#374151', width: 2, dash: 'dashdot' } },
+        { x: [nuAg_pt], y: [vcNorm_pt], mode: 'markers+text', name: 'Design Point',
+          marker: { size: 14, color: '#dc2626', symbol: 'diamond', line: { width: 2, color: '#fff' } },
+          text: ['(' + v(nuAg_pt, 2) + ', ' + v(vcNorm_pt, 3) + ')'],
+          textposition: 'top right', textfont: { size: 10, color: '#dc2626' } },
+    ];
+
+    Plotly.newPlot('chart-vc-nu', traces, {
+        title: { text: 'V<sub>c</sub> vs Axial Load (ACI 318M-14 Fig. R22.5.6.1)', font: { size: 13 } },
+        xaxis: { title: 'N<sub>u</sub>/A<sub>g</sub> (MPa)', gridcolor: '#e5e7eb',
+                 zeroline: true, zerolinecolor: '#9ca3af', zerolinewidth: 1.5 },
+        yaxis: { title: 'V<sub>c</sub> / (\u221af\'c \u00b7 b<sub>w</sub> \u00b7 d)', gridcolor: '#e5e7eb',
+                 rangemode: 'tozero' },
+        legend: { x: 0, y: 1, font: { size: 9 }, bgcolor: 'rgba(255,255,255,0.9)',
+                  bordercolor: '#d1d5db', borderwidth: 1 },
+        height: 350, margin: { t: 45, r: 10, b: 50, l: 65 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'closest',
+        annotations: [
+            { x: 4, y: 0.15, text: 'Compression', showarrow: false,
+              font: { size: 10, color: '#6b7280' } },
+            { x: -2, y: 0.15, text: 'Tension', showarrow: false,
+              font: { size: 10, color: '#6b7280' } },
+        ],
+    }, { responsive: true, displaylogo: false });
 }
 
 function renderHeader(p) {
@@ -459,6 +574,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         renderHeader(payload);
         renderSectionChart(r, payload);
         renderShearChart(r, payload);
+        renderVcNuChart(r, payload);
         renderReport(r, payload);
     })
     .catch(function(err) {
