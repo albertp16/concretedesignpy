@@ -12,6 +12,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from concretedesignpy.calculators.beam_moment import calculate_beam_moment
+from concretedesignpy.provision import generate_phi_plot_data
 from concretedesignpy.calculators.beam_shear import (
     compute_concrete_shear_strength,
     compute_steel_shear_strength,
@@ -57,6 +58,12 @@ def beam_moment():
             rf["stress"] = round(rf["stress"], 2)
             rf["force"] = round(rf["force"] / 1000, 2)  # Convert to kN
             rf["area"] = round(rf["area"], 2)
+        # Generate phi plot data
+        result["phi_plot"] = generate_phi_plot_data(
+            fy=float(data["fy"]),
+            es=float(data.get("es", 200000)),
+            actual_epsilon=result["epsilon_t"],
+        )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400

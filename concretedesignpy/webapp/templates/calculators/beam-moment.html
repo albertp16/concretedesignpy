@@ -230,6 +230,10 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         h += '<div class="report-eq">\\[ \\epsilon_t = \\frac{' + r.d_max + ' - ' + r.neutral_axis + '}{' + r.neutral_axis + '} \\times ' + r.ecu + ' \\]</div>';
         h += '<div class="report-eq">\\[ \\mathbf{\\epsilon_t = ' + r.epsilon_t + '} \\]</div>';
 
+        // Strength Reduction Factor Plot
+        h += '<h4>Variation of &phi; with Net Tensile Strain &epsilon;<sub>t</sub></h4>';
+        h += '<div id="phi-plot" style="width:100%;height:400px;"></div>';
+
         // Nominal Moment Capacity
         h += '<h4>Nominal Moment Capacity</h4>';
         h += '<div class="report-eq">\\[ M_n = F_c \\times \\left(d - \\frac{a}{2}\\right) + F_t \\left(d - d_c\\right) \\]</div>';
@@ -256,6 +260,51 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         reportDiv.style.display = '';
         reportDiv.innerHTML = h;
         if (window.MathJax) MathJax.typeset();
+
+        // Render phi plot with Plotly
+        if (r.phi_plot) {
+            var pp = r.phi_plot;
+            var traces = [
+                {
+                    x: pp.strains, y: pp.phi_spiral,
+                    name: 'Spiral', mode: 'lines',
+                    line: { color: '#1E3A8A', width: 2.5, dash: 'dash' },
+                },
+                {
+                    x: pp.strains, y: pp.phi_other,
+                    name: 'Other', mode: 'lines',
+                    line: { color: '#D97706', width: 2.5 },
+                },
+                {
+                    x: [pp.actual_epsilon, pp.actual_epsilon],
+                    y: [0.6, Math.max(pp.actual_phi_spiral, pp.actual_phi_other)],
+                    name: 'Actual \u03b5\u209c', mode: 'lines',
+                    line: { color: '#DC2626', width: 2, dash: 'dot' },
+                },
+                {
+                    x: [pp.actual_epsilon], y: [pp.actual_phi_other],
+                    name: '\u03c6 = ' + pp.actual_phi_other.toFixed(4),
+                    mode: 'markers',
+                    marker: { color: '#DC2626', size: 10, symbol: 'circle' },
+                    showlegend: false,
+                },
+            ];
+            var layout = {
+                title: { text: 'Variation of \u03c6 with Net Tensile Strain \u03b5\u209c', font: { size: 14 } },
+                xaxis: { title: 'Net Tensile Strain (\u03b5t)', tickformat: '.4f', zeroline: false },
+                yaxis: { title: 'Strength Reduction Factor (\u03c6)', range: [0.6, 0.95], dtick: 0.05 },
+                legend: { x: 1, y: 1, xanchor: 'right', bgcolor: 'rgba(255,255,255,0.8)' },
+                margin: { l: 60, r: 20, t: 40, b: 50 },
+                plot_bgcolor: '#fff',
+                annotations: [{
+                    x: pp.actual_epsilon, y: pp.actual_phi_other,
+                    text: '\u03c6 = ' + pp.actual_phi_other.toFixed(4),
+                    showarrow: true, arrowhead: 2, ax: 40, ay: -30,
+                    font: { size: 12, color: '#DC2626', weight: 'bold' },
+                }],
+            };
+            Plotly.newPlot('phi-plot', traces, layout, { responsive: true, displayModeBar: false });
+        }
     });
 });
 </script>

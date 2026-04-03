@@ -202,3 +202,59 @@ def calculate_beta_one(fc: float) -> dict:
     return {"value": beta_one, "report": rep}
 
 
+def generate_phi_plot_data(
+    fy: float,
+    es: float,
+    actual_epsilon: float,
+    num_points: int = 200,
+) -> dict:
+    """
+    Generate plot data for the variation of phi with net tensile strain.
+
+    Returns traces for Plotly: spiral curve, other curve, and actual epsilon marker.
+
+    Parameters:
+    -----------
+    fy : float
+        Steel yield strength (MPa).
+    es : float
+        Modulus of elasticity of steel (MPa).
+    actual_epsilon : float
+        The actual computed tensile strain in the reinforcement.
+    num_points : int
+        Number of points for the curves.
+
+    Returns:
+    --------
+    dict with keys: epsilon_ty, phi_spiral, phi_other, actual_epsilon, actual_phi_spiral, actual_phi_other
+    """
+    epsilon_ty = fy / es
+    epsilon_max = max(0.007, actual_epsilon * 1.5, epsilon_ty + 0.003 + 0.002)
+
+    strains = [i * epsilon_max / num_points for i in range(num_points + 1)]
+
+    phi_spiral = [
+        calculate_strength_reduction_factor(e, epsilon_ty, "spiral") for e in strains
+    ]
+    phi_other = [
+        calculate_strength_reduction_factor(e, epsilon_ty, "others") for e in strains
+    ]
+
+    actual_phi_spiral = calculate_strength_reduction_factor(
+        actual_epsilon, epsilon_ty, "spiral"
+    )
+    actual_phi_other = calculate_strength_reduction_factor(
+        actual_epsilon, epsilon_ty, "others"
+    )
+
+    return {
+        "strains": strains,
+        "phi_spiral": phi_spiral,
+        "phi_other": phi_other,
+        "epsilon_ty": epsilon_ty,
+        "actual_epsilon": actual_epsilon,
+        "actual_phi_spiral": actual_phi_spiral,
+        "actual_phi_other": actual_phi_other,
+    }
+
+
