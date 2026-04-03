@@ -460,62 +460,149 @@ function renderSectionChart(payload, sp) {
 }
 
 function renderStrainStressChart(payload, sp, pts) {
-    var h = payload.h, d = payload.d, b = payload.b;
+    var H = payload.h, d = payload.d, b = payload.b;
     var kd = sp.kd || 0;
     var fc = payload.fc, fy = payload.fy, es = payload.es;
     var ecu = 0.003;
+    var cover = H - d;
 
-    // Strain profile at ultimate (Point 6)
-    var strainTop = -ecu;
-    var strainAtD = ecu * (d - kd) / kd;
-    var strainBot = ecu * (h - kd) / kd;
+    // Strain values
+    var strainTop = ecu;
+    var strainNA = 0;
+    var strainAtD = -ecu * (d - kd) / kd;
+    var strainBot = -ecu * (H - kd) / kd;
 
-    // Heights from bottom
-    var yTop = h, yNA = h - kd, yD = h - d, yBot = 0;
+    // Stress values (Whitney block)
+    var beta1 = sp.beta1 || 0.85;
+    var a = beta1 * kd;
+    var stressBlock = 0.85 * fc;
+    var stressSteel = Math.min(Math.abs(strainAtD) * es, fy);
 
-    var strainTrace = {
-        x: [strainTop, 0, strainAtD],
-        y: [yTop, yNA, yD],
-        mode: 'lines+markers', name: 'Strain at Ultimate',
-        line: { color: '#dc2626', width: 2.5 },
-        marker: { size: 6 },
-        xaxis: 'x', yaxis: 'y',
-    };
+    // Use subplots: [section] [strain] [stress] [forces]
+    var traces = [];
 
-    // Stress profile (simplified)
-    var stressTop = -0.85 * fc;
-    var stressSteel = Math.min(strainAtD * es, fy);
+    // ── Panel 1: Section outline (x1) ──
+    traces.push({
+        x: [0, b, b, 0, 0], y: [0, 0, H, H, 0],
+        mode: 'lines', line: { color: '#333', width: 2 },
+        xaxis: 'x', yaxis: 'y', showlegend: false, hoverinfo: 'skip',
+    });
+    // Compression zone fill
+    traces.push({
+        x: [0, b, b, 0, 0], y: [H, H, H - a, H - a, H],
+        fill: 'toself', fillcolor: 'rgba(220,38,38,0.12)',
+        line: { color: 'rgba(220,38,38,0.4)', width: 1 },
+        xaxis: 'x', yaxis: 'y', showlegend: false, hoverinfo: 'skip',
+    });
+    // Tension rebar
+    var nBars = Math.round(payload.as_tension / (Math.PI * 12.5 * 12.5));
+    if (nBars < 2) nBars = 2; if (nBars > 8) nBars = 8;
+    var barSpacing = (b - 2 * cover) / Math.max(nBars - 1, 1);
+    var rebarX = [], rebarY = [];
+    for (var i = 0; i < nBars; i++) { rebarX.push(cover + i * barSpacing); rebarY.push(H - d); }
+    traces.push({
+        x: rebarX, y: rebarY, mode: 'markers',
+        marker: { size: 10, color: '#1e40af', symbol: 'circle', line: { width: 1.5, color: '#fff' } },
+        xaxis: 'x', yaxis: 'y', showlegend: false, hoverinfo: 'skip',
+    });
 
-    var stressTrace = {
-        x: [stressTop, stressTop, 0, 0, stressSteel],
-        y: [yTop, yNA, yNA, yD, yD],
-        mode: 'lines+markers', name: 'Stress at Ultimate',
-        line: { color: '#2563eb', width: 2.5 },
-        marker: { size: 6 },
-        xaxis: 'x2', yaxis: 'y',
-    };
+    // ── Panel 2: Strain diagram (x2) ──
+    traces.push({
+        x: [strainTop, strainNA, strainBot],
+        y: [H, H - kd, 0],
+        mode: 'lines', line: { color: '#dc2626', width: 2.5 },
+        xaxis: 'x2', yaxis: 'y', name: 'Strain Profile', showlegend: false,
+    });
+    // Strain fill (compression side)
+    traces.push({
+        x: [0, strainTop, strainNA, 0], y: [H, H, H - kd, H - kd],
+        fill: 'toself', fillcolor: 'rgba(220,38,38,0.08)',
+        line: { width: 0 }, xaxis: 'x2', yaxis: 'y', showlegend: false, hoverinfo: 'skip',
+    });
+    // Strain fill (tension side)
+    traces.push({
+        x: [0, strainNA, strainBot, 0], y: [H - kd, H - kd, 0, 0],
+        fill: 'toself', fillcolor: 'rgba(37,99,235,0.08)',
+        line: { width: 0 }, xaxis: 'x2', yaxis: 'y', showlegend: false, hoverinfo: 'skip',
+    });
+
+    // ── Panel 3: Stress diagram (x3) ──
+    // Whitney rectangular block
+    traces.push({
+        x: [0, stressBlock, stressBlock, 0],
+        y: [H, H, H - a, H - a],
+        fill: 'toself', fillcolor: 'rgba(220,38,38,0.2)',
+        line: { color: '#dc2626', width: 2 },
+        xaxis: 'x3', yaxis: 'y', name: '0.85f\'c Block', showlegend: false,
+    });
+    // Steel stress as arrow-like marker
+    traces.push({
+        x: [0, -stressSteel], y: [H - d, H - d],
+        mode: 'lines+markers', line: { color: '#1e40af', width: 2.5 },
+        marker: { size: [0, 8], symbol: ['circle', 'triangle-left'], color: '#1e40af' },
+        xaxis: 'x3', yaxis: 'y', name: 'fs = ' + stressSteel.toFixed(0) + ' MPa', showlegend: false,
+    });
+
+    // ── Panel 4: Internal forces (x4) ──
+    var Cc = stressBlock * a * b / 1000; // kN
+    var Ts = stressSteel * payload.as_tension / 1000; // kN
+    // Compression force arrow
+    traces.push({
+        x: [0, Cc], y: [H - a / 2, H - a / 2],
+        mode: 'lines+markers', line: { color: '#dc2626', width: 3 },
+        marker: { size: [0, 10], symbol: ['circle', 'triangle-right'], color: '#dc2626' },
+        xaxis: 'x4', yaxis: 'y', showlegend: false,
+    });
+    // Tension force arrow
+    traces.push({
+        x: [0, -Ts], y: [H - d, H - d],
+        mode: 'lines+markers', line: { color: '#1e40af', width: 3 },
+        marker: { size: [0, 10], symbol: ['circle', 'triangle-left'], color: '#1e40af' },
+        xaxis: 'x4', yaxis: 'y', showlegend: false,
+    });
+
+    // NA line across all panels
+    var shapes = [];
+    ['x', 'x2', 'x3', 'x4'].forEach(function(xa) {
+        shapes.push({
+            type: 'line', x0: 0, x1: 1, y0: H - kd, y1: H - kd,
+            xref: xa + ' domain', line: { color: '#666', width: 1.5, dash: 'dashdot' },
+        });
+    });
+
+    var annotations = [
+        // Panel titles
+        { x: 0.06, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Section</b>', showarrow: false, font: { size: 11, color: '#333' } },
+        { x: 0.32, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Strain</b>', showarrow: false, font: { size: 11, color: '#333' } },
+        { x: 0.60, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Stress (MPa)</b>', showarrow: false, font: { size: 11, color: '#333' } },
+        { x: 0.88, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Forces (kN)</b>', showarrow: false, font: { size: 11, color: '#333' } },
+        // Key values
+        { x: strainTop, y: H, xref: 'x2', text: '\u03b5cu=' + strainTop.toFixed(4), showarrow: false, font: { size: 9, color: '#dc2626' }, yshift: 8 },
+        { x: strainAtD, y: H - d, xref: 'x2', text: '\u03b5s=' + strainAtD.toFixed(4), showarrow: false, font: { size: 9, color: '#1e40af' }, yshift: -12 },
+        { x: stressBlock / 2, y: H - a / 2, xref: 'x3', text: (stressBlock).toFixed(1), showarrow: false, font: { size: 9, color: '#fff', family: 'Arial Black' } },
+        { x: Cc / 2, y: H - a / 2, xref: 'x4', text: 'Cc=' + Cc.toFixed(0), showarrow: false, font: { size: 9, color: '#dc2626' }, yshift: 12 },
+        { x: -Ts / 2, y: H - d, xref: 'x4', text: 'Ts=' + Ts.toFixed(0), showarrow: false, font: { size: 9, color: '#1e40af' }, yshift: -12 },
+        // NA label
+        { x: 1.02, y: H - kd, xref: 'x4 domain', text: 'N.A.', showarrow: false, font: { size: 9, color: '#666' } },
+        // Dimension labels
+        { x: -0.02, y: H - a, xref: 'x3 domain', text: 'a=' + a.toFixed(1), showarrow: false, font: { size: 8, color: '#dc2626' }, xanchor: 'right' },
+    ];
 
     var layout = {
-        title: { text: 'Strain & Stress at Ultimate (Point 6)', font: { size: 14 } },
-        xaxis: {
-            title: 'Strain', domain: [0, 0.45], zeroline: true, zerolinecolor: '#999',
-            gridcolor: '#e5e7eb', tickformat: '.4f',
-        },
-        xaxis2: {
-            title: 'Stress (MPa)', domain: [0.55, 1], zeroline: true, zerolinecolor: '#999',
-            gridcolor: '#e5e7eb', anchor: 'y',
-        },
-        yaxis: { title: 'Height (mm)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
-        height: 450,
-        margin: { t: 40, r: 20, b: 60, l: 60 },
+        title: { text: 'Section Analysis at Ultimate Limit State', font: { size: 14 }, y: 0.98 },
+        yaxis: { title: 'Depth (mm)', range: [-10, H + 30], gridcolor: '#f0f0f0', zeroline: false },
+        xaxis:  { domain: [0, 0.15], visible: false, range: [-20, b + 20] },
+        xaxis2: { domain: [0.20, 0.42], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', tickformat: '.3f', title: '' },
+        xaxis3: { domain: [0.48, 0.72], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', title: '' },
+        xaxis4: { domain: [0.78, 1.0], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', title: '' },
+        height: 500,
+        margin: { t: 50, r: 30, b: 30, l: 60 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
-        showlegend: true,
-        legend: { x: 0.5, xanchor: 'center', y: -0.2, orientation: 'h', font: { size: 10 } },
-        shapes: [
-            { type: 'line', x0: -0.01, y0: yNA, x1: 0.01, y1: yNA, xref: 'x', line: { color: '#999', width: 1, dash: 'dot' } },
-        ],
+        showlegend: false,
+        shapes: shapes,
+        annotations: annotations,
     };
-    Plotly.newPlot('chart-strain-stress', [strainTrace, stressTrace], layout, { responsive: true, displayModeBar: false });
+    Plotly.newPlot('chart-strain-stress', traces, layout, { responsive: true, displayModeBar: false });
 }
 
 function renderReport(payload, sp, pts) {

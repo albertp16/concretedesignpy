@@ -6,14 +6,32 @@ A Python library and web application for reinforced concrete structural design p
 
 ## Features
 
-- **Beam Design** — Moment capacity (strain compatibility), shear strength, torsion design, deflection checks
-- **Column Design** — P-M interaction diagrams, rebar layout generation, minimum flexural strength checks
+### Beam Design
+- **Flexural Capacity** — Strain compatibility method with iterative neutral axis solver, strength reduction factor (phi) plot per ACI 318-19 Table 21.2.2
+- **Shear Strength** — Concrete and steel shear capacity, stirrup spacing design with Excel export (ACI 318M-14)
+- **Torsion Design** — Combined shear-torsion interaction checks
+- **Deflection** — Immediate and long-term deflection with effective moment of inertia
+
+### Column Design
+- **P-M Interaction** — Strain compatibility analysis with Plotly interaction diagrams, load combination overlay
+- **Minimum Flexural Strength** — Column-to-beam strength ratio verification
+
+### Analysis Tools
+- **Moment-Curvature** — Dual-mode M-phi analysis:
+  - *Quick (6-Point)* — Closed-form key points (cracking, yield, ultimate) per ACI 318-19
+  - *Advanced (Incremental)* — Hognestad parabolic concrete model with fiber-layer approach, axial load support, 60-point smooth curve
+- **Mander Confined Concrete** — Full Mander, Priestley & Park (1988) model with 13-step transparent report, biaxial confinement (Fig. 5), Plotly stress-strain curves, and confinement effectiveness charts
 - **Joint Shear** — Verification for special moment frames (Section 422.7)
-- **Mander Model** — Confined concrete strength and ultimate strain
-- **Moment-Curvature** — 6-point M-phi analysis
+
+### Detailing
 - **Development Length** — Hook geometry for deformed bars and stirrups (Section 425)
 - **Alternative Inertia** — Effective moment of inertia per Section 424.2.3.5
-- **Web Application** — Flask-based interactive calculators with Plotly charts, MathJax reports, and print-ready output
+
+### Web Application
+- Flask-based interactive calculators
+- Plotly charts for all visualizations (M-phi diagrams, P-M interaction, stress-strain curves, section analysis)
+- MathJax-rendered calculation reports with full formula substitution
+- Print-ready output with engineering notation
 
 ## Installation
 
@@ -110,15 +128,17 @@ concretedesignpy/
 | `POST /api/joint/shear` | Joint shear verification |
 | `POST /api/mander/confined` | Mander confined concrete |
 | `POST /api/section/development-length` | Hook geometry |
-| `POST /api/section/moment-curvature` | M-phi analysis |
+| `POST /api/section/moment-curvature` | M-phi analysis (6-point) |
+| `POST /api/section/moment-curvature-advanced` | M-phi analysis (Hognestad incremental) |
 | `POST /api/section/alternative-inertia` | Alternative Ie |
 
-## Code Standards
+## Code Standards & References
 
-- NSCP 2015 (National Structural Code of the Philippines)
-- ACI 318-19 / ACI 318M-14 (American Concrete Institute)
-- ACI SP-17 (Design Handbook)
-- Mander, Priestley & Park (1988) — Confined concrete model
+- **NSCP 2015** — National Structural Code of the Philippines
+- **ACI 318-19 / ACI 318M-14** — American Concrete Institute
+- **ACI SP-17** — Design Handbook
+- **Mander, Priestley & Park (1988)** — Theoretical stress-strain model for confined concrete, *J. Structural Engineering*, ASCE, Vol. 114, No. 8
+- **Hognestad (1951)** — A study of combined bending and axial load in reinforced concrete members, University of Illinois Bulletin No. 399
 
 ## Contributing
 
