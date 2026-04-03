@@ -62,7 +62,11 @@
                         <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="0.1" required></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>As tension (mm&sup2;)</label><input type="number" name="as_tension" value="1980" step="1" required></div>
+                        <div class="form-group"><label>Bar diameter (mm)</label><input type="number" id="db_tension" name="db_tension" value="25" step="1" required oninput="updateAs()"></div>
+                        <div class="form-group"><label>No. of bars, n</label><input type="number" id="n_tension" name="n_tension" value="4" min="1" step="1" required oninput="updateAs()"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>As tension (mm&sup2;)</label><input type="number" id="as_tension" name="as_tension" value="1963.50" step="0.01" readonly style="background:#f3f4f6;"></div>
                         <div class="form-group"><label>Es (MPa)</label><input type="number" name="es" value="200000"></div>
                     </div>
                 </div>
@@ -88,6 +92,14 @@
 </div>
 
 <script>
+function updateAs() {
+    var db = parseFloat(document.getElementById('db_tension').value) || 0;
+    var n = parseInt(document.getElementById('n_tension').value) || 0;
+    var as = n * Math.PI * db * db / 4;
+    document.getElementById('as_tension').value = as.toFixed(2);
+}
+updateAs();
+
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var payload = {
