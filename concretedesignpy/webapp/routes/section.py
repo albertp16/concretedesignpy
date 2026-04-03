@@ -11,6 +11,7 @@ from concretedesignpy.calculators.development_length import (
 )
 from concretedesignpy.calculators.moment_curvature import (
     moment_curvature_analysis,
+    moment_curvature_advanced,
 )
 from concretedesignpy.calculators.rebar_layout import section_generate_rect
 from concretedesignpy.calculators.alternative_inertia import (
@@ -61,6 +62,26 @@ def moment_curvature():
             fy=float(data["fy"]),
             as_tension=float(data["as_tension"]),
             es=float(data.get("es", 200000)),
+        )
+        return jsonify({"status": "success", "result": result})
+    except (KeyError, ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@section_bp.route("/moment-curvature-advanced", methods=["POST"])
+def moment_curvature_adv():
+    """Advanced moment-curvature with Hognestad model and axial load."""
+    data = request.get_json()
+    try:
+        result = moment_curvature_advanced(
+            b=float(data["b"]),
+            h=float(data["h"]),
+            d=float(data["d"]),
+            fc=float(data["fc"]),
+            fy=float(data["fy"]),
+            as_tension=float(data["as_tension"]),
+            es=float(data.get("es", 200000)),
+            axial_load=float(data.get("axial_load", 0)),
         )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:

@@ -169,3 +169,173 @@ def moment_curvature_analysis(b, h, d, fc, fy, as_tension, es=200000.0):
             "beta1": round(beta1, 4),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Advanced incremental M-phi with Hognestad concrete & axial load
+# ---------------------------------------------------------------------------
+
+def _hognestad_stress(ec_strain, fc, eco, ecu):
+    """
+    Hognestad concrete stress-strain model (compression positive).
+
+    Ascending: parabolic up to eco
+    Descending: linear from eco to ecu (stress drops to 0.85*fc)
+    """
+    if ec_strain <= 0:
+        return 0.0
+    if ec_strain <= eco:
+        ratio = ec_strain / eco
+        return fc * (2 * ratio - ratio ** 2)
+    if ec_strain <= ecu:
+        return fc * (1 - 0.15 * (ec_strain - eco) / (ecu - eco))
+    return 0.0
+
+
+def _steel_stress(strain, fy, es):
+    """Elastic-perfectly-plastic steel model."""
+    fs = es * strain
+    if fs > fy:
+        return fy
+    if fs < -fy:
+        return -fy
+    return fs
+
+
+def moment_curvature_advanced(
+    b, h, d, fc, fy, as_tension, es=200000.0,
+    axial_load=0.0, n_increments=60, n_fibers=50,
+):
+    """
+    Compute moment-curvature using incremental fiber approach.
+
+    Uses Hognestad concrete model and elastic-perfectly-plastic steel.
+
+    Parameters
+    ----------
+    b : float
+        Section width (mm).
+    h : float
+        Section total height (mm).
+    d : float
+        Effective depth (mm).
+    fc : float
+        Concrete compressive strength (MPa).
+    fy : float
+        Steel yield strength (MPa).
+    as_tension : float
+        Area of tension reinforcement (mm^2).
+    es : float
+        Steel modulus of elasticity (MPa).
+    axial_load : float
+        Axial load in kN (positive = compression).
+    n_increments : int
+        Number of curvature increments.
+    n_fibers : int
+        Number of concrete fiber strips.
+
+    Returns
+    -------
+    dict
+        Keys: points (list), section_properties, hognestad_params
+    """
+    if b <= 0 or h <= 0 or d <= 0 or fc <= 0 or fy <= 0:
+        raise ValueError("All section/material parameters must be positive.")
+
+    ec_mod = 4700 * math.sqrt(fc)  # concrete elastic modulus
+    eco = 2 * fc / ec_mod           # strain at peak stress
+    ecu = 0.003                     # ultimate concrete strain
+
+    # Axial load in N (input is kN)
+    p_axial = axial_load * 1000.0
+
+    # Fiber geometry: strips from bottom (y=0) to top (y=h)
+    fiber_h = h / n_fibers
+    fiber_y = [(i + 0.5) * fiber_h for i in range(n_fibers)]  # centroid of each strip
+
+    # Steel layer: tension steel at depth d from top => y = h - d from bottom
+    steel_y = h - d
+    # (Could add compression steel later)
+
+    centroid = h / 2.0  # section centroid for moment reference
+
+    points = []
+
+    for step in range(1, n_increments + 1):
+        ec_top = step * ecu / n_increments  # strain at top fiber (compression)
+
+        # Binary search for neutral axis depth c (from top)
+        c_lo, c_hi = 1.0, h * 2.0
+        c_found = None
+
+        for _ in range(100):  # max iterations
+            c = (c_lo + c_hi) / 2.0
+
+            # Concrete forces
+            total_force = 0.0
+            total_moment = 0.0
+            for fy_i in fiber_y:
+                # Distance from top: h - fy_i
+                dist_from_top = h - fy_i
+                strain_i = ec_top * (c - dist_from_top) / c if c > 0 else 0
+                # Only compression (strain > 0)
+                stress_i = _hognestad_stress(strain_i, fc, eco, ecu)
+                force_i = stress_i * b * fiber_h
+                total_force += force_i
+                total_moment += force_i * (fy_i - centroid)
+
+            # Steel force
+            dist_steel_from_top = d  # steel is at depth d from top
+            strain_steel = ec_top * (c - dist_steel_from_top) / c if c > 0 else 0
+            # Negative strain = tension in steel
+            stress_steel = _steel_stress(-strain_steel, fy, es)
+            force_steel = -stress_steel * as_tension  # tension is negative force
+            total_force += force_steel
+            total_moment += force_steel * (steel_y - centroid)
+
+            # Add axial load (compression positive)
+            net_force = total_force + p_axial
+
+            if abs(net_force) < 0.5:  # convergence (< 0.5 N)
+                c_found = c
+                break
+
+            if net_force > 0:
+                # Too much compression, reduce c
+                c_hi = c
+            else:
+                # Too much tension, increase c
+                c_lo = c
+
+        if c_found is None:
+            continue  # skip this step if no convergence
+
+        phi = ec_top / c_found if c_found > 0 else 0
+
+        points.append({
+            "ec_top": round(ec_top, 8),
+            "phi": round(phi, 10),
+            "moment_knm": round(total_moment / 1e6, 2),
+            "c": round(c_found, 2),
+        })
+
+    # Hognestad curve data for plotting
+    hog_strains = [i * ecu / 100 for i in range(101)]
+    hog_stresses = [round(_hognestad_stress(e, fc, eco, ecu), 4) for e in hog_strains]
+    hog_strains = [round(e, 6) for e in hog_strains]
+
+    return {
+        "points": points,
+        "section_properties": {
+            "ec_mod": round(ec_mod, 2),
+            "n": round(es / ec_mod, 4),
+            "fr": round(0.62 * math.sqrt(fc), 4),
+        },
+        "hognestad_params": {
+            "eco": round(eco, 6),
+            "ecu": ecu,
+            "fc": fc,
+            "strains": hog_strains,
+            "stresses": hog_stresses,
+        },
+    }
