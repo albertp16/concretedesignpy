@@ -384,78 +384,97 @@ function renderSectionChart(r, p) {
 }
 
 function renderVcNuChart(r, p) {
-    // ACI 318M-14 Figure R22.5.6.1: Vc/(sqrt(f'c)*bw*d) vs Nu/Ag
+    // ACI 318M-14 Figure R22.5.6.1 (exact reproduction)
+    // X-axis: Nu/Ag (MPa), compression positive (LEFT), tension negative (RIGHT)
+    // Y-axis: Vc / (sqrt(f'c) * bw * d), dimensionless
     var fc = p.fc, bw = p.bw, d = p.d, h = p.h;
     var ag = bw * h;
     var sqrtFc = Math.sqrt(fc);
 
-    // X-axis: Nu/Ag in MPa (compression positive, tension negative)
-    // Generate curves from -4 to +8 MPa
-    var nuAgArr = [], vcCompArr = [], vcTensArr = [];
-    for (var x = -4; x <= 8; x += 0.1) {
-        nuAgArr.push(x);
-        // Compression Eq. 22.5.6.1: Vc = (1 + Nu/(14*Ag)) * sqrt(f'c)/6 * bw*d
-        // normalized: Vc/(sqrt(f'c)*bw*d) = (1 + (Nu/Ag)/14) / 6
-        var vcComp = (1 + x / 14) / 6;
-        vcCompArr.push(Math.max(vcComp, 0));
-        // Tension Eq. 22.5.7.1: Vc = (1 + 0.29*Nu/Ag * 1/(f'c? no)) ...
-        // normalized: Vc/(sqrt(f'c)*bw*d) = (1 + 0.29*(Nu/Ag)/sqrt(f'c)) / 6
-        // But Nu/Ag is in MPa, need to handle units: Nu is in N, Ag in mm^2
-        // Actually the ACI formula: Vc = (1 + 0.29*Nu/Ag) * lambda*sqrt(f'c)/6 * bw * d
-        // where Nu/Ag is in MPa. So normalized = (1 + 0.29*x) / 6
-        // But this only applies for tension (x < 0)
-        if (x <= 0) {
-            var vcTens = Math.max((1 + 0.29 * x) / 6, 0);
-            vcTensArr.push(vcTens);
-        } else {
-            vcTensArr.push(null);
-        }
+    // Eq. (22.5.6.1): Vc = 0.17*(1 + Nu/(14*Ag))*lambda*sqrt(f'c)*bw*d
+    // Normalized: 0.17*(1 + x/14), for compression (x >= 0)
+    var xComp = [], yEq22561 = [];
+    for (var x = 0; x <= 8; x += 0.05) {
+        xComp.push(x);
+        yEq22561.push(0.17 * (1 + x / 14));
     }
 
-    // Upper bound: Table 22.5.6.1(b): 0.3*sqrt(f'c)*bw*d*(1+0.3*Nu/Ag)
-    // normalized: 0.3*(1+0.3*x)  -- but this is for compression only
-    var vcUpperArr = [];
-    for (var i = 0; i < nuAgArr.length; i++) {
-        var x = nuAgArr[i];
-        if (x >= 0) {
-            vcUpperArr.push(0.3 * (1 + 0.3 * x));
-        } else {
-            vcUpperArr.push(null);
-        }
+    // Table expression 22.5.6.1(b) upper bound:
+    // Vc,max = 0.29*lambda*sqrt(f'c)*bw*d*sqrt(1 + 0.29*Nu/Ag)
+    // Normalized: 0.29*sqrt(1 + 0.29*x)
+    var yTable22561b = [];
+    for (var i = 0; i < xComp.length; i++) {
+        yTable22561b.push(0.29 * Math.sqrt(1 + 0.29 * xComp[i]));
+    }
+
+    // Shaded area (fill between Eq. 22.5.6.1 and Table 22.5.6.1(b))
+    // Use fill: 'tonexty' approach - lower curve first, then upper
+    var xFill = xComp.slice();
+    var yFillLower = yEq22561.slice();
+    var yFillUpper = yTable22561b.slice();
+
+    // Eq. (22.5.7.1): Vc = 0.17*(1 + Nu/(3.5*Ag))*lambda*sqrt(f'c)*bw*d
+    // Normalized: 0.17*(1 + x/3.5), for tension (x <= 0)
+    // At x = -3.5/0.17? No: goes to zero at x where (1 + x/3.5) = 0 => x = -3.5
+    var xTens = [], yEq22571 = [];
+    for (var x = -4; x <= 0.05; x += 0.05) {
+        xTens.push(x);
+        yEq22571.push(Math.max(0.17 * (1 + x / 3.5), 0));
     }
 
     // Design point
-    var nuAg_pt = p.nu * 1000 / ag; // Nu in N, Ag in mm^2 -> MPa
+    var nuAg_pt = p.nu * 1000 / ag;
     var vcNorm_pt = r.vc * 1000 / (sqrtFc * bw * d);
 
     var traces = [
-        { x: nuAgArr, y: vcCompArr, mode: 'lines', name: 'Eq. (22.5.6.1)',
-          line: { color: '#16a34a', width: 2 } },
-        { x: nuAgArr, y: vcUpperArr, mode: 'lines', name: 'Table 22.5.6.1(b)',
-          line: { color: '#1e40af', width: 2, dash: 'dash' } },
-        { x: nuAgArr, y: vcTensArr, mode: 'lines', name: 'Eq. (22.5.7.1)',
-          line: { color: '#374151', width: 2, dash: 'dashdot' } },
-        { x: [nuAg_pt], y: [vcNorm_pt], mode: 'markers+text', name: 'Design Point',
-          marker: { size: 14, color: '#dc2626', symbol: 'diamond', line: { width: 2, color: '#fff' } },
-          text: ['(' + v(nuAg_pt, 2) + ', ' + v(vcNorm_pt, 3) + ')'],
-          textposition: 'top right', textfont: { size: 10, color: '#dc2626' } },
+        // Shaded fill: lower bound (Eq. 22.5.6.1) as base
+        { x: xFill, y: yFillLower, mode: 'lines', name: 'Eq. (22.5.6.1)',
+          line: { color: '#16a34a', width: 2.5 },
+          showlegend: true },
+        // Shaded fill: upper bound with fill to lower
+        { x: xFill, y: yFillUpper, mode: 'lines', name: 'Table 22.5.6.1(b)',
+          line: { color: '#1e3a8a', width: 2.5, dash: 'dash' },
+          fill: 'tonexty', fillcolor: 'rgba(200,200,200,0.35)',
+          showlegend: true },
+        // Tension line: Eq. (22.5.7.1)
+        { x: xTens, y: yEq22571, mode: 'lines', name: 'Eq. (22.5.7.1)',
+          line: { color: '#374151', width: 2.5, dash: 'dash' },
+          showlegend: true },
+        // Design point
+        { x: [nuAg_pt], y: [vcNorm_pt], mode: 'markers', name: 'Design Point',
+          marker: { size: 14, color: '#dc2626', symbol: 'diamond',
+                    line: { width: 2, color: '#fff' } },
+          showlegend: true },
     ];
 
     Plotly.newPlot('chart-vc-nu', traces, {
-        title: { text: 'V<sub>c</sub> vs Axial Load (ACI 318M-14 Fig. R22.5.6.1)', font: { size: 13 } },
-        xaxis: { title: 'N<sub>u</sub>/A<sub>g</sub> (MPa)', gridcolor: '#e5e7eb',
-                 zeroline: true, zerolinecolor: '#9ca3af', zerolinewidth: 1.5 },
-        yaxis: { title: 'V<sub>c</sub> / (\u221af\'c \u00b7 b<sub>w</sub> \u00b7 d)', gridcolor: '#e5e7eb',
-                 rangemode: 'tozero' },
-        legend: { x: 0, y: 1, font: { size: 9 }, bgcolor: 'rgba(255,255,255,0.9)',
+        title: { text: 'ACI 318M-14 Fig. R22.5.6.1', font: { size: 13 } },
+        xaxis: {
+            title: { text: 'N<sub>u</sub>/A<sub>g</sub>, MPa', font: { size: 12 } },
+            range: [8.5, -4.5], // reversed: compression left, tension right
+            dtick: 1, gridcolor: '#d1d5db', gridwidth: 1,
+            zeroline: true, zerolinecolor: '#374151', zerolinewidth: 2,
+            tickfont: { size: 10 },
+        },
+        yaxis: {
+            title: { text: 'V<sub>c</sub> / (\u221af\'<sub>c</sub> \u00b7 b<sub>w</sub> \u00b7 d)', font: { size: 12 } },
+            range: [0, 0.55], dtick: 0.1, gridcolor: '#d1d5db', gridwidth: 1,
+            tickfont: { size: 10 },
+        },
+        legend: { x: 0.02, y: 0.98, font: { size: 9 }, bgcolor: 'rgba(255,255,255,0.9)',
                   bordercolor: '#d1d5db', borderwidth: 1 },
-        height: 350, margin: { t: 45, r: 10, b: 50, l: 65 },
+        height: 380, margin: { t: 40, r: 15, b: 55, l: 70 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'closest',
         annotations: [
-            { x: 4, y: 0.15, text: 'Compression', showarrow: false,
-              font: { size: 10, color: '#6b7280' } },
-            { x: -2, y: 0.15, text: 'Tension', showarrow: false,
-              font: { size: 10, color: '#6b7280' } },
+            { x: 5, y: 0.5, text: '<b>Compression</b>', showarrow: false,
+              font: { size: 11, color: '#374151' } },
+            { x: -2.5, y: 0.5, text: '<b>Tension</b>', showarrow: false,
+              font: { size: 11, color: '#374151' } },
+            { x: nuAg_pt, y: vcNorm_pt, text: '  (' + v(nuAg_pt, 2) + ', ' + v(vcNorm_pt, 3) + ')',
+              showarrow: true, arrowhead: 0, ax: 40, ay: -30,
+              font: { size: 10, color: '#dc2626', weight: 700 } },
+            { x: 2, y: 0.28, text: 'Shaded area shows approx.<br>range of values from<br>Table 22.5.6.1(a)',
+              showarrow: false, font: { size: 8, color: '#6b7280' }, align: 'left' },
         ],
     }, { responsive: true, displaylogo: false });
 }
