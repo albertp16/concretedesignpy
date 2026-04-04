@@ -1,1 +1,0 @@
-from .fiber import generateFIBERMGT

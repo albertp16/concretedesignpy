@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name='concretedesignpy',
-    version='0.3',
+    version='0.4.0',
     description='Open-source reinforced concrete design library with web interface (ACI 318-19, NSCP 2015, ACI 440R-17)',
     long_description=open('README.md', encoding='utf-8').read(),
     long_description_content_type='text/markdown',
     author='Albert Pamonag',
     author_email='albert@apeconsultancy.net',
-    url='https://github.com/albertp16/apec-py',
+    url='https://github.com/albertp16/concretedesignpy',
     license='MIT',
     packages=find_packages(),
     include_package_data=True,

@@ -1,5 +1,11 @@
 # ConcreteDesignPy
 
+[![PyPI version](https://img.shields.io/pypi/v/concretedesignpy)](https://pypi.org/project/concretedesignpy/)
+[![Python](https://img.shields.io/pypi/pyversions/concretedesignpy)](https://pypi.org/project/concretedesignpy/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/albertp16/concretedesignpy)](https://github.com/albertp16/concretedesignpy/releases)
+[![GitHub issues](https://img.shields.io/github/issues/albertp16/concretedesignpy)](https://github.com/albertp16/concretedesignpy/issues)
+
 A Python library and web application for reinforced concrete structural design per **NSCP 2015** and **ACI 318-19**.
 
 > **Disclaimer:** This is an internal tool for Albert Pamonag Engineering Consultancy (APEC). All results must be verified by a licensed professional engineer. The developers assume no liability for errors or misuse.
@@ -86,21 +92,7 @@ concretedesignpy/
 
 ## API Endpoints
 
-| Endpoint | Description |
-|---|---|
-| `POST /api/beam/moment` | Beam moment capacity |
-| `POST /api/beam/shear` | Shear strength or spacing |
-| `POST /api/beam/shear-design` | Beam shear design (ACI 318M-14) |
-| `POST /api/beam/torsion` | Torsion design |
-| `POST /api/beam/deflection` | Deflection check |
-| `POST /api/column/interaction` | P-M interaction diagram |
-| `POST /api/column/flexural` | Min flexural strength |
-| `POST /api/joint/shear` | Joint shear verification |
-| `POST /api/mander/confined` | Mander confined concrete |
-| `POST /api/section/development-length` | Hook geometry |
-| `POST /api/section/moment-curvature` | M-phi analysis (6-point) |
-| `POST /api/section/moment-curvature-advanced` | M-phi analysis (Hognestad incremental) |
-| `POST /api/section/alternative-inertia` | Alternative Ie |
+See the [Wiki — API Reference](https://github.com/albertp16/concretedesignpy/wiki/API-Reference) for the full list of 17 POST endpoints.
 
 ## Code Standards & References
 
