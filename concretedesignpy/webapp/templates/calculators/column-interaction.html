@@ -189,29 +189,33 @@ var hotContainer = document.getElementById('load-combo-table');
 var hot = null;
 
 function rebuildHot(mode) {
-    if (hot) hot.destroy();
+    // Save current data before destroying
+    if (hot) {
+        try {
+            var currentData = hot.getData();
+            if (analysisMode === 'biaxial' && mode === 'uniaxial') biaxialData = currentData;
+            else if (analysisMode === 'uniaxial' && mode === 'biaxial') uniaxialData = currentData;
+        } catch(e) {}
+        try { hot.destroy(); } catch(e) {}
+        hot = null;
+        // Clear container to prevent stale DOM
+        hotContainer.innerHTML = '';
+    }
     var data, colHeaders, columns;
     if (mode === 'biaxial') {
-        data = biaxialData;
+        data = JSON.parse(JSON.stringify(biaxialData));
         colHeaders = ['', 'Load Combination', 'P<sub>u</sub> (kN)', 'M<sub>ux</sub> (kN-m)', 'M<sub>uy</sub> (kN-m)'];
-        columns = [
-            { type: 'numeric', readOnly: true, width: 30 },
-            { type: 'text', width: 140 },
-            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-        ];
     } else {
-        data = uniaxialData;
+        data = JSON.parse(JSON.stringify(uniaxialData));
         colHeaders = ['', 'Load Combination', 'P<sub>u</sub> (kN)', 'V<sub>u</sub> (kN)', 'M<sub>u</sub> (kN-m)'];
-        columns = [
-            { type: 'numeric', readOnly: true, width: 30 },
-            { type: 'text', width: 150 },
-            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-        ];
     }
+    columns = [
+        { type: 'numeric', readOnly: true, width: 30 },
+        { type: 'text', width: 140 },
+        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+    ];
     hot = new Handsontable(hotContainer, {
         data: data, colHeaders: colHeaders, columns: columns,
         rowHeaders: false, minRows: 5, minSpareRows: 1,
@@ -224,12 +228,15 @@ function rebuildHot(mode) {
 rebuildHot('uniaxial');
 
 function renumberLoadCombos() {
-    if (!hot) return;
-    var data = hot.getData();
-    for (var i = 0; i < data.length; i++) hot.setDataAtCell(i, 0, i + 1, 'renumber');
+    if (!hot || hot.isDestroyed) return;
+    try {
+        var data = hot.getData();
+        for (var i = 0; i < data.length; i++) hot.setDataAtCell(i, 0, i + 1, 'renumber');
+    } catch(e) {}
 }
 
 function getLoadCombos() {
+    if (!hot || hot.isDestroyed) return [];
     var combos = [], data = hot.getData();
     for (var i = 0; i < data.length; i++) {
         var pu = data[i][2];
