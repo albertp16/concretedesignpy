@@ -9,6 +9,12 @@ from concretedesignpy.calculators.column_interaction import (
     generate_interaction_diagram,
     check_capacity,
 )
+from concretedesignpy.calculators.column_biaxial import (
+    generate_biaxial_diagram,
+    check_biaxial_capacity,
+    extract_contour_at_pu,
+    _generate_bar_coords_2d,
+)
 from concretedesignpy.calculators.column_flexural import (
     check_min_flexural_strength,
 )
@@ -106,6 +112,78 @@ def interaction_diagram():
         # (keep only the balanced point detail sent separately)
         for pt in result["points"]:
             pt.pop("steel_forces", None)
+
+        return jsonify({"status": "success", "result": result})
+    except (KeyError, ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@column_bp.route("/biaxial", methods=["POST"])
+def biaxial_diagram():
+    """Generate P-M-M biaxial interaction surface."""
+    data = request.get_json()
+    try:
+        b = float(data["b"])
+        h = float(data["h"])
+        fc = float(data["fc"])
+        fy = float(data["fy"])
+        d_bar = float(data.get("d_bar", 25))
+        cover = float(data.get("cover", 40))
+        confinement = data.get("confinement", "tied")
+        tie = 10 if d_bar <= 32 else 12
+
+        nx = int(data.get("nx", 4))
+        ny = int(data.get("ny", 4))
+
+        bar_coords_2d = _generate_bar_coords_2d(
+            b, h, cover, tie, d_bar, nx, ny,
+        )
+        import math
+        a_bar = math.pi * d_bar ** 2 / 4.0
+        bar_areas = [a_bar] * len(bar_coords_2d)
+
+        result = generate_biaxial_diagram(
+            fc=fc, fy=fy, b=b, h=h,
+            bar_coords_2d=bar_coords_2d,
+            bar_areas=bar_areas,
+            cover=cover,
+            confinement=confinement,
+            n_angles=int(data.get("n_angles", 24)),
+            n_c_values=int(data.get("n_c_values", 32)),
+            nx_fibers=int(data.get("nx_fibers", 20)),
+            ny_fibers=int(data.get("ny_fibers", 20)),
+        )
+
+        # Load combination checks
+        load_combos = data.get("load_combos")
+        if load_combos and len(load_combos) > 0:
+            combo_checks = []
+            for lc in load_combos:
+                pu = float(lc["pu"])
+                mux = float(lc.get("mux", 0))
+                muy = float(lc.get("muy", 0))
+                cap = check_biaxial_capacity(result, pu, mux, muy)
+                combo_checks.append({
+                    "name": lc.get("name", ""),
+                    "pu": pu, "mux": mux, "muy": muy,
+                    **cap,
+                })
+            result["load_combo_checks"] = combo_checks
+
+        # Contour extraction
+        contour_pu = data.get("contour_pu")
+        if contour_pu is not None:
+            contour = extract_contour_at_pu(result, float(contour_pu))
+            result["contour"] = contour
+            result["contour_pu"] = float(contour_pu)
+
+        # SVG rebar layout
+        if nx > 0 and ny > 0:
+            layout = section_generate_rect(
+                width=b, height=h, cover=cover,
+                ds=tie, db=d_bar, nx=nx, ny=ny,
+            )
+            result["svg_rebar"] = svg_rebar_section(layout, b, h)
 
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
