@@ -176,6 +176,7 @@
     <div class="mc-charts" style="display:none;" id="charts-row">
         <div id="chart-section" style="width:100%;"></div>
         <div id="chart-strain-stress" style="width:100%;"></div>
+        <div id="chart-steel" style="width:100%;"></div>
     </div>
 
     <div id="results-report" style="display:none; margin-top:1.5rem;"></div>
@@ -364,6 +365,7 @@ function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, con
 
     // Concrete model stress-strain chart
     renderConcreteModelChart(concreteModelParams, hog);
+    renderSteelChart(payload);
 
     document.getElementById('charts-row').style.display = '';
 
@@ -497,25 +499,103 @@ function renderConcreteModelChart(modelParams, hogFallback) {
             textposition: ['top center', 'top center'],
             textfont: { size: 9, color: '#1e40af' },
         });
+        // Add unconfined parabolic (same as Hognestad but labeled for clarity)
+        traces[0].name = 'Hognestad (Unconfined)';
     }
 
     var layout = {
-        title: { text: isMander ? 'Mander Confined vs Unconfined Concrete' : 'Hognestad Concrete Stress-Strain Model', font: { size: 14 } },
+        title: { text: isMander ? 'Mander Confined vs Unconfined Concrete' : 'Concrete Stress-Strain Model (Unconfined)', font: { size: 14 } },
         xaxis: { title: 'Strain, \u03b5c', rangemode: 'tozero', gridcolor: '#e5e7eb' },
         yaxis: { title: 'Stress (MPa)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
         height: 450,
         margin: { t: 40, r: 20, b: 60, l: 60 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
-        showlegend: isMander,
+        showlegend: true,
         legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 10 } },
     };
     Plotly.newPlot('chart-strain-stress', traces, layout, { responsive: true, displayModeBar: false });
+}
+
+// ── Steel Stress-Strain Chart ──
+function renderSteelChart(payload) {
+    var fy = payload.fy || 415;
+    var es = payload.es || 200000;
+    var ey = fy / es;
+    var emax = 0.05; // 5% strain for display
+
+    // Elastic-perfectly-plastic steel model
+    var strains = [], stresses = [];
+    // Tension side (negative strain = tension, but plot as positive for clarity)
+    var nPts = 100;
+    for (var i = 0; i <= nPts; i++) {
+        var e = -emax + i * (2 * emax) / nPts;
+        strains.push(e);
+        var s = e * es;
+        if (s > fy) s = fy;
+        if (s < -fy) s = -fy;
+        stresses.push(s);
+    }
+
+    var traces = [{
+        x: strains, y: stresses, mode: 'lines',
+        name: 'Steel (Elastic-Perfectly-Plastic)',
+        line: { color: '#1e40af', width: 2.5 },
+    }];
+
+    // Mark yield points
+    traces.push({
+        x: [ey, -ey], y: [fy, -fy],
+        mode: 'markers+text', showlegend: false,
+        marker: { size: 10, color: '#dc2626', symbol: 'diamond' },
+        text: ['\u03b5y=' + ey.toFixed(5), '-\u03b5y'],
+        textposition: ['top right', 'bottom left'],
+        textfont: { size: 9, color: '#dc2626' },
+    });
+
+    // Yield plateau lines
+    traces.push({
+        x: [ey, emax], y: [fy, fy], mode: 'lines', showlegend: false,
+        line: { color: '#1e40af', width: 1, dash: 'dot' },
+    });
+    traces.push({
+        x: [-ey, -emax], y: [-fy, -fy], mode: 'lines', showlegend: false,
+        line: { color: '#1e40af', width: 1, dash: 'dot' },
+    });
+
+    Plotly.newPlot('chart-steel', traces, {
+        title: { text: 'Steel Stress-Strain Model (fy=' + fy + ' MPa, Es=' + (es/1000) + ' GPa)', font: { size: 14 } },
+        xaxis: { title: 'Strain, \u03b5s', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
+        yaxis: { title: 'Stress, fs (MPa)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
+        height: 450,
+        margin: { t: 40, r: 20, b: 60, l: 60 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        showlegend: true,
+        legend: { x: 1, xanchor: 'right', y: 0.05, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 10 } },
+    }, { responsive: true, displayModeBar: false });
 }
 
 function renderAdvancedReport(payload, sp, pts, advPts, hog, events, ductility, concreteModelParams) {
     var h = '';
     var isMander = concreteModelParams && concreteModelParams.model === 'mander';
     var modelLabel = isMander ? 'Mander Confined' : 'Hognestad Parabolic';
+
+    // Theory section
+    h += '<div class="report-section">';
+    h += '<h4>Theory &mdash; Moment-Curvature Relationship</h4>';
+    h += '<p class="report-ref">Anwar &amp; Najam (2017), Ch. 6; Hognestad (1951); Mander et al. (1988)</p>';
+    h += '<p style="font-size:.85rem;margin-top:.5rem;">The moment-curvature (M-&phi;) curve characterizes the cross-section\'s flexural response through the full range of loading from elastic to ultimate. It provides cracking moment, yield moment, ultimate capacity, ductility ratio, and effective stiffness at any load level.</p>';
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>Curvature Definition</b> (Eq. 6.4):</p>';
+    h += '<div class="report-eq">\\[ \\varphi = \\frac{\\varepsilon_c}{kd} = \\frac{\\varepsilon_s}{d(1-k)} = \\frac{\\varepsilon_c + \\varepsilon_s}{d} \\]</div>';
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>Procedure:</b> The extreme compression fiber strain &epsilon;<sub>c,top</sub> is incremented from 0 to &epsilon;<sub>cu</sub>. At each step, the neutral axis depth <i>c</i> is found by binary search to satisfy axial force equilibrium. The concrete fibers contribute compressive force based on the selected stress-strain model, and steel layers contribute force based on the elastic-perfectly-plastic model.</p>';
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>Concrete Models:</b></p>';
+    h += '<ul style="font-size:.82rem;color:var(--gray-600);margin:.25rem 0 0 1.25rem;">';
+    h += '<li><b>Hognestad (1951):</b> Parabolic ascending f<sub>c</sub> = f\'<sub>c</sub>[2(&epsilon;/&epsilon;<sub>co</sub>) - (&epsilon;/&epsilon;<sub>co</sub>)&sup2;] + linear descending to 0.85f\'<sub>c</sub> at &epsilon;<sub>cu</sub> = 0.003</li>';
+    h += '<li><b>Mander et al. (1988):</b> f<sub>c</sub> = f\'<sub>cc</sub>&middot;x&middot;r / (r-1+x<sup>r</sup>) where x = &epsilon;/&epsilon;<sub>cc</sub>, confinement increases both strength and ultimate strain</li>';
+    h += '</ul>';
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>Steel Model:</b> Elastic-perfectly-plastic: f<sub>s</sub> = min(E<sub>s</sub>&middot;&epsilon;<sub>s</sub>, f<sub>y</sub>)</p>';
+    h += '<p style="font-size:.85rem;margin-top:.5rem;"><b>Key Outputs</b> (Eqs. 6.5&ndash;6.7):</p>';
+    h += '<div class="report-eq">\\[ EI_{eff} = \\frac{M}{\\varphi} \\quad;\\quad \\mu = \\frac{\\varphi_u}{\\varphi_y} \\quad;\\quad \\theta = \\varphi \\times L_p \\]</div>';
+    h += '</div>';
 
     // Concrete model section
     h += '<div class="report-section">';
@@ -679,10 +759,11 @@ function renderMThetaResults(payload, mphi, mtheta) {
     var sp = mphi.section_properties || {};
     renderSectionChart(payload, sp);
 
-    // Concrete model chart
+    // Concrete model chart + steel chart
     var modelParams = mphi.concrete_model_params || {};
     var hogFallback = mphi.hognestad_params || {};
     renderConcreteModelChart(modelParams, hogFallback);
+    renderSteelChart(payload);
     document.getElementById('charts-row').style.display = '';
 
     // Report
