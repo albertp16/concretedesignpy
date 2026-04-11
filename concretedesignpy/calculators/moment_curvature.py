@@ -470,6 +470,24 @@ def moment_curvature_advanced(
                 stress_i = _hognestad_stress(strain_i, fc, eco, ecu)
             fiber_strains.append(round(strain_i, 8))
             fiber_stresses.append(round(stress_i, 4))
+        # Rebar strains/stresses at ultimate
+        rebar_data = []
+        # Tension steel
+        strain_t = ec_ult * (c_ult - d) / c_ult if c_ult > 0 else 0
+        stress_t = _steel_stress(-strain_t, fy, es)
+        rebar_data.append({
+            "y": round(h - d, 1), "strain": round(-strain_t, 8),
+            "stress": round(stress_t, 2), "label": "Tension",
+        })
+        # Compression steel
+        if as_compression > 0 and d_prime > 0:
+            strain_c = ec_ult * (c_ult - d_prime) / c_ult if c_ult > 0 else 0
+            stress_c = _steel_stress(strain_c, fy, es)
+            rebar_data.append({
+                "y": round(h - d_prime, 1), "strain": round(strain_c, 8),
+                "stress": round(stress_c, 2), "label": "Compression",
+            })
+
         fiber_plot = {
             "y": [round(fy_i, 1) for fy_i in fiber_y],
             "strains": fiber_strains,
@@ -478,6 +496,7 @@ def moment_curvature_advanced(
             "ec_top": ec_ult,
             "n_fibers": n_fibers,
             "fiber_h": round(fiber_h, 2),
+            "rebars": rebar_data,
         }
 
     # ── Stress-strain curve data for plotting ──

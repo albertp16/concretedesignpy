@@ -170,12 +170,26 @@ def biaxial_diagram():
                 })
             result["load_combo_checks"] = combo_checks
 
-        # Contour extraction
+        # Contour extraction — multiple Pu levels
         contour_pu = data.get("contour_pu")
-        if contour_pu is not None:
-            contour = extract_contour_at_pu(result, float(contour_pu))
-            result["contour"] = contour
-            result["contour_pu"] = float(contour_pu)
+        phi_pn_max = result.get("phi_pn_max_kn", 0)
+        n_contours = int(data.get("n_contours", 7))
+        contours = []
+        if contour_pu is not None and phi_pn_max > 0:
+            # Generate evenly spaced Pu levels from 0 to near phi_pn_max
+            import numpy as _np
+            pu_levels = _np.linspace(0, phi_pn_max * 0.9, n_contours).tolist()
+            # Also include the user-specified level
+            user_pu = float(contour_pu)
+            if user_pu not in pu_levels:
+                pu_levels.append(user_pu)
+                pu_levels.sort()
+            for pu_lev in pu_levels:
+                c = extract_contour_at_pu(result, pu_lev)
+                if len(c) > 2:
+                    contours.append({"pu_level": round(pu_lev, 1), "points": c})
+            result["contours"] = contours
+            result["contour_pu"] = user_pu
 
         # SVG rebar layout
         if nx > 0 and ny > 0:

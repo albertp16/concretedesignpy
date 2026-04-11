@@ -608,7 +608,7 @@ function renderFiberChart(fiberData, payload) {
 
     var traces = [{
         z: zStress, y: fiberData.y, x: xVals,
-        type: 'heatmap', xgap: 1, ygap: 1,
+        type: 'heatmap', xgap: 2, ygap: 2,
         colorscale: [[0, '#eff6ff'], [0.3, '#93c5fd'], [0.6, '#3b82f6'], [0.8, '#1e40af'], [1, '#1e3a8a']],
         colorbar: { title: 'MPa', thickness: 12, len: 0.8 },
         xaxis: 'x', yaxis: 'y',
@@ -617,12 +617,44 @@ function renderFiberChart(fiberData, payload) {
 
     traces.push({
         z: zStrain, y: fiberData.y, x: xVals,
-        type: 'heatmap', xgap: 1, ygap: 1,
+        type: 'heatmap', xgap: 2, ygap: 2,
         colorscale: [[0, '#fef3c7'], [0.3, '#fbbf24'], [0.5, '#f59e0b'], [0.7, '#d97706'], [1, '#92400e']],
         colorbar: { title: '\u03b5', thickness: 12, len: 0.8, x: 1.1 },
         xaxis: 'x2', yaxis: 'y',
         hovertemplate: 'x=%{x}mm, y=%{y:.0f}mm<br>Strain=%{z:.6f}<extra></extra>',
     });
+
+    // Rebar markers on strain plot
+    var rebars = fiberData.rebars || [];
+    if (rebars.length > 0) {
+        var cover = h - payload.d;
+        var nTenBars = parseInt(document.getElementById('n_tension').value) || 4;
+        var nCompBars = parseInt(document.getElementById('n_comp').value) || 0;
+        for (var ri = 0; ri < rebars.length; ri++) {
+            var rb = rebars[ri];
+            var nRb = rb.label === 'Tension' ? nTenBars : Math.max(nCompBars, 2);
+            var rbSpacing = (b - 2 * cover) / Math.max(nRb - 1, 1);
+            var rbX = [], rbY = [], rbText = [];
+            for (var rbi = 0; rbi < nRb; rbi++) {
+                rbX.push(cover + rbi * rbSpacing);
+                rbY.push(rb.y);
+                rbText.push(rb.label + ': \u03b5=' + rb.strain.toFixed(5) + ', fs=' + rb.stress.toFixed(0) + ' MPa');
+            }
+            var rbColor = rb.label === 'Tension' ? '#1e40af' : '#dc2626';
+            // On stress plot
+            traces.push({
+                x: rbX, y: rbY, mode: 'markers', xaxis: 'x', yaxis: 'y', showlegend: false,
+                marker: { size: 10, color: rbColor, symbol: 'circle', line: { width: 1.5, color: '#fff' } },
+                hovertemplate: rbText[0] + '<extra></extra>',
+            });
+            // On strain plot
+            traces.push({
+                x: rbX, y: rbY, mode: 'markers', xaxis: 'x2', yaxis: 'y', showlegend: false,
+                marker: { size: 10, color: rbColor, symbol: 'circle', line: { width: 1.5, color: '#fff' } },
+                hovertemplate: rbText[0] + '<extra></extra>',
+            });
+        }
+    }
 
     // NA line
     var naY = h - c;
@@ -637,7 +669,7 @@ function renderFiberChart(fiberData, payload) {
         xaxis: { title: 'Width (mm)', domain: [0, 0.42], range: [0, b] },
         xaxis2: { title: 'Width (mm)', domain: [0.55, 0.97], range: [0, b] },
         height: 500, margin: { t: 40, r: 80, b: 50, l: 70 },
-        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        plot_bgcolor: '#000', paper_bgcolor: '#fff',
         shapes: shapes,
         annotations: [
             { x: 0.21, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Concrete Stress</b>', showarrow: false, font: { size: 11 } },

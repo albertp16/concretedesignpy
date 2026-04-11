@@ -433,15 +433,31 @@ function render3DChart(pts, combos) {
 }
 
 // ── Mx-My Contour Chart ──
-function renderContourChart(contour, combos, puLevel) {
-    var cx = [], cy = [];
-    for (var i = 0; i < contour.length; i++) { cx.push(contour[i].mux); cy.push(contour[i].muy); }
-    var traces = [{
-        x: cx, y: cy, mode: 'lines', name: 'Capacity at Pu=' + puLevel + ' kN',
-        line: { color: '#1e40af', width: 2.5 }, fill: 'toself', fillcolor: 'rgba(30,64,175,0.06)',
-    }];
+function renderContourChart(contours, combos, puLevel) {
+    var traces = [];
+    // Color gradient from light (low Pu) to dark (high Pu)
+    var cScale = ['#bfdbfe','#93c5fd','#60a5fa','#3b82f6','#2563eb','#1e40af','#1e3a5f','#172554','#0f172a','#030712'];
+
+    if (contours && contours.length > 0) {
+        for (var ci = 0; ci < contours.length; ci++) {
+            var ctr = contours[ci];
+            var cx = [], cy = [];
+            for (var i = 0; i < ctr.points.length; i++) { cx.push(ctr.points[i].mux); cy.push(ctr.points[i].muy); }
+            var clr = cScale[Math.min(ci, cScale.length - 1)];
+            var isUserLevel = Math.abs(ctr.pu_level - puLevel) < 1;
+            traces.push({
+                x: cx, y: cy, mode: 'lines',
+                name: 'Pu=' + ctr.pu_level + ' kN',
+                line: { color: clr, width: isUserLevel ? 3 : 1.5 },
+                fill: ci === 0 ? 'toself' : 'none',
+                fillcolor: ci === 0 ? 'rgba(191,219,254,0.08)' : undefined,
+            });
+        }
+    }
+
+    // Load combo markers
     if (combos && combos.length > 0) {
-        var lcColors = ['#dc2626','#2563eb','#16a34a','#f59e0b'];
+        var lcColors = ['#dc2626','#f97316','#16a34a','#f59e0b'];
         for (var j = 0; j < combos.length; j++) {
             var lc = combos[j];
             traces.push({
@@ -452,12 +468,12 @@ function renderContourChart(contour, combos, puLevel) {
         }
     }
     Plotly.newPlot('chart-contour', traces, {
-        title: { text: 'Mx-My Contour at Pu = ' + puLevel + ' kN', font: { size: 14 } },
+        title: { text: 'Mx-My Interaction Contours at Multiple Pu Levels', font: { size: 14 } },
         xaxis: { title: 'Mux (kN-m)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb', scaleanchor: 'y' },
         yaxis: { title: 'Muy (kN-m)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
-        height: 450, margin: { t: 40, r: 20, b: 60, l: 70 },
+        height: 500, margin: { t: 40, r: 20, b: 60, l: 70 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff', showlegend: true,
-        legend: { x: 1, xanchor: 'right', y: 0.05, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 10 } },
+        legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 9 } },
     }, { responsive: true, displayModeBar: false });
 }
 
@@ -490,7 +506,7 @@ function renderFiberPlotCol(fp) {
 
     var traces = [{
         z: zStress, x: xVals, y: yVals,
-        type: 'heatmap', xgap: 1, ygap: 1,
+        type: 'heatmap', xgap: 2, ygap: 2,
         colorscale: [[0, '#f0f9ff'], [0.3, '#7dd3fc'], [0.5, '#0ea5e9'], [0.7, '#0369a1'], [1, '#0c4a6e']],
         colorbar: { title: 'MPa', thickness: 12, len: 0.8 },
         hovertemplate: 'x=%{x:.0f}, y=%{y:.0f}<br>Stress=%{z:.2f} MPa<extra></extra>',
@@ -578,7 +594,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
 
         submitCalc('/api/column/biaxial', payload, function(result) {
             var combosCheck = result.load_combo_checks || [];
-            var contour = result.contour || [];
+            var contours = result.contours || [];
 
             // Summary
             var s = '<div style="background:#dcfce7;padding:.6rem 1rem;border-radius:4px;font-weight:700;margin-bottom:.5rem;">';
@@ -595,10 +611,10 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             document.getElementById('results-title').textContent = 'P-M-M Interaction Surface';
             render3DChart(result.surface_points, combosCheck);
 
-            // Contour
-            if (contour.length > 0) {
+            // Multi-contour chart
+            if (contours.length > 0) {
                 document.getElementById('charts-row-biaxial').style.display = '';
-                renderContourChart(contour, combosCheck, payload.contour_pu);
+                renderContourChart(contours, combosCheck, payload.contour_pu);
             }
 
             // SVG rebar
