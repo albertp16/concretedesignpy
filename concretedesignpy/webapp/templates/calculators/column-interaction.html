@@ -152,7 +152,10 @@
     </div>
 
     <div id="charts-row-biaxial" style="display:none;margin-top:1rem;">
-        <div id="chart-contour" style="width:100%;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div id="chart-contour" style="width:100%;"></div>
+            <div id="chart-fiber-col" style="width:100%;"></div>
+        </div>
     </div>
 
     <!-- Full-width report below -->
@@ -459,6 +462,73 @@ function renderContourChart(contour, combos, puLevel) {
 }
 
 // ── Biaxial Report ──
+// ── 2D Fiber Heatmap for Column ──
+function renderFiberPlotCol(fp) {
+    if (!fp || !fp.stresses) return;
+    var nx = fp.nx, ny = fp.ny;
+    // Reshape 1D arrays into 2D grids for heatmap
+    var zStress = [], zStrain = [];
+    var xVals = [], yVals = [];
+    // Get unique sorted x and y values
+    var xSet = {}, ySet = {};
+    for (var i = 0; i < fp.fiber_x.length; i++) { xSet[fp.fiber_x[i]] = 1; ySet[fp.fiber_y[i]] = 1; }
+    xVals = Object.keys(xSet).map(Number).sort(function(a,b){return a-b;});
+    yVals = Object.keys(ySet).map(Number).sort(function(a,b){return a-b;});
+
+    // Build 2D grid (y rows, x cols)
+    for (var yi = 0; yi < yVals.length; yi++) {
+        var rowS = [], rowE = [];
+        for (var xi = 0; xi < xVals.length; xi++) {
+            // Find fiber at this (x, y)
+            var idx = yi * nx + xi;
+            rowS.push(idx < fp.stresses.length ? fp.stresses[idx] : 0);
+            rowE.push(idx < fp.strains.length ? fp.strains[idx] : 0);
+        }
+        zStress.push(rowS);
+        zStrain.push(rowE);
+    }
+
+    var traces = [{
+        z: zStress, x: xVals, y: yVals,
+        type: 'heatmap',
+        colorscale: [[0, '#f0f9ff'], [0.3, '#7dd3fc'], [0.5, '#0ea5e9'], [0.7, '#0369a1'], [1, '#0c4a6e']],
+        colorbar: { title: 'MPa', thickness: 12, len: 0.8 },
+        hovertemplate: 'x=%{x:.0f}, y=%{y:.0f}<br>Stress=%{z:.2f} MPa<extra></extra>',
+    }];
+
+    // Overlay bar positions
+    if (fp.bar_x && fp.bar_y) {
+        var barColors = fp.bar_stresses.map(function(s) { return s >= 0 ? '#dc2626' : '#1e40af'; });
+        traces.push({
+            x: fp.bar_x, y: fp.bar_y, mode: 'markers',
+            marker: { size: 10, color: barColors, symbol: 'circle', line: { width: 1.5, color: '#fff' } },
+            hovertemplate: 'Bar: x=%{x:.0f}, y=%{y:.0f}<br>fs=%{text} MPa<extra></extra>',
+            text: fp.bar_stresses.map(function(s) { return s.toFixed(1); }),
+            showlegend: false,
+        });
+    }
+
+    // NA line at theta=0 (horizontal at y = h/2 - c + h/2... need to compute)
+    // For theta=0, NA is horizontal. c is from compression face (top = max y)
+    var maxY = Math.max.apply(null, yVals) + fp.dy / 2;
+    var naY = maxY - fp.c;
+
+    traces.push({
+        x: [xVals[0] - fp.dx, xVals[xVals.length - 1] + fp.dx], y: [naY, naY],
+        mode: 'lines', line: { color: '#dc2626', width: 2, dash: 'dash' },
+        showlegend: false, hoverinfo: 'skip',
+    });
+
+    Plotly.newPlot('chart-fiber-col', traces, {
+        title: { text: 'Fiber Stress Distribution (\u03b8=0\u00b0, c=' + fp.c + ' mm)', font: { size: 14 } },
+        xaxis: { title: 'x (mm)', gridcolor: '#e5e7eb', scaleanchor: 'y' },
+        yaxis: { title: 'y (mm)', gridcolor: '#e5e7eb' },
+        height: 450, margin: { t: 40, r: 60, b: 50, l: 60 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        annotations: [{ x: xVals[xVals.length-1] + fp.dx + 5, y: naY, text: 'NA', showarrow: false, font: { size: 9, color: '#dc2626' } }],
+    }, { responsive: true, displayModeBar: false });
+}
+
 function renderBiaxialReport(result, payload, combosCheck) {
     var info = result.section_info || {};
     var h = '';
@@ -534,6 +604,9 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             // SVG rebar
             document.getElementById('svg-rebar').innerHTML = result.svg_rebar || '';
             document.getElementById('results').style.display = '';
+
+            // Fiber plot
+            if (result.fiber_plot) renderFiberPlotCol(result.fiber_plot);
 
             renderBiaxialReport(result, payload, combosCheck);
         });

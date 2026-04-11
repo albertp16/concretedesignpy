@@ -453,6 +453,33 @@ def moment_curvature_advanced(
             "ei_ultimate": round(ei_ultimate, 0),
         }
 
+    # ── Fiber data at ultimate for plotting ──
+    fiber_plot = None
+    if points:
+        last_pt = points[-1]
+        ec_ult = last_pt["ec_top"]
+        c_ult = last_pt["c"]
+        fiber_strains = []
+        fiber_stresses = []
+        for fy_i in fiber_y:
+            dist_from_top = h - fy_i
+            strain_i = ec_ult * (c_ult - dist_from_top) / c_ult if c_ult > 0 else 0
+            if use_mander:
+                stress_i = _mander_stress(strain_i, fcc, ecc, ecu, r_mander)
+            else:
+                stress_i = _hognestad_stress(strain_i, fc, eco, ecu)
+            fiber_strains.append(round(strain_i, 8))
+            fiber_stresses.append(round(stress_i, 4))
+        fiber_plot = {
+            "y": [round(fy_i, 1) for fy_i in fiber_y],
+            "strains": fiber_strains,
+            "stresses": fiber_stresses,
+            "c": c_ult,
+            "ec_top": ec_ult,
+            "n_fibers": n_fibers,
+            "fiber_h": round(fiber_h, 2),
+        }
+
     # ── Stress-strain curve data for plotting ──
     if use_mander:
         n_curve = 200
@@ -495,6 +522,7 @@ def moment_curvature_advanced(
         "concrete_model_params": model_params,
         "events": events,
         "ductility": ductility,
+        "fiber_plot": fiber_plot,
         "compression_steel": {
             "d_prime": d_prime,
             "as_compression": as_compression,

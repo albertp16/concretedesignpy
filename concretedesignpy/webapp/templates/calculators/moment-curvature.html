@@ -177,6 +177,7 @@
         <div id="chart-section" style="width:100%;"></div>
         <div id="chart-strain-stress" style="width:100%;"></div>
         <div id="chart-steel" style="width:100%;"></div>
+        <div id="chart-fiber" style="width:100%;"></div>
     </div>
 
     <div id="results-report" style="display:none; margin-top:1.5rem;"></div>
@@ -257,9 +258,11 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         submitCalc('/api/section/moment-rotation', payload, function(result) {
             var mtheta = result.mtheta || {};
             var mphi = result.mphi || {};
+            var fiberPlotMT = mphi.fiber_plot || null;
             document.getElementById('chart-mphi').style.display = 'none';
             document.getElementById('chart-mtheta').style.display = '';
             renderMThetaResults(payload, mphi, mtheta);
+            if (fiberPlotMT) renderFiberChart(fiberPlotMT, payload);
         });
         return;
     }
@@ -289,7 +292,8 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             var events = advResult.events || [];
             var ductility = advResult.ductility || null;
             var concreteModelParams = advResult.concrete_model_params || {};
-            renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams);
+            var fiberPlot = advResult.fiber_plot || null;
+            renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams, fiberPlot);
         }
         submitCalc('/api/section/moment-curvature', payload, function(r) { quickResult = r; quickDone = true; onBothDone(); });
         submitCalc('/api/section/moment-curvature-advanced', payload, function(r) { advResult = r; advDone = true; onBothDone(); });
@@ -332,7 +336,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     });
 });
 
-function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams) {
+function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams, fiberPlot) {
     // Ductility summary card
     var s = '';
     if (ductility) {
@@ -366,6 +370,7 @@ function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, con
     // Concrete model stress-strain chart
     renderConcreteModelChart(concreteModelParams, hog);
     renderSteelChart(payload);
+    if (fiberPlot) renderFiberChart(fiberPlot, payload);
 
     document.getElementById('charts-row').style.display = '';
 
@@ -575,6 +580,68 @@ function renderSteelChart(payload) {
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
         showlegend: true,
         legend: { x: 1, xanchor: 'right', y: 0.05, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 10 } },
+    }, { responsive: true, displayModeBar: false });
+}
+
+// ── Fiber Stress Distribution Chart (M-phi) ──
+function renderFiberChart(fiberData, payload) {
+    if (!fiberData || !fiberData.stresses) return;
+    var b = payload.b, h = payload.h;
+    var nf = fiberData.n_fibers;
+    var fh = fiberData.fiber_h;
+    var c = fiberData.c;
+
+    // Build heatmap: each fiber is a horizontal strip
+    // x = width position (single column for 1D fibers), y = depth
+    var zStress = [];
+    var zStrain = [];
+    var yLabels = [];
+    for (var i = 0; i < nf; i++) {
+        zStress.push([fiberData.stresses[i]]);
+        zStrain.push([fiberData.strains[i]]);
+        yLabels.push(fiberData.y[i].toFixed(0));
+    }
+
+    // Stress heatmap
+    var traces = [{
+        z: zStress, y: fiberData.y, x: ['Stress'],
+        type: 'heatmap',
+        colorscale: [[0, '#eff6ff'], [0.3, '#93c5fd'], [0.6, '#3b82f6'], [0.8, '#1e40af'], [1, '#1e3a8a']],
+        colorbar: { title: 'MPa', thickness: 15, len: 0.9 },
+        xaxis: 'x', yaxis: 'y',
+        hovertemplate: 'y=%{y:.0f}mm<br>Stress=%{z:.2f} MPa<extra></extra>',
+    }];
+
+    // Strain heatmap (second column)
+    traces.push({
+        z: zStrain, y: fiberData.y, x: ['Strain'],
+        type: 'heatmap',
+        colorscale: [[0, '#fef3c7'], [0.3, '#fbbf24'], [0.5, '#f59e0b'], [0.7, '#d97706'], [1, '#92400e']],
+        colorbar: { title: '\u03b5', thickness: 15, len: 0.9, x: 1.12 },
+        xaxis: 'x2', yaxis: 'y',
+        hovertemplate: 'y=%{y:.0f}mm<br>Strain=%{z:.6f}<extra></extra>',
+    });
+
+    // NA line
+    var naY = h - c;
+    var shapes = [
+        { type: 'line', x0: -0.5, x1: 0.5, y0: naY, y1: naY, xref: 'x', line: { color: '#dc2626', width: 2, dash: 'dash' } },
+        { type: 'line', x0: -0.5, x1: 0.5, y0: naY, y1: naY, xref: 'x2', line: { color: '#dc2626', width: 2, dash: 'dash' } },
+    ];
+
+    Plotly.newPlot('chart-fiber', traces, {
+        title: { text: 'Fiber Stress & Strain Distribution at Ultimate (c=' + c.toFixed(1) + ' mm)', font: { size: 14 } },
+        yaxis: { title: 'Depth from bottom (mm)', range: [0, h], gridcolor: '#e5e7eb' },
+        xaxis: { domain: [0, 0.4], showticklabels: true },
+        xaxis2: { domain: [0.55, 0.95], showticklabels: true },
+        height: 450, margin: { t: 40, r: 80, b: 50, l: 70 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        shapes: shapes,
+        annotations: [
+            { x: 0.2, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Concrete Stress</b>', showarrow: false, font: { size: 11 } },
+            { x: 0.75, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Concrete Strain</b>', showarrow: false, font: { size: 11 } },
+            { x: 0.5, y: naY, xref: 'x', text: 'NA', showarrow: false, font: { size: 9, color: '#dc2626' }, yshift: 8 },
+        ],
     }, { responsive: true, displayModeBar: false });
 }
 

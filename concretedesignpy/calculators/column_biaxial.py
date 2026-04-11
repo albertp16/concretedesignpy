@@ -257,8 +257,47 @@ def generate_biaxial_diagram(
         "phi": 0.9, "classification": "tension-controlled",
     })
 
+    # ── Fiber plot at theta=0, balanced depth ──
+    # Find a representative c at theta=0 near balanced condition
+    theta0 = 0.0
+    cos0, sin0 = math.cos(theta0), math.sin(theta0)
+    corner_proj0 = corners_x * cos0 + corners_y * sin0
+    d_max0 = float(np.max(corner_proj0))
+    fiber_dist0 = d_max0 - (fiber_x * cos0 + fiber_y * sin0)
+    bar_dist0 = d_max0 - (bar_x * cos0 + bar_y * sin0)
+    # Use c at about 60% of section depth (near balanced)
+    section_d0 = d_max0 - float(np.min(corner_proj0))
+    c_rep = section_d0 * 0.6
+    a_rep = beta1 * c_rep
+
+    # Fiber stresses
+    in_block = fiber_dist0 <= a_rep
+    fiber_stresses_plot = np.where(in_block, 0.85 * fc, 0.0)
+    fiber_strains_plot = ecu * (c_rep - fiber_dist0) / c_rep
+
+    # Bar stresses
+    bar_strains_rep = ecu * (c_rep - bar_dist0) / c_rep
+    bar_stresses_rep = np.clip(bar_strains_rep * es_mod, -fy, fy)
+
+    fiber_plot = {
+        "fiber_x": [round(float(x), 1) for x in fiber_x],
+        "fiber_y": [round(float(y), 1) for y in fiber_y],
+        "stresses": [round(float(s), 4) for s in fiber_stresses_plot],
+        "strains": [round(float(s), 8) for s in fiber_strains_plot],
+        "nx": nx_fibers,
+        "ny": ny_fibers,
+        "dx": round(dx, 2),
+        "dy": round(dy, 2),
+        "c": round(c_rep, 1),
+        "theta_deg": 0,
+        "bar_x": [round(float(x), 1) for x in bar_x],
+        "bar_y": [round(float(y), 1) for y in bar_y],
+        "bar_stresses": [round(float(s), 2) for s in bar_stresses_rep],
+    }
+
     return {
         "surface_points": surface_points,
+        "fiber_plot": fiber_plot,
         "section_info": {
             "b": b, "h": h,
             "ag": round(ag, 0),
