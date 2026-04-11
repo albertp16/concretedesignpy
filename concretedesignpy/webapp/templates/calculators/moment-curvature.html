@@ -191,6 +191,7 @@
                 <div id="chart-mtheta" style="width:100%;display:none;"></div>
                 <div id="chart-backbone" style="width:100%;display:none;"></div>
                 <div id="chart-combined" style="width:100%;display:none;"></div>
+                <div id="chart-ductility" style="width:100%;display:none;"></div>
             </div>
         </div>
     </div>
@@ -951,6 +952,69 @@ function renderMThetaResults(payload, mphi, mtheta, backbone) {
         Plotly.newPlot('chart-combined', tr3, Object.assign({}, baseLayout, {
             title: { text: '3. M-\u03b8 Envelope vs ASCE 41 Backbone', font: { size: 14 } },
             shapes: bbShapes,
+        }), plotCfg);
+    }
+
+    // ── Chart 4: Ductility Ratio ──
+    if (duct) {
+        var ty = duct.theta_y_mrad, tu = duct.theta_u_mrad;
+        var my = duct.moment_yield_knm, mu_val = duct.moment_ultimate_knm;
+        var muR = duct.mu_theta;
+        document.getElementById('chart-ductility').style.display = '';
+
+        var tr4 = [];
+        // Full M-theta curve (light background)
+        tr4.push({ x: thetas, y: moments, mode: 'lines', name: 'M-\u03b8 Curve',
+            line: { color: '#d1d5db', width: 1.5 }, showlegend: false });
+
+        // Yield region fill (0 to theta_y)
+        var fillYx = [0], fillYy = [0];
+        for (var fi = 0; fi < pts.length; fi++) {
+            if (pts[fi].theta_mrad <= ty) { fillYx.push(pts[fi].theta_mrad); fillYy.push(pts[fi].moment_knm); }
+        }
+        fillYx.push(ty, ty, 0); fillYy.push(my, 0, 0);
+        tr4.push({ x: fillYx, y: fillYy, fill: 'toself', fillcolor: 'rgba(22,163,106,0.12)',
+            line: { width: 0 }, name: 'Elastic Range (\u03b8 \u2264 \u03b8y)', hoverinfo: 'skip' });
+
+        // Plastic region fill (theta_y to theta_u)
+        var fillPx = [ty], fillPy = [0];
+        for (var fi = 0; fi < pts.length; fi++) {
+            if (pts[fi].theta_mrad >= ty && pts[fi].theta_mrad <= tu) { fillPx.push(pts[fi].theta_mrad); fillPy.push(pts[fi].moment_knm); }
+        }
+        fillPx.push(tu, tu, ty); fillPy.push(mu_val, 0, 0);
+        tr4.push({ x: fillPx, y: fillPy, fill: 'toself', fillcolor: 'rgba(37,99,235,0.10)',
+            line: { width: 0 }, name: 'Plastic Range (\u03b8y < \u03b8 \u2264 \u03b8u)', hoverinfo: 'skip' });
+
+        // Yield point marker
+        tr4.push({ x: [ty], y: [my], mode: 'markers+text', name: '\u03b8y = ' + ty.toFixed(2) + ' mrad',
+            marker: { size: 12, color: '#16a34a', symbol: 'triangle-up', line: { width: 2, color: '#fff' } },
+            text: ['\u03b8y'], textposition: 'top right', textfont: { size: 11, color: '#16a34a', family: 'Arial Black' } });
+
+        // Ultimate point marker
+        tr4.push({ x: [tu], y: [mu_val], mode: 'markers+text', name: '\u03b8u = ' + tu.toFixed(2) + ' mrad',
+            marker: { size: 12, color: '#dc2626', symbol: 'x', line: { width: 2, color: '#fff' } },
+            text: ['\u03b8u'], textposition: 'top right', textfont: { size: 11, color: '#dc2626', family: 'Arial Black' } });
+
+        // Vertical lines at yield and ultimate
+        var ductShapes = [
+            { type: 'line', x0: ty, x1: ty, y0: 0, y1: my, line: { color: '#16a34a', width: 2, dash: 'dash' } },
+            { type: 'line', x0: tu, x1: tu, y0: 0, y1: mu_val, line: { color: '#dc2626', width: 2, dash: 'dash' } },
+            // Horizontal arrow from theta_y to theta_u
+            { type: 'line', x0: ty, x1: tu, y0: my * 0.35, y1: my * 0.35, line: { color: '#1e40af', width: 2 } },
+        ];
+
+        // mu annotation
+        var ductAnnotations = [
+            { x: (ty + tu) / 2, y: my * 0.35, text: '\u03bc\u03b8 = \u03b8u/\u03b8y = ' + tu.toFixed(2) + '/' + ty.toFixed(2) + ' = <b>' + muR.toFixed(2) + '</b>',
+              showarrow: false, font: { size: 12, color: '#1e40af', family: 'Arial' }, yshift: 16,
+              bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#1e40af', borderwidth: 1, borderpad: 4 },
+            { x: ty, y: -my * 0.08, text: '\u03b8y=' + ty.toFixed(2), showarrow: false, font: { size: 9, color: '#16a34a' } },
+            { x: tu, y: -my * 0.08, text: '\u03b8u=' + tu.toFixed(2), showarrow: false, font: { size: 9, color: '#dc2626' } },
+        ];
+
+        Plotly.newPlot('chart-ductility', tr4, Object.assign({}, baseLayout, {
+            title: { text: '4. Ductility Ratio \u03bc\u03b8 = ' + muR.toFixed(2), font: { size: 14 } },
+            shapes: ductShapes, annotations: ductAnnotations,
         }), plotCfg);
     }
 
