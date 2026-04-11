@@ -469,22 +469,26 @@ function renderConcreteModelChart(modelParams, hogFallback) {
             textposition: 'top right',
             textfont: { size: 9, color: '#166534' },
         });
-        // Add unconfined Hognestad for comparison
-        var eco_unc = mp.eco_unconfined || 0.002;
-        var ecu_unc = 0.003;
+        // Add unconfined Mander curve (fl=0, so fcc=fc, ecc=eco)
         var fc_unc = mp.fc;
+        var eco_unc = mp.eco_unconfined || 0.002;
+        var ec_mod = 5000 * Math.sqrt(fc_unc);
+        var e_sec_unc = fc_unc / eco_unc;
+        var r_unc = ec_mod / (ec_mod - e_sec_unc);
+        var ecu_unc = 0.004; // unconfined ultimate
         var uncStrains = [], uncStresses = [];
-        for (var i = 0; i <= 100; i++) {
-            var e = i * ecu_unc / 100;
+        var nUncPts = 150;
+        for (var i = 0; i <= nUncPts; i++) {
+            var e = i * ecu_unc / nUncPts;
             uncStrains.push(e);
-            var s = 0;
-            if (e <= eco_unc) { var ratio = e / eco_unc; s = fc_unc * (2 * ratio - ratio * ratio); }
-            else if (e <= ecu_unc) { s = fc_unc * (1 - 0.15 * (e - eco_unc) / (ecu_unc - eco_unc)); }
+            var x_unc = e / eco_unc;
+            var denom_unc = r_unc - 1 + Math.pow(x_unc, r_unc);
+            var s = denom_unc > 0 ? fc_unc * x_unc * r_unc / denom_unc : 0;
             uncStresses.push(s);
         }
         traces.push({
             x: uncStrains, y: uncStresses, mode: 'lines',
-            name: 'Hognestad (Unconfined)',
+            name: 'Mander (Unconfined)',
             line: { color: '#dc2626', width: 1.5, dash: 'dash' },
         });
     } else {
@@ -871,7 +875,7 @@ function renderSectionChart(payload, sp) {
     }
 
     var traces = [
-        // Rebar markers
+        // Tension rebar markers
         {
             x: rebarX, y: rebarY, mode: 'markers', name: 'Tension Steel',
             marker: { size: 14, color: '#1e40af', symbol: 'circle', line: { width: 2, color: '#fff' } },
@@ -885,12 +889,39 @@ function renderSectionChart(payload, sp) {
         },
     ];
 
+    // Compression steel (if provided)
+    var dp = payload.d_prime || 0;
+    var asComp = payload.as_compression || 0;
+    if (asComp > 0 && dp > 0) {
+        var dbComp = parseFloat(document.getElementById('db_comp').value) || 16;
+        var nComp = parseInt(document.getElementById('n_comp').value) || 2;
+        if (nComp < 2) nComp = 2;
+        var compSpacing = (b - 2 * cover) / Math.max(nComp - 1, 1);
+        var compX = [], compY = [];
+        for (var j = 0; j < nComp; j++) {
+            compX.push(cover + j * compSpacing);
+            compY.push(h - dp);
+        }
+        traces.push({
+            x: compX, y: compY, mode: 'markers', name: 'Compression Steel',
+            marker: { size: 12, color: '#dc2626', symbol: 'circle', line: { width: 2, color: '#fff' } },
+        });
+        // d' line
+        shapes.push({
+            type: 'line', x0: -20, y0: h - dp, x1: b + 20, y1: h - dp,
+            line: { color: '#dc2626', width: 1.5, dash: 'dot' },
+        });
+    }
+
     var annotations = [
         { x: b + 40, y: h - kd, text: 'NA (kd=' + kd.toFixed(1) + ')', showarrow: false, font: { size: 10, color: '#dc2626' } },
         { x: b + 40, y: h - d, text: 'd=' + d + 'mm', showarrow: false, font: { size: 10, color: '#2563eb' } },
         { x: b / 2, y: h + 25, text: 'b=' + b + 'mm', showarrow: false, font: { size: 10, color: '#333' } },
         { x: -45, y: h / 2, text: 'h=' + h + 'mm', showarrow: false, font: { size: 10, color: '#333' }, textangle: -90 },
     ];
+    if (asComp > 0 && dp > 0) {
+        annotations.push({ x: b + 40, y: h - dp, text: "d'=" + dp + 'mm', showarrow: false, font: { size: 10, color: '#dc2626' } });
+    }
 
     var layout = {
         title: { text: 'Cross-Section', font: { size: 14 } },
@@ -953,6 +984,22 @@ function renderStrainStressChart(payload, sp, pts) {
         xaxis: 'x', yaxis: 'y', showlegend: false, hoverinfo: 'skip',
     });
 
+    // Compression rebar in section panel
+    var dp = payload.d_prime || 0;
+    var asComp = payload.as_compression || 0;
+    if (asComp > 0 && dp > 0) {
+        var nComp = parseInt(document.getElementById('n_comp').value) || 2;
+        if (nComp < 2) nComp = 2;
+        var compSp = (b - 2 * cover) / Math.max(nComp - 1, 1);
+        var cRX = [], cRY = [];
+        for (var ci = 0; ci < nComp; ci++) { cRX.push(cover + ci * compSp); cRY.push(H - dp); }
+        traces.push({
+            x: cRX, y: cRY, mode: 'markers',
+            marker: { size: 10, color: '#dc2626', symbol: 'circle', line: { width: 1.5, color: '#fff' } },
+            xaxis: 'x', yaxis: 'y', showlegend: false, hoverinfo: 'skip',
+        });
+    }
+
     // ── Panel 2: Strain diagram (x2) ──
     traces.push({
         x: [strainTop, strainNA, strainBot],
@@ -990,16 +1037,38 @@ function renderStrainStressChart(payload, sp, pts) {
         xaxis: 'x3', yaxis: 'y', name: 'fs = ' + stressSteel.toFixed(0) + ' MPa', showlegend: false,
     });
 
+    // Compression steel stress arrow in panel 3
+    var strainAtDp = dp > 0 ? ecu * (kd - dp) / kd : 0;
+    var stressCompSteel = dp > 0 ? Math.min(Math.abs(strainAtDp) * es, fy) : 0;
+    if (asComp > 0 && dp > 0) {
+        traces.push({
+            x: [0, stressCompSteel], y: [H - dp, H - dp],
+            mode: 'lines+markers', line: { color: '#dc2626', width: 2.5 },
+            marker: { size: [0, 8], symbol: ['circle', 'triangle-right'], color: '#dc2626' },
+            xaxis: 'x3', yaxis: 'y', showlegend: false,
+        });
+    }
+
     // ── Panel 4: Internal forces (x4) ──
     var Cc = stressBlock * a * b / 1000; // kN
     var Ts = stressSteel * payload.as_tension / 1000; // kN
-    // Compression force arrow
+    var Cs = asComp > 0 ? stressCompSteel * asComp / 1000 : 0; // kN
+    // Compression force arrow (concrete)
     traces.push({
         x: [0, Cc], y: [H - a / 2, H - a / 2],
         mode: 'lines+markers', line: { color: '#dc2626', width: 3 },
         marker: { size: [0, 10], symbol: ['circle', 'triangle-right'], color: '#dc2626' },
         xaxis: 'x4', yaxis: 'y', showlegend: false,
     });
+    // Compression steel force arrow
+    if (Cs > 0) {
+        traces.push({
+            x: [0, Cs], y: [H - dp, H - dp],
+            mode: 'lines+markers', line: { color: '#ef4444', width: 2.5 },
+            marker: { size: [0, 8], symbol: ['circle', 'triangle-right'], color: '#ef4444' },
+            xaxis: 'x4', yaxis: 'y', showlegend: false,
+        });
+    }
     // Tension force arrow
     traces.push({
         x: [0, -Ts], y: [H - d, H - d],
@@ -1034,6 +1103,11 @@ function renderStrainStressChart(payload, sp, pts) {
         // Dimension labels
         { x: -0.02, y: H - a, xref: 'x3 domain', text: 'a=' + a.toFixed(1), showarrow: false, font: { size: 8, color: '#dc2626' }, xanchor: 'right' },
     ];
+    // Compression steel annotations
+    if (Cs > 0) {
+        annotations.push({ x: Cs / 2, y: H - dp, xref: 'x4', text: 'Cs=' + Cs.toFixed(0), showarrow: false, font: { size: 9, color: '#ef4444' }, yshift: 12 });
+        annotations.push({ x: strainAtDp, y: H - dp, xref: 'x2', text: '\u03b5\'s=' + strainAtDp.toFixed(4), showarrow: false, font: { size: 8, color: '#dc2626' }, yshift: 8 });
+    }
 
     var layout = {
         title: { text: 'Section Analysis at Ultimate Limit State', font: { size: 14 }, y: 0.98 },
