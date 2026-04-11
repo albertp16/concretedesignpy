@@ -106,11 +106,11 @@
                 <div class="form-section">
                     <h3>Compression Steel <span style="font-weight:400;font-size:.8rem;color:var(--gray-400);">(optional)</span></h3>
                     <div class="form-row">
-                        <div class="form-group"><label>d' (mm)</label><input type="number" name="d_prime" value="0" step="1"></div>
-                        <div class="form-group"><label>Bar dia (mm)</label><input type="number" id="db_comp" value="0" step="1" oninput="updateAsComp()"></div>
+                        <div class="form-group"><label>d' (mm)</label><input type="number" name="d_prime" value="65" step="1"></div>
+                        <div class="form-group"><label>Bar dia (mm)</label><input type="number" id="db_comp" value="20" step="1" oninput="updateAsComp()"></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>No. of bars</label><input type="number" id="n_comp" value="0" min="0" step="1" oninput="updateAsComp()"></div>
+                        <div class="form-group"><label>No. of bars</label><input type="number" id="n_comp" value="2" min="0" step="1" oninput="updateAsComp()"></div>
                         <div class="form-group"><label>A's (mm&sup2;)</label><input type="number" id="as_comp" name="as_compression" value="0" readonly style="background:#f3f4f6;"></div>
                     </div>
                 </div>
@@ -124,9 +124,9 @@
                     <h3>Concrete Model</h3>
                     <select name="concrete_model" id="concrete-model" style="width:100%;padding:.45rem .6rem;border:1px solid var(--gray-200);border-radius:4px;font-size:.9rem;" onchange="toggleManderFields()">
                         <option value="hognestad">Hognestad (Unconfined)</option>
-                        <option value="mander">Mander et al. (Confined)</option>
+                        <option value="mander" selected>Mander et al. (Confined)</option>
                     </select>
-                    <div id="mander-fields" style="display:none;margin-top:.75rem;">
+                    <div id="mander-fields" style="margin-top:.75rem;">
                         <div class="form-row">
                             <div class="form-group"><label>fy,t (MPa)</label><input type="number" name="fy_transverse" value="275" step="1"></div>
                             <div class="form-group"><label>Tie dia (mm)</label><input type="number" name="db_tie" value="10" step="1"></div>
@@ -215,6 +215,7 @@ function updateAs() {
     document.getElementById('as_tension').value = as.toFixed(2);
 }
 updateAs();
+updateAsComp();
 
 function updateAsComp() {
     var db = parseFloat(document.getElementById('db_comp').value) || 0;
@@ -870,11 +871,12 @@ function renderMThetaResults(payload, mphi, mtheta, backbone) {
     }
     var plotCfg = { responsive: true, displayModeBar: false };
     var baseLayout = {
-        xaxis: { title: 'Rotation, \u03b8 (mrad)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
-        yaxis: { title: 'Moment, M (kN-m)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
-        height: 450, margin: { t: 40, r: 20, b: 60, l: 70 },
+        xaxis: { title: { text: 'Plastic Rotation (rad)', font: { size: 12, family: 'Arial' } }, rangemode: 'tozero', gridcolor: '#e5e7eb', gridwidth: 1, linecolor: '#333', linewidth: 1.5, mirror: true, ticks: 'outside', ticklen: 5, tickcolor: '#333' },
+        yaxis: { title: { text: 'Q / Q<sub>y</sub>', font: { size: 12, family: 'Arial' } }, rangemode: 'tozero', gridcolor: '#e5e7eb', gridwidth: 1, linecolor: '#333', linewidth: 1.5, mirror: true, ticks: 'outside', ticklen: 5, tickcolor: '#333' },
+        height: 480, margin: { t: 45, r: 30, b: 60, l: 65 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'closest',
-        showlegend: true, legend: { x: 1, xanchor: 'right', y: 0.05, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 9 } },
+        showlegend: true, legend: { x: 0.98, xanchor: 'right', y: 0.02, yanchor: 'bottom', bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10, family: 'Arial' } },
+        font: { family: 'Arial, sans-serif', size: 11 },
     };
 
     // Event markers helper
@@ -1028,25 +1030,56 @@ function renderMThetaResults(payload, mphi, mtheta, backbone) {
         h += '<tr><td>Trans. Reinf.</td><td>' + bp.conf_label + '</td><td>\\(s \\leq d/2 \\Rightarrow\\) Conforming</td></tr>';
         h += '</table>';
 
-        // Backbone points table
-        h += '<p style="font-size:.85rem;margin-top:1rem;"><b>Backbone Points (Fig. 10-1)</b></p>';
+        // Backbone points table with derivation
+        h += '<p style="font-size:.85rem;margin-top:1rem;"><b>Backbone Points (Fig. 10-1) &mdash; Derivation</b></p>';
+        h += '<p style="font-size:.82rem;color:var(--gray-600);">The generalized force-deformation relationship defines the nonlinear response using five control points. Yield rotation \\(\\theta_y\\) and yield moment \\(M_y\\) are obtained from the M-\\(\\varphi\\) analysis. Plastic rotation parameters \\(a\\), \\(b\\), and residual strength ratio \\(c\\) are from Table 10-7.</p>';
+
+        h += '<div class="report-eq">\\[ \\text{Point A (Origin):} \\quad \\theta_A = 0 \\quad;\\quad M_A = 0 \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{Point B (Yield):} \\quad \\theta_B = \\theta_y = ' + bp.theta_y_rad.toFixed(6) + ' \\text{ rad} \\quad;\\quad M_B = M_y = ' + bp.my_knm + ' \\text{ kN-m} \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{Point C (Plateau End):} \\quad \\theta_C = \\theta_y + a = ' + bp.theta_y_rad.toFixed(6) + ' + ' + bp.a + ' = ' + (bp.theta_y_rad + bp.a).toFixed(6) + ' \\text{ rad} \\quad;\\quad M_C = M_y = ' + bp.my_knm + ' \\text{ kN-m} \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{Point D (Residual Drop):} \\quad \\theta_D = \\theta_C = ' + (bp.theta_y_rad + bp.a).toFixed(6) + ' \\text{ rad} \\quad;\\quad M_D = c \\times M_y = ' + bp.c + ' \\times ' + bp.my_knm + ' = ' + (bp.c * bp.my_knm).toFixed(2) + ' \\text{ kN-m} \\]</div>';
+        h += '<div class="report-eq">\\[ \\text{Point E (Ultimate):} \\quad \\theta_E = \\theta_y + b = ' + bp.theta_y_rad.toFixed(6) + ' + ' + bp.b + ' = ' + (bp.theta_y_rad + bp.b).toFixed(6) + ' \\text{ rad} \\quad;\\quad M_E = c \\times M_y = ' + (bp.c * bp.my_knm).toFixed(2) + ' \\text{ kN-m} \\]</div>';
+
         h += '<table class="report-table">';
-        h += '<tr><th>Point</th><th>&theta; (rad)</th><th>&theta; (mrad)</th><th>M (kN-m)</th><th>Q/Qy</th></tr>';
+        h += '<tr><th>Point</th><th>Derivation</th><th>&theta; (rad)</th><th>&theta; (mrad)</th><th>M (kN-m)</th><th>Q/Q<sub>y</sub></th></tr>';
         var bbp = backbone.backbone_points;
+        var derivations = [
+            '\\(\\theta = 0\\)',
+            '\\(\\theta_y\\) from M-\\(\\varphi\\)',
+            '\\(\\theta_y + a = ' + bp.theta_y_rad.toFixed(4) + ' + ' + bp.a + '\\)',
+            '\\(\\theta_C\\), \\(M = c \\times M_y\\)',
+            '\\(\\theta_y + b = ' + bp.theta_y_rad.toFixed(4) + ' + ' + bp.b + '\\)',
+        ];
         for (var pi = 0; pi < bbp.length; pi++) {
-            h += '<tr><td><b>' + bbp[pi].label + '</b></td><td>' + bbp[pi].theta_rad.toFixed(6) + '</td>';
+            h += '<tr><td><b>' + bbp[pi].label + '</b></td><td style="text-align:left;font-size:.78rem;">' + derivations[pi] + '</td>';
+            h += '<td>' + bbp[pi].theta_rad.toFixed(6) + '</td>';
             h += '<td>' + bbp[pi].theta_mrad.toFixed(4) + '</td><td>' + bbp[pi].moment_knm + '</td>';
             h += '<td>' + bbp[pi].q_ratio + '</td></tr>';
         }
         h += '</table>';
 
+        // Ductility explanation
+        h += '<p style="font-size:.85rem;margin-top:1rem;"><b>Ductility Interpretation</b></p>';
+        h += '<p class="report-ref">Anwar &amp; Najam (2017), Ch. 6 &mdash; Ductility of Cross-Sections</p>';
+        h += '<p style="font-size:.82rem;color:var(--gray-600);margin-top:.5rem;">Ductility is the ability of a member to sustain large deformation without fracture. The ductility ratio \\(\\mu\\) is the ratio of maximum deformation to the yield deformation. Greater ductility provides greater capacity for energy absorption during seismic events.</p>';
+        h += '<div class="report-eq">\\[ \\mu_\\theta = \\frac{\\theta_u}{\\theta_y} \\quad \\text{(Rotation Ductility, Eq. 6.6)} \\]</div>';
+        h += '<p style="font-size:.82rem;color:var(--gray-600);">The M-\\(\\theta\\) envelope from the fiber analysis yields \\(\\mu_\\theta = ' + (duct ? duct.mu_theta.toFixed(2) : 'N/A') + '\\). The ASCE 41 backbone provides a simplified idealization where:</p>';
+        h += '<ul style="font-size:.82rem;color:var(--gray-600);margin:.25rem 0 0 1.25rem;">';
+        h += '<li><b>Segment A&rarr;B</b>: Elastic range (concrete uncracked &rarr; steel yields)</li>';
+        h += '<li><b>Segment B&rarr;C</b>: Post-yield plateau, plastic rotation capacity = \\(a = ' + bp.a + '\\) rad before strength degradation begins</li>';
+        h += '<li><b>Segment C&rarr;D</b>: Instantaneous strength drop to residual \\(c \\times M_y = ' + bp.c + ' \\times ' + bp.my_knm + ' = ' + (bp.c * bp.my_knm).toFixed(2) + '\\) kN-m</li>';
+        h += '<li><b>Segment D&rarr;E</b>: Residual strength plateau, additional plastic rotation = \\(b - a = ' + (bp.b - bp.a).toFixed(4) + '\\) rad</li>';
+        h += '</ul>';
+        h += '<p style="font-size:.82rem;color:var(--gray-600);margin-top:.5rem;">Confinement is the key to improving ductility. Well-confined sections (\\(s \\leq d/2\\), conforming transverse reinforcement) exhibit larger \\(a\\) and \\(b\\) values, meaning greater rotation capacity before failure.</p>';
+
         // Acceptance criteria table
         h += '<p style="font-size:.85rem;margin-top:1rem;"><b>Acceptance Criteria (Plastic Rotation Limits)</b></p>';
+        h += '<p style="font-size:.82rem;color:var(--gray-600);">Performance levels define the maximum allowable plastic rotation for each structural performance objective. The total rotation at each level = \\(\\theta_y\\) + plastic rotation limit.</p>';
         h += '<table class="report-table">';
-        h += '<tr><th>Performance Level</th><th>Plastic Rotation (rad)</th><th>Total &theta; (mrad)</th></tr>';
-        h += '<tr style="background:#dcfce7;"><td style="text-align:left;font-weight:600;">IO (Immediate Occupancy)</td><td>' + ba.io_plastic + '</td><td>' + ba.io_mrad + '</td></tr>';
-        h += '<tr style="background:#fef3c7;"><td style="text-align:left;font-weight:600;">LS Primary (Life Safety)</td><td>' + ba.ls_pri_plastic + '</td><td>' + ba.ls_pri_mrad + '</td></tr>';
-        h += '<tr style="background:#fee2e2;"><td style="text-align:left;font-weight:600;">CP Primary (Collapse Prevention)</td><td>' + ba.cp_pri_plastic + '</td><td>' + ba.cp_pri_mrad + '</td></tr>';
+        h += '<tr><th>Performance Level</th><th>Plastic Rotation (rad)</th><th>Total &theta; (rad)</th><th>Total &theta; (mrad)</th></tr>';
+        h += '<tr style="background:#dcfce7;"><td style="text-align:left;font-weight:600;">IO (Immediate Occupancy)</td><td>' + ba.io_plastic + '</td><td>' + ba.io_rad.toFixed(6) + '</td><td>' + ba.io_mrad + '</td></tr>';
+        h += '<tr style="background:#fef3c7;"><td style="text-align:left;font-weight:600;">LS Primary (Life Safety)</td><td>' + ba.ls_pri_plastic + '</td><td>' + ba.ls_pri_rad.toFixed(6) + '</td><td>' + ba.ls_pri_mrad + '</td></tr>';
+        h += '<tr style="background:#fee2e2;"><td style="text-align:left;font-weight:600;">CP Primary (Collapse Prevention)</td><td>' + ba.cp_pri_plastic + '</td><td>' + ba.cp_pri_rad.toFixed(6) + '</td><td>' + ba.cp_pri_mrad + '</td></tr>';
         h += '</table>';
         h += '</div>';
     }
