@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name='concretedesignpy',
-    version='0.4.0',
-    description='Open-source reinforced concrete design library with web interface (ACI 318-19, NSCP 2015, ACI 440R-17)',
+    version='0.5.0',
+    description='Open-source reinforced concrete design library with web interface (ACI 318-19, NSCP 2015, ASCE 41-17)',
     long_description=open('README.md', encoding='utf-8').read(),
     long_description_content_type='text/markdown',
     author='Albert Pamonag',

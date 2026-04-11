@@ -29,12 +29,13 @@ Modules:
     - joint_shear: Joint shear verification for special moment frames
     - mander: Mander's confined concrete model
     - development_length: Hook geometry per NSCP 2015 Section 425
-    - moment_curvature: 6-point moment-curvature relationship
+    - moment_curvature: M-phi, M-theta, ASCE 41 backbone curve
+    - column_biaxial: P-M-M biaxial interaction surface (fiber approach)
     - rebar_layout: Rebar coordinate generation for rectangular sections
     - alternative_inertia: Alternative moment of inertia per NSCP 2015
 
 Standards:
-    NSCP 2015, ACI 318-19, ASCE 41
+    NSCP 2015, ACI 318-19, ASCE 41-17
 """
 
 from concretedesignpy.calculators.beam_moment import calculate_beam_moment
@@ -60,7 +61,18 @@ from concretedesignpy.calculators.development_length import (
     bend_and_hook_deformed_bars,
     bend_and_hook_stirrups,
 )
-from concretedesignpy.calculators.moment_curvature import moment_curvature_analysis
+from concretedesignpy.calculators.moment_curvature import (
+    moment_curvature_analysis,
+    moment_curvature_advanced,
+    moment_rotation_from_mphi,
+    plastic_hinge_length,
+    asce41_backbone_beam,
+)
+from concretedesignpy.calculators.column_biaxial import (
+    generate_biaxial_diagram,
+    check_biaxial_capacity,
+    extract_contour_at_pu,
+)
 from concretedesignpy.calculators.rebar_layout import section_generate_rect
 from concretedesignpy.calculators.alternative_inertia import (
     alternative_inertia_column_wall,
