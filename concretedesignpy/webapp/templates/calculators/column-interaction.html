@@ -49,11 +49,18 @@
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Strain-Compatibility Analysis of Reinforced Concrete Section</h1>
-    <p class="ref">NSCP 2015 / ACI 318-19 &mdash; Column P-M Interaction Diagram</p>
+    <p class="ref">NSCP 2015 / ACI 318-19 &mdash; Column P-M / P-M-M Interaction Diagram</p>
 
     <div class="col-page-layout">
         <div class="col-page-left">
             <form id="calc-form" class="calc-form">
+                <div class="form-section">
+                    <h3>Analysis Mode</h3>
+                    <div style="display:flex;gap:.5rem;">
+                        <button type="button" id="btn-uniaxial" class="btn-primary" style="flex:1;" onclick="setAnalysisMode('uniaxial')">Uniaxial P-M</button>
+                        <button type="button" id="btn-biaxial" class="btn-secondary" style="flex:1;" onclick="setAnalysisMode('biaxial')">Biaxial P-M-M</button>
+                    </div>
+                </div>
                 <div class="form-section">
                     <h3>Materials</h3>
                     <div class="form-row">
@@ -118,17 +125,34 @@
                     <div id="load-combo-table" style="width:100%;overflow:hidden;"></div>
                 </div>
 
-                <button type="submit" class="btn-primary" style="width:100%;">Generate Interaction Diagram</button>
+                <div class="form-section" id="biaxial-params" style="display:none;">
+                    <h3>Biaxial Analysis</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>NA angles</label><input type="number" name="n_angles" value="24" min="6" step="6"></div>
+                        <div class="form-group"><label>NA depths</label><input type="number" name="n_c_values" value="32" min="8" step="4"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Contour Pu (kN)</label><input type="number" name="contour_pu" value="1000" step="50"><p style="font-size:.72rem;color:var(--gray-400);margin:.2rem 0 0;">Pu level for Mx-My contour slice</p></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" style="width:100%;" id="submit-btn">Generate Interaction Diagram</button>
             </form>
         </div>
 
         <div class="col-page-right">
             <div id="results" class="results-panel" style="display:none;">
-                <h2>P-M Interaction Diagram</h2>
+                <h2 id="results-title">P-M Interaction Diagram</h2>
+                <div id="results-summary-biaxial" style="display:none;"></div>
                 <div id="chart-pm" style="text-align:center;"></div>
+                <div id="chart-3d" style="text-align:center;display:none;"></div>
                 <div id="svg-rebar" style="text-align:center;margin-top:1rem;"></div>
             </div>
         </div>
+    </div>
+
+    <div id="charts-row-biaxial" style="display:none;margin-top:1rem;">
+        <div id="chart-contour" style="width:100%;"></div>
     </div>
 
     <!-- Full-width report below -->
@@ -136,31 +160,68 @@
 </div>
 
 <script>
+// ── Analysis Mode ──
+var analysisMode = 'uniaxial';
+function setAnalysisMode(mode) {
+    analysisMode = mode;
+    document.getElementById('btn-uniaxial').className = mode === 'uniaxial' ? 'btn-primary' : 'btn-secondary';
+    document.getElementById('btn-biaxial').className = mode === 'biaxial' ? 'btn-primary' : 'btn-secondary';
+    document.getElementById('biaxial-params').style.display = mode === 'biaxial' ? '' : 'none';
+    document.getElementById('submit-btn').textContent = mode === 'biaxial' ? 'Generate Biaxial Surface' : 'Generate Interaction Diagram';
+    // Switch Handsontable columns
+    rebuildHot(mode);
+}
+
 // ── Handsontable ──
-var loadComboData = [
+var uniaxialData = [
     [1, '1.2D + 1.6L',        2500, 0, 150],
     [2, '1.2D + 1.0L + 1.0E', 1800, 0, 280],
     [3, '0.9D + 1.0E',        1200, 0, 250],
     [4, '1.2D + 1.6L + 0.5S', 2700, 0, 120],
     [5, '', null, null, null],
 ];
+var biaxialData = [
+    [1, '1.2D + 1.6L',        2000, 150, 100],
+    [2, '0.9D + 1.0E',        800,  200, 180],
+    [3, '', null, null, null],
+];
 var hotContainer = document.getElementById('load-combo-table');
-var hot = new Handsontable(hotContainer, {
-    data: loadComboData,
-    colHeaders: ['', 'Load Combination', 'P<sub>u</sub> (kN)', 'V<sub>u</sub> (kN)', 'M<sub>u</sub> (kN-m)'],
-    columns: [
-        { type: 'numeric', readOnly: true, width: 30 },
-        { type: 'text', width: 150 },
-        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-        { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
-    ],
-    rowHeaders: false, minRows: 5, minSpareRows: 1,
-    contextMenu: true, stretchH: 'all', height: 'auto',
-    className: 'htCenter', licenseKey: 'non-commercial-and-evaluation',
-    afterCreateRow: function() { renumberLoadCombos(); },
-    afterRemoveRow: function() { renumberLoadCombos(); },
-});
+var hot = null;
+
+function rebuildHot(mode) {
+    if (hot) hot.destroy();
+    var data, colHeaders, columns;
+    if (mode === 'biaxial') {
+        data = biaxialData;
+        colHeaders = ['', 'Load Combination', 'P<sub>u</sub> (kN)', 'M<sub>ux</sub> (kN-m)', 'M<sub>uy</sub> (kN-m)'];
+        columns = [
+            { type: 'numeric', readOnly: true, width: 30 },
+            { type: 'text', width: 140 },
+            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+        ];
+    } else {
+        data = uniaxialData;
+        colHeaders = ['', 'Load Combination', 'P<sub>u</sub> (kN)', 'V<sub>u</sub> (kN)', 'M<sub>u</sub> (kN-m)'];
+        columns = [
+            { type: 'numeric', readOnly: true, width: 30 },
+            { type: 'text', width: 150 },
+            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+            { type: 'numeric', numericFormat: { pattern: '0.0' }, width: 75 },
+        ];
+    }
+    hot = new Handsontable(hotContainer, {
+        data: data, colHeaders: colHeaders, columns: columns,
+        rowHeaders: false, minRows: 5, minSpareRows: 1,
+        contextMenu: true, stretchH: 'all', height: 'auto',
+        className: 'htCenter', licenseKey: 'non-commercial-and-evaluation',
+        afterCreateRow: function() { renumberLoadCombos(); },
+        afterRemoveRow: function() { renumberLoadCombos(); },
+    });
+}
+rebuildHot('uniaxial');
 
 function renumberLoadCombos() {
     if (!hot) return;
@@ -171,14 +232,28 @@ function renumberLoadCombos() {
 function getLoadCombos() {
     var combos = [], data = hot.getData();
     for (var i = 0; i < data.length; i++) {
-        var pu = data[i][2], mu = data[i][4];
-        if (pu !== null && pu !== '' && mu !== null && mu !== '') {
-            combos.push({
-                name: data[i][1] || ('LC ' + (i + 1)),
-                pu: parseFloat(pu),
-                vu: data[i][3] !== null && data[i][3] !== '' ? parseFloat(data[i][3]) : 0,
-                mu: parseFloat(mu),
-            });
+        var pu = data[i][2];
+        if (pu === null || pu === '') continue;
+        if (analysisMode === 'biaxial') {
+            var mux = data[i][3], muy = data[i][4];
+            if ((mux !== null && mux !== '') || (muy !== null && muy !== '')) {
+                combos.push({
+                    name: data[i][1] || ('LC ' + (i + 1)),
+                    pu: parseFloat(pu),
+                    mux: parseFloat(mux) || 0,
+                    muy: parseFloat(muy) || 0,
+                });
+            }
+        } else {
+            var mu = data[i][4];
+            if (mu !== null && mu !== '') {
+                combos.push({
+                    name: data[i][1] || ('LC ' + (i + 1)),
+                    pu: parseFloat(pu),
+                    vu: data[i][3] !== null && data[i][3] !== '' ? parseFloat(data[i][3]) : 0,
+                    mu: parseFloat(mu),
+                });
+            }
         }
     }
     return combos;
@@ -295,6 +370,127 @@ function renderPlotlyChart(points, combos, payload) {
     Plotly.newPlot('chart-pm', traces, layout, config);
 }
 
+// ── 3D Line Chart (wireframe by theta) ──
+function render3DChart(pts, combos) {
+    var traces = [];
+    // Group points by theta for line traces
+    var byTheta = {};
+    for (var i = 0; i < pts.length; i++) {
+        var t = pts[i].theta_deg;
+        if (!byTheta[t]) byTheta[t] = [];
+        byTheta[t].push(pts[i]);
+    }
+    var thetas = Object.keys(byTheta).sort(function(a,b){return a-b;});
+    var colors = ['#1e40af','#2563eb','#3b82f6','#60a5fa','#93c5fd','#7c3aed','#8b5cf6','#a78bfa','#0891b2','#06b6d4','#22d3ee','#14b8a6','#10b981','#34d399','#6ee7b7','#f59e0b','#fbbf24','#fcd34d','#f97316','#fb923c','#fdba74','#dc2626','#ef4444','#f87171'];
+    for (var ti = 0; ti < thetas.length; ti++) {
+        var theta = thetas[ti];
+        var group = byTheta[theta];
+        var mx = [], my = [], pz = [];
+        for (var j = 0; j < group.length; j++) {
+            mx.push(group[j].mux); my.push(group[j].muy); pz.push(group[j].pu);
+        }
+        var clr = colors[ti % colors.length];
+        traces.push({
+            x: mx, y: my, z: pz, mode: 'lines', type: 'scatter3d',
+            name: '\u03b8=' + theta + '\u00b0',
+            line: { color: clr, width: 2 }, showlegend: false,
+        });
+        // Mirror (180-360)
+        if (parseFloat(theta) > 0 && parseFloat(theta) < 180) {
+            var mx2 = mx.map(function(v){return -v;}), my2 = my.map(function(v){return -v;});
+            traces.push({
+                x: mx2, y: my2, z: pz, mode: 'lines', type: 'scatter3d',
+                name: '\u03b8=' + (parseFloat(theta)+180) + '\u00b0',
+                line: { color: clr, width: 2 }, showlegend: false,
+            });
+        }
+    }
+    // Load combo markers
+    if (combos && combos.length > 0) {
+        var lcColors = ['#dc2626','#2563eb','#16a34a','#f59e0b'];
+        for (var k = 0; k < combos.length; k++) {
+            var lc = combos[k];
+            traces.push({
+                x: [lc.mux], y: [lc.muy], z: [lc.pu],
+                mode: 'markers+text', type: 'scatter3d',
+                name: lc.name + ' (' + lc.status + ')',
+                marker: { size: 5, color: lc.status === 'OK' ? lcColors[k % 4] : '#dc2626', symbol: lc.status === 'OK' ? 'circle' : 'x' },
+                text: [lc.name], textposition: 'top center', textfont: { size: 9 },
+            });
+        }
+    }
+    Plotly.newPlot('chart-3d', traces, {
+        title: { text: 'P-M-M Interaction Surface (Factored)', font: { size: 14 } },
+        scene: {
+            xaxis: { title: 'Mux (kN-m)', gridcolor: '#e5e7eb' },
+            yaxis: { title: 'Muy (kN-m)', gridcolor: '#e5e7eb' },
+            zaxis: { title: 'Pu (kN)', gridcolor: '#e5e7eb' },
+            camera: { eye: { x: 1.5, y: 1.5, z: 1.0 } },
+        },
+        height: 600, margin: { t: 40, r: 10, b: 10, l: 10 },
+        showlegend: false,
+    }, { responsive: true });
+}
+
+// ── Mx-My Contour Chart ──
+function renderContourChart(contour, combos, puLevel) {
+    var cx = [], cy = [];
+    for (var i = 0; i < contour.length; i++) { cx.push(contour[i].mux); cy.push(contour[i].muy); }
+    var traces = [{
+        x: cx, y: cy, mode: 'lines', name: 'Capacity at Pu=' + puLevel + ' kN',
+        line: { color: '#1e40af', width: 2.5 }, fill: 'toself', fillcolor: 'rgba(30,64,175,0.06)',
+    }];
+    if (combos && combos.length > 0) {
+        var lcColors = ['#dc2626','#2563eb','#16a34a','#f59e0b'];
+        for (var j = 0; j < combos.length; j++) {
+            var lc = combos[j];
+            traces.push({
+                x: [lc.mux], y: [lc.muy], mode: 'markers+text', name: lc.name,
+                marker: { size: 10, color: lc.status === 'OK' ? lcColors[j%4] : '#dc2626', symbol: lc.status === 'OK' ? 'circle' : 'x', line: { width: 1.5, color: '#fff' } },
+                text: [lc.name], textposition: 'top right', textfont: { size: 9, color: lcColors[j%4] },
+            });
+        }
+    }
+    Plotly.newPlot('chart-contour', traces, {
+        title: { text: 'Mx-My Contour at Pu = ' + puLevel + ' kN', font: { size: 14 } },
+        xaxis: { title: 'Mux (kN-m)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb', scaleanchor: 'y' },
+        yaxis: { title: 'Muy (kN-m)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
+        height: 450, margin: { t: 40, r: 20, b: 60, l: 70 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff', showlegend: true,
+        legend: { x: 1, xanchor: 'right', y: 0.05, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 10 } },
+    }, { responsive: true, displayModeBar: false });
+}
+
+// ── Biaxial Report ──
+function renderBiaxialReport(result, payload, combosCheck) {
+    var info = result.section_info || {};
+    var h = '';
+    h += '<div class="report-section"><h4>Section Properties</h4>';
+    h += '<div class="report-eq">\\[ A_g = ' + payload.b + ' \\times ' + payload.h + ' = ' + info.ag + ' \\text{ mm}^2 \\quad;\\quad A_{st} = ' + info.ast_total + ' \\text{ mm}^2 \\quad (\\rho = ' + (info.rho*100).toFixed(2) + '\\%) \\quad;\\quad \\beta_1 = ' + info.beta1 + ' \\]</div>';
+    h += '</div>';
+    h += '<div class="report-section"><h4>Axial Capacity</h4>';
+    h += '<div class="report-eq">\\[ P_o = ' + result.pure_compression_kn + ' \\text{ kN} \\quad;\\quad \\phi P_{n,max} = ' + result.phi_pn_max_kn + ' \\text{ kN} \\quad;\\quad P_t = ' + result.pure_tension_kn + ' \\text{ kN} \\]</div>';
+    h += '</div>';
+    h += '<div class="report-section"><h4>Analysis Parameters</h4>';
+    h += '<p style="font-size:.85rem;">NA angles: ' + result.n_angles + ' | NA depths: ' + result.n_c_values + ' | Surface points: ' + result.surface_points.length + ' | Method: Whitney fiber approach</p>';
+    h += '</div>';
+    if (combosCheck && combosCheck.length > 0) {
+        h += '<div class="report-section"><h4>Demand / Capacity Check (Biaxial)</h4>';
+        h += '<table class="report-table dc-table">';
+        h += '<tr><th>Load Case</th><th>Pu (kN)</th><th>Mux (kN-m)</th><th>Muy (kN-m)</th><th>Mn,demand</th><th>Mn,capacity</th><th>D/C</th><th>Status</th></tr>';
+        combosCheck.forEach(function(lc) {
+            var cls = lc.status === 'OK' ? 'status-pass' : 'status-fail';
+            h += '<tr><td style="text-align:left">' + lc.name + '</td><td>' + lc.pu + '</td><td>' + lc.mux + '</td><td>' + lc.muy + '</td>';
+            h += '<td>' + lc.demand_mn + '</td><td>' + lc.capacity_mn + '</td>';
+            h += '<td class="' + cls + '">' + lc.dc_ratio + '</td><td class="' + cls + '" style="font-weight:700">' + lc.status + '</td></tr>';
+        });
+        h += '</table></div>';
+    }
+    document.getElementById('results-report').style.display = '';
+    document.getElementById('results-report').innerHTML = h;
+    if (window.MathJax) MathJax.typeset();
+}
+
 // ── Submit ──
 document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -305,6 +501,55 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     else { payload.n_bars = parseInt(f.n_bars.value); payload.d_bar = parseFloat(f.d_bar.value); payload.n_bars_side = parseInt(f.n_bars_side.value)||0; payload.nx = parseInt(f.nx.value)||0; payload.ny = parseInt(f.ny.value)||0; }
 
     var combos = getLoadCombos();
+
+    // ── Biaxial P-M-M mode ──
+    if (analysisMode === 'biaxial') {
+        payload.n_angles = parseInt(f.n_angles.value) || 24;
+        payload.n_c_values = parseInt(f.n_c_values.value) || 32;
+        payload.contour_pu = parseFloat(f.contour_pu.value) || 0;
+        if (combos.length > 0) payload.load_combos = combos;
+
+        submitCalc('/api/column/biaxial', payload, function(result) {
+            var combosCheck = result.load_combo_checks || [];
+            var contour = result.contour || [];
+
+            // Summary
+            var s = '<div style="background:#dcfce7;padding:.6rem 1rem;border-radius:4px;font-weight:700;margin-bottom:.5rem;">';
+            s += 'P<sub>o</sub> = ' + result.pure_compression_kn + ' kN | ';
+            s += '\u03c6P<sub>n,max</sub> = ' + result.phi_pn_max_kn + ' kN | ';
+            s += 'P<sub>t</sub> = ' + result.pure_tension_kn + ' kN</div>';
+            s += '<p style="font-size:.82rem;color:var(--gray-500);">' + result.surface_points.length + ' surface points (' + result.n_angles + ' angles \u00d7 ' + result.n_c_values + ' depths)</p>';
+            document.getElementById('results-summary-biaxial').innerHTML = s;
+            document.getElementById('results-summary-biaxial').style.display = '';
+
+            // Show 3D, hide 2D
+            document.getElementById('chart-pm').style.display = 'none';
+            document.getElementById('chart-3d').style.display = '';
+            document.getElementById('results-title').textContent = 'P-M-M Interaction Surface';
+            render3DChart(result.surface_points, combosCheck);
+
+            // Contour
+            if (contour.length > 0) {
+                document.getElementById('charts-row-biaxial').style.display = '';
+                renderContourChart(contour, combosCheck, payload.contour_pu);
+            }
+
+            // SVG rebar
+            document.getElementById('svg-rebar').innerHTML = result.svg_rebar || '';
+            document.getElementById('results').style.display = '';
+
+            renderBiaxialReport(result, payload, combosCheck);
+        });
+        return;
+    }
+
+    // ── Uniaxial P-M mode ──
+    document.getElementById('chart-pm').style.display = '';
+    document.getElementById('chart-3d').style.display = 'none';
+    document.getElementById('charts-row-biaxial').style.display = 'none';
+    document.getElementById('results-summary-biaxial').style.display = 'none';
+    document.getElementById('results-title').textContent = 'P-M Interaction Diagram';
+
     if (combos.length > 0) {
         payload.load_combos = combos;
         var crit = combos.reduce(function(p,c){ return Math.abs(c.mu)>Math.abs(p.mu)?c:p; });
