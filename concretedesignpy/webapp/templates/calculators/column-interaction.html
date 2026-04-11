@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Column Interaction & Rebar Layout - ConcreteDesignPy{% endblock %}
+{% block title %}Column Design - ConcreteDesignPy{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.css">
@@ -482,66 +482,78 @@ function renderContourChart(contours, combos, puLevel) {
 function renderFiberPlotCol(fp) {
     if (!fp || !fp.stresses) return;
     var nx = fp.nx, ny = fp.ny;
-    // Reshape 1D arrays into 2D grids for heatmap
-    var zStress = [], zStrain = [];
     var xVals = [], yVals = [];
-    // Get unique sorted x and y values
     var xSet = {}, ySet = {};
     for (var i = 0; i < fp.fiber_x.length; i++) { xSet[fp.fiber_x[i]] = 1; ySet[fp.fiber_y[i]] = 1; }
     xVals = Object.keys(xSet).map(Number).sort(function(a,b){return a-b;});
     yVals = Object.keys(ySet).map(Number).sort(function(a,b){return a-b;});
 
-    // Build 2D grid (y rows, x cols)
+    // Build 2D stress grid
+    var zStress = [];
     for (var yi = 0; yi < yVals.length; yi++) {
-        var rowS = [], rowE = [];
+        var row = [];
         for (var xi = 0; xi < xVals.length; xi++) {
-            // Find fiber at this (x, y)
             var idx = yi * nx + xi;
-            rowS.push(idx < fp.stresses.length ? fp.stresses[idx] : 0);
-            rowE.push(idx < fp.strains.length ? fp.strains[idx] : 0);
+            row.push(idx < fp.stresses.length ? fp.stresses[idx] : 0);
         }
-        zStress.push(rowS);
-        zStrain.push(rowE);
+        zStress.push(row);
     }
 
+    // Colorscale: white (0 stress) to deep blue (max stress)
     var traces = [{
         z: zStress, x: xVals, y: yVals,
-        type: 'heatmap', xgap: 2, ygap: 2,
-        colorscale: [[0, '#f0f9ff'], [0.3, '#7dd3fc'], [0.5, '#0ea5e9'], [0.7, '#0369a1'], [1, '#0c4a6e']],
-        colorbar: { title: 'MPa', thickness: 12, len: 0.8 },
-        hovertemplate: 'x=%{x:.0f}, y=%{y:.0f}<br>Stress=%{z:.2f} MPa<extra></extra>',
+        type: 'heatmap', xgap: 1, ygap: 1,
+        colorscale: [[0,'#f8fafc'],[0.15,'#e0f2fe'],[0.3,'#7dd3fc'],[0.5,'#0ea5e9'],[0.7,'#0369a1'],[1,'#0c4a6e']],
+        colorbar: { title: 'Stress (MPa)', thickness: 12, len: 0.7, titleside: 'right', titlefont: { size: 10 } },
+        hovertemplate: 'x=%{x:.0f}, y=%{y:.0f}<br>\u03c3=%{z:.2f} MPa<extra></extra>',
     }];
 
-    // Overlay bar positions
+    // Section outline
+    var halfB = xVals[xVals.length-1] + fp.dx/2, halfBn = xVals[0] - fp.dx/2;
+    var halfH = yVals[yVals.length-1] + fp.dy/2, halfHn = yVals[0] - fp.dy/2;
+    traces.push({
+        x: [halfBn, halfB, halfB, halfBn, halfBn], y: [halfHn, halfHn, halfH, halfH, halfHn],
+        mode: 'lines', line: { color: '#333', width: 2 }, showlegend: false, hoverinfo: 'skip',
+    });
+
+    // Bar markers with labels
     if (fp.bar_x && fp.bar_y) {
-        var barColors = fp.bar_stresses.map(function(s) { return s >= 0 ? '#dc2626' : '#1e40af'; });
-        traces.push({
-            x: fp.bar_x, y: fp.bar_y, mode: 'markers',
-            marker: { size: 10, color: barColors, symbol: 'circle', line: { width: 1.5, color: '#fff' } },
-            hovertemplate: 'Bar: x=%{x:.0f}, y=%{y:.0f}<br>fs=%{text} MPa<extra></extra>',
-            text: fp.bar_stresses.map(function(s) { return s.toFixed(1); }),
-            showlegend: false,
+        var compX = [], compY = [], compText = [], tenX = [], tenY = [], tenText = [];
+        for (var bi = 0; bi < fp.bar_x.length; bi++) {
+            var s = fp.bar_stresses[bi];
+            if (s >= 0) { compX.push(fp.bar_x[bi]); compY.push(fp.bar_y[bi]); compText.push(s.toFixed(0) + ' MPa'); }
+            else { tenX.push(fp.bar_x[bi]); tenY.push(fp.bar_y[bi]); tenText.push(s.toFixed(0) + ' MPa'); }
+        }
+        if (compX.length > 0) traces.push({
+            x: compX, y: compY, mode: 'markers', name: 'Compression bars',
+            marker: { size: 12, color: '#dc2626', symbol: 'circle', line: { width: 2, color: '#fff' } },
+            text: compText, hovertemplate: 'Bar: x=%{x:.0f}, y=%{y:.0f}<br>fs=%{text}<extra></extra>',
+        });
+        if (tenX.length > 0) traces.push({
+            x: tenX, y: tenY, mode: 'markers', name: 'Tension bars',
+            marker: { size: 12, color: '#1e40af', symbol: 'circle', line: { width: 2, color: '#fff' } },
+            text: tenText, hovertemplate: 'Bar: x=%{x:.0f}, y=%{y:.0f}<br>fs=%{text}<extra></extra>',
         });
     }
 
-    // NA line at theta=0 (horizontal at y = h/2 - c + h/2... need to compute)
-    // For theta=0, NA is horizontal. c is from compression face (top = max y)
-    var maxY = Math.max.apply(null, yVals) + fp.dy / 2;
+    // NA line
+    var maxY = yVals[yVals.length-1] + fp.dy / 2;
     var naY = maxY - fp.c;
-
     traces.push({
-        x: [xVals[0] - fp.dx, xVals[xVals.length - 1] + fp.dx], y: [naY, naY],
-        mode: 'lines', line: { color: '#dc2626', width: 2, dash: 'dash' },
-        showlegend: false, hoverinfo: 'skip',
+        x: [halfBn - 15, halfB + 15], y: [naY, naY],
+        mode: 'lines', line: { color: '#dc2626', width: 2.5, dash: 'dash' },
+        name: 'Neutral Axis', hoverinfo: 'skip',
     });
 
     Plotly.newPlot('chart-fiber-col', traces, {
         title: { text: 'Fiber Stress Distribution (\u03b8=0\u00b0, c=' + fp.c + ' mm)', font: { size: 14 } },
-        xaxis: { title: 'x (mm)', gridcolor: '#e5e7eb', scaleanchor: 'y' },
-        yaxis: { title: 'y (mm)', gridcolor: '#e5e7eb' },
-        height: 450, margin: { t: 40, r: 60, b: 50, l: 60 },
-        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
-        annotations: [{ x: xVals[xVals.length-1] + fp.dx + 5, y: naY, text: 'NA', showarrow: false, font: { size: 9, color: '#dc2626' } }],
+        xaxis: { title: 'x (mm)', gridcolor: '#e5e7eb', scaleanchor: 'y', zeroline: false },
+        yaxis: { title: 'y (mm)', gridcolor: '#e5e7eb', zeroline: false },
+        height: 500, margin: { t: 40, r: 60, b: 50, l: 60 },
+        plot_bgcolor: '#f8fafc', paper_bgcolor: '#fff',
+        showlegend: true,
+        legend: { x: 0, y: -0.15, orientation: 'h', bgcolor: 'rgba(255,255,255,0.85)', font: { size: 9 } },
+        annotations: [{ x: halfB + 20, y: naY, text: 'NA', showarrow: false, font: { size: 10, color: '#dc2626' } }],
     }, { responsive: true, displayModeBar: false });
 }
 
