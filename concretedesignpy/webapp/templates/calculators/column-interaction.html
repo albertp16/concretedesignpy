@@ -490,7 +490,7 @@ function renderFiberPlotCol(fp) {
 
     var traces = [{
         z: zStress, x: xVals, y: yVals,
-        type: 'heatmap',
+        type: 'heatmap', xgap: 1, ygap: 1,
         colorscale: [[0, '#f0f9ff'], [0.3, '#7dd3fc'], [0.5, '#0ea5e9'], [0.7, '#0369a1'], [1, '#0c4a6e']],
         colorbar: { title: 'MPa', thickness: 12, len: 0.8 },
         hovertemplate: 'x=%{x:.0f}, y=%{y:.0f}<br>Stress=%{z:.2f} MPa<extra></extra>',

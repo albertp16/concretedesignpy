@@ -591,56 +591,58 @@ function renderFiberChart(fiberData, payload) {
     var fh = fiberData.fiber_h;
     var c = fiberData.c;
 
-    // Build heatmap: each fiber is a horizontal strip
-    // x = width position (single column for 1D fibers), y = depth
-    var zStress = [];
-    var zStrain = [];
-    var yLabels = [];
+    // Expand 1D fiber strips into a 2D grid (nx columns across width)
+    var nxGrid = 10;
+    var dx = b / nxGrid;
+    var xVals = [];
+    for (var xi = 0; xi < nxGrid; xi++) xVals.push(Math.round(dx * (xi + 0.5)));
+
+    // Build 2D grids: each row = one fiber strip replicated across width
+    var zStress = [], zStrain = [];
     for (var i = 0; i < nf; i++) {
-        zStress.push([fiberData.stresses[i]]);
-        zStrain.push([fiberData.strains[i]]);
-        yLabels.push(fiberData.y[i].toFixed(0));
+        var rowS = [], rowE = [];
+        for (var xi = 0; xi < nxGrid; xi++) { rowS.push(fiberData.stresses[i]); rowE.push(fiberData.strains[i]); }
+        zStress.push(rowS);
+        zStrain.push(rowE);
     }
 
-    // Stress heatmap
     var traces = [{
-        z: zStress, y: fiberData.y, x: ['Stress'],
-        type: 'heatmap',
+        z: zStress, y: fiberData.y, x: xVals,
+        type: 'heatmap', xgap: 1, ygap: 1,
         colorscale: [[0, '#eff6ff'], [0.3, '#93c5fd'], [0.6, '#3b82f6'], [0.8, '#1e40af'], [1, '#1e3a8a']],
-        colorbar: { title: 'MPa', thickness: 15, len: 0.9 },
+        colorbar: { title: 'MPa', thickness: 12, len: 0.8 },
         xaxis: 'x', yaxis: 'y',
-        hovertemplate: 'y=%{y:.0f}mm<br>Stress=%{z:.2f} MPa<extra></extra>',
+        hovertemplate: 'x=%{x}mm, y=%{y:.0f}mm<br>Stress=%{z:.2f} MPa<extra></extra>',
     }];
 
-    // Strain heatmap (second column)
     traces.push({
-        z: zStrain, y: fiberData.y, x: ['Strain'],
-        type: 'heatmap',
+        z: zStrain, y: fiberData.y, x: xVals,
+        type: 'heatmap', xgap: 1, ygap: 1,
         colorscale: [[0, '#fef3c7'], [0.3, '#fbbf24'], [0.5, '#f59e0b'], [0.7, '#d97706'], [1, '#92400e']],
-        colorbar: { title: '\u03b5', thickness: 15, len: 0.9, x: 1.12 },
+        colorbar: { title: '\u03b5', thickness: 12, len: 0.8, x: 1.1 },
         xaxis: 'x2', yaxis: 'y',
-        hovertemplate: 'y=%{y:.0f}mm<br>Strain=%{z:.6f}<extra></extra>',
+        hovertemplate: 'x=%{x}mm, y=%{y:.0f}mm<br>Strain=%{z:.6f}<extra></extra>',
     });
 
     // NA line
     var naY = h - c;
     var shapes = [
-        { type: 'line', x0: -0.5, x1: 0.5, y0: naY, y1: naY, xref: 'x', line: { color: '#dc2626', width: 2, dash: 'dash' } },
-        { type: 'line', x0: -0.5, x1: 0.5, y0: naY, y1: naY, xref: 'x2', line: { color: '#dc2626', width: 2, dash: 'dash' } },
+        { type: 'line', x0: xVals[0] - dx/2, x1: xVals[nxGrid-1] + dx/2, y0: naY, y1: naY, xref: 'x', line: { color: '#dc2626', width: 2, dash: 'dash' } },
+        { type: 'line', x0: xVals[0] - dx/2, x1: xVals[nxGrid-1] + dx/2, y0: naY, y1: naY, xref: 'x2', line: { color: '#dc2626', width: 2, dash: 'dash' } },
     ];
 
     Plotly.newPlot('chart-fiber', traces, {
-        title: { text: 'Fiber Stress & Strain Distribution at Ultimate (c=' + c.toFixed(1) + ' mm)', font: { size: 14 } },
+        title: { text: 'Fiber Stress & Strain at Ultimate (c=' + c.toFixed(1) + ' mm, ' + nf + ' fibers)', font: { size: 14 } },
         yaxis: { title: 'Depth from bottom (mm)', range: [0, h], gridcolor: '#e5e7eb' },
-        xaxis: { domain: [0, 0.4], showticklabels: true },
-        xaxis2: { domain: [0.55, 0.95], showticklabels: true },
-        height: 450, margin: { t: 40, r: 80, b: 50, l: 70 },
+        xaxis: { title: 'Width (mm)', domain: [0, 0.42], range: [0, b] },
+        xaxis2: { title: 'Width (mm)', domain: [0.55, 0.97], range: [0, b] },
+        height: 500, margin: { t: 40, r: 80, b: 50, l: 70 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
         shapes: shapes,
         annotations: [
-            { x: 0.2, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Concrete Stress</b>', showarrow: false, font: { size: 11 } },
-            { x: 0.75, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Concrete Strain</b>', showarrow: false, font: { size: 11 } },
-            { x: 0.5, y: naY, xref: 'x', text: 'NA', showarrow: false, font: { size: 9, color: '#dc2626' }, yshift: 8 },
+            { x: 0.21, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Concrete Stress</b>', showarrow: false, font: { size: 11 } },
+            { x: 0.76, y: 1.06, xref: 'paper', yref: 'paper', text: '<b>Concrete Strain</b>', showarrow: false, font: { size: 11 } },
+            { x: xVals[nxGrid-1] + dx, y: naY, xref: 'x', text: 'NA', showarrow: false, font: { size: 9, color: '#dc2626' } },
         ],
     }, { responsive: true, displayModeBar: false });
 }
