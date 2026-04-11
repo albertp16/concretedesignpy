@@ -12,6 +12,8 @@ from concretedesignpy.calculators.development_length import (
 from concretedesignpy.calculators.moment_curvature import (
     moment_curvature_analysis,
     moment_curvature_advanced,
+    moment_rotation_from_mphi,
+    plastic_hinge_length,
 )
 from concretedesignpy.calculators.mander import confined_stress_strain
 from concretedesignpy.calculators.rebar_layout import section_generate_rect
@@ -114,6 +116,76 @@ def moment_curvature_adv():
             mander_params=mander_params,
         )
         return jsonify({"status": "success", "result": result})
+    except (KeyError, ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@section_bp.route("/moment-rotation", methods=["POST"])
+def moment_rotation():
+    """Moment-rotation analysis (M-theta from M-phi)."""
+    data = request.get_json()
+    try:
+        b_val = float(data["b"])
+        h_val = float(data["h"])
+        fc_val = float(data["fc"])
+        fy_val = float(data["fy"])
+        d_prime = float(data.get("d_prime", 0))
+        as_compression = float(data.get("as_compression", 0))
+
+        # Concrete model
+        concrete_model = data.get("concrete_model", "hognestad")
+        mander_params = None
+        if concrete_model == "mander":
+            mander_params = confined_stress_strain(
+                fc=fc_val,
+                fy_transverse=float(data.get("fy_transverse", 275)),
+                b=b_val, h=h_val,
+                cover=float(data.get("cover", 40)),
+                db_main=float(data.get("db_tension", 25)),
+                db_tie=float(data.get("db_tie", 10)),
+                n_bars_x=int(data.get("n_bars_x", 4)),
+                n_bars_y=int(data.get("n_bars_y", 4)),
+                s_tie=float(data.get("s_tie", 100)),
+            )
+
+        # Run M-phi first
+        mphi_result = moment_curvature_advanced(
+            b=b_val, h=h_val,
+            d=float(data["d"]),
+            fc=fc_val, fy=fy_val,
+            as_tension=float(data["as_tension"]),
+            es=float(data.get("es", 200000)),
+            axial_load=float(data.get("axial_load", 0)),
+            d_prime=d_prime,
+            as_compression=as_compression,
+            concrete_model=concrete_model,
+            mander_params=mander_params,
+        )
+
+        # Plastic hinge length
+        lp_method = data.get("lp_method", "manual")
+        if lp_method == "manual":
+            lp = float(data.get("lp", 300))
+        else:
+            lp = plastic_hinge_length(
+                method=lp_method,
+                h=h_val,
+                fy=fy_val,
+                db=float(data.get("db_tension", 25)),
+                shear_span=float(data.get("shear_span", 0)),
+            )
+
+        # Convert M-phi to M-theta
+        mtheta_result = moment_rotation_from_mphi(mphi_result, lp)
+
+        # Return both
+        return jsonify({
+            "status": "success",
+            "result": {
+                "mphi": mphi_result,
+                "mtheta": mtheta_result,
+            },
+        })
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 

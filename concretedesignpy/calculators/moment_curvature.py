@@ -509,3 +509,112 @@ def moment_curvature_advanced(
                          2 * fc / ec_mod, 0.003), 4) for i in range(101)],
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Moment-Rotation (M-theta) from M-phi
+# ---------------------------------------------------------------------------
+
+def plastic_hinge_length(method, h, fy=0, db=0, shear_span=0):
+    """
+    Compute plastic hinge length Lp using common empirical formulas.
+
+    Parameters
+    ----------
+    method : str
+        'manual' (returns 0), 'priestley', or 'park_paulay'.
+    h : float
+        Section depth (mm).
+    fy : float
+        Steel yield strength (MPa).
+    db : float
+        Tension bar diameter (mm).
+    shear_span : float
+        Shear span / member length (mm). Required for Priestley.
+
+    Returns
+    -------
+    float
+        Plastic hinge length Lp (mm).
+    """
+    if method == "priestley":
+        # Priestley (1992): Lp = 0.08*L + 0.022*fy*db
+        if shear_span <= 0 or fy <= 0 or db <= 0:
+            raise ValueError("Priestley method requires shear_span, fy, db > 0.")
+        return 0.08 * shear_span + 0.022 * fy * db
+    elif method == "park_paulay":
+        # Park & Paulay (1975): Lp = 0.5*h
+        return 0.5 * h
+    else:
+        return 0.0
+
+
+def moment_rotation_from_mphi(mphi_result, lp):
+    """
+    Convert moment-curvature results to moment-rotation.
+
+    Applies theta = phi * Lp for each point and event.
+
+    Parameters
+    ----------
+    mphi_result : dict
+        Result from moment_curvature_advanced().
+    lp : float
+        Plastic hinge length (mm).
+
+    Returns
+    -------
+    dict
+        points, events, ductility_rotation, lp
+    """
+    if lp <= 0:
+        raise ValueError("Plastic hinge length Lp must be positive.")
+
+    # Convert M-phi points to M-theta
+    points = []
+    for p in mphi_result.get("points", []):
+        phi = p.get("phi", 0)
+        theta = phi * lp
+        points.append({
+            "theta_rad": round(theta, 10),
+            "theta_mrad": round(theta * 1000, 6),
+            "moment_knm": p["moment_knm"],
+            "phi": p["phi"],
+            "c": p.get("c", 0),
+        })
+
+    # Convert events
+    events = []
+    for e in mphi_result.get("events", []):
+        theta = e["phi"] * lp
+        events.append({
+            "event": e["event"],
+            "theta_rad": round(theta, 10),
+            "theta_mrad": round(theta * 1000, 6),
+            "moment_knm": e["moment_knm"],
+            "phi": e["phi"],
+        })
+
+    # Rotation ductility
+    ductility_rotation = None
+    mphi_duct = mphi_result.get("ductility")
+    if mphi_duct:
+        theta_y = mphi_duct["phi_yield"] * lp
+        theta_u = mphi_duct["phi_ultimate"] * lp
+        mu_theta = theta_u / theta_y if theta_y > 0 else 0
+        ductility_rotation = {
+            "theta_y_rad": round(theta_y, 10),
+            "theta_y_mrad": round(theta_y * 1000, 6),
+            "theta_u_rad": round(theta_u, 10),
+            "theta_u_mrad": round(theta_u * 1000, 6),
+            "moment_yield_knm": mphi_duct["moment_yield_knm"],
+            "moment_ultimate_knm": mphi_duct["moment_ultimate_knm"],
+            "mu_theta": round(mu_theta, 2),
+        }
+
+    return {
+        "points": points,
+        "events": events,
+        "ductility_rotation": ductility_rotation,
+        "lp": round(lp, 2),
+    }

@@ -380,38 +380,27 @@ function renderPlotlyChart(points, combos, payload) {
 // ── 3D Line Chart (wireframe by theta) ──
 function render3DChart(pts, combos) {
     var traces = [];
-    // Group points by theta for line traces
-    var byTheta = {};
+    // Collect all surface points + mirrored for full shell
+    var allX = [], allY = [], allZ = [], allPhi = [];
     for (var i = 0; i < pts.length; i++) {
-        var t = pts[i].theta_deg;
-        if (!byTheta[t]) byTheta[t] = [];
-        byTheta[t].push(pts[i]);
-    }
-    var thetas = Object.keys(byTheta).sort(function(a,b){return a-b;});
-    var colors = ['#1e40af','#2563eb','#3b82f6','#60a5fa','#93c5fd','#7c3aed','#8b5cf6','#a78bfa','#0891b2','#06b6d4','#22d3ee','#14b8a6','#10b981','#34d399','#6ee7b7','#f59e0b','#fbbf24','#fcd34d','#f97316','#fb923c','#fdba74','#dc2626','#ef4444','#f87171'];
-    for (var ti = 0; ti < thetas.length; ti++) {
-        var theta = thetas[ti];
-        var group = byTheta[theta];
-        var mx = [], my = [], pz = [];
-        for (var j = 0; j < group.length; j++) {
-            mx.push(group[j].mux); my.push(group[j].muy); pz.push(group[j].pu);
-        }
-        var clr = colors[ti % colors.length];
-        traces.push({
-            x: mx, y: my, z: pz, mode: 'lines', type: 'scatter3d',
-            name: '\u03b8=' + theta + '\u00b0',
-            line: { color: clr, width: 2 }, showlegend: false,
-        });
-        // Mirror (180-360)
-        if (parseFloat(theta) > 0 && parseFloat(theta) < 180) {
-            var mx2 = mx.map(function(v){return -v;}), my2 = my.map(function(v){return -v;});
-            traces.push({
-                x: mx2, y: my2, z: pz, mode: 'lines', type: 'scatter3d',
-                name: '\u03b8=' + (parseFloat(theta)+180) + '\u00b0',
-                line: { color: clr, width: 2 }, showlegend: false,
-            });
+        allX.push(pts[i].mux); allY.push(pts[i].muy); allZ.push(pts[i].pu); allPhi.push(pts[i].phi);
+        if (pts[i].theta_deg > 0 && pts[i].theta_deg < 180) {
+            allX.push(-pts[i].mux); allY.push(-pts[i].muy); allZ.push(pts[i].pu); allPhi.push(pts[i].phi);
         }
     }
+    // Transparent mesh surface (Delaunay triangulation)
+    traces.push({
+        x: allX, y: allY, z: allZ,
+        type: 'mesh3d', alphahull: 0,
+        intensity: allPhi,
+        colorscale: [[0, '#1e3a5f'], [0.3, '#1e40af'], [0.5, '#3b82f6'], [0.7, '#60a5fa'], [1, '#93c5fd']],
+        colorbar: { title: '\u03c6', thickness: 15, len: 0.5 },
+        opacity: 0.35,
+        name: 'Interaction Surface',
+        showlegend: false,
+        flatshading: true,
+        lighting: { ambient: 0.8, diffuse: 0.5, specular: 0.1 },
+    });
     // Load combo markers
     if (combos && combos.length > 0) {
         var lcColors = ['#dc2626','#2563eb','#16a34a','#f59e0b'];
@@ -421,8 +410,8 @@ function render3DChart(pts, combos) {
                 x: [lc.mux], y: [lc.muy], z: [lc.pu],
                 mode: 'markers+text', type: 'scatter3d',
                 name: lc.name + ' (' + lc.status + ')',
-                marker: { size: 5, color: lc.status === 'OK' ? lcColors[k % 4] : '#dc2626', symbol: lc.status === 'OK' ? 'circle' : 'x' },
-                text: [lc.name], textposition: 'top center', textfont: { size: 9 },
+                marker: { size: 6, color: lc.status === 'OK' ? lcColors[k % 4] : '#dc2626', symbol: lc.status === 'OK' ? 'circle' : 'x' },
+                text: [lc.name], textposition: 'top center', textfont: { size: 10 },
             });
         }
     }
@@ -434,8 +423,9 @@ function render3DChart(pts, combos) {
             zaxis: { title: 'Pu (kN)', gridcolor: '#e5e7eb' },
             camera: { eye: { x: 1.5, y: 1.5, z: 1.0 } },
         },
-        height: 600, margin: { t: 40, r: 10, b: 10, l: 10 },
-        showlegend: false,
+        height: 800, margin: { t: 40, r: 10, b: 10, l: 10 },
+        showlegend: true,
+        legend: { x: 0, y: 1, bgcolor: 'rgba(255,255,255,0.8)', font: { size: 9 } },
     }, { responsive: true });
 }
 
