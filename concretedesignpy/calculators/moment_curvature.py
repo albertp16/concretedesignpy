@@ -5,18 +5,26 @@
 Moment-Curvature Analysis
 ===========================
 
-Computes the 6-point moment-curvature relationship for
-rectangular RC sections.
+Computes the moment-curvature relationship for rectangular RC sections.
 
-Points:
-    1. Just before cracking
-    2. Just after cracking
-    3. Elastic limit (0.45 f'c)
-    4. Steel yields
-    5. Concrete at peak strain
-    6. Concrete at ultimate strain
+Modes:
+    1. Quick (6-Point): Closed-form key points using Whitney block
+    2. Advanced (Incremental): Fiber approach with selectable concrete model
 
-Reference: NSCP 2015 / ACI 318-19
+Concrete Models:
+    - Hognestad (1951): Parabolic ascending + linear descending (unconfined)
+    - Mander et al. (1988): Power-law curve for confined concrete
+
+Features:
+    - Compression steel support (doubly-reinforced sections)
+    - Ductility ratio computation (mu = phi_u / phi_y)
+    - Event detection (cracking, yield, peak, ultimate)
+
+Reference:
+    NSCP 2015 / ACI 318-19
+    Anwar & Najam (2017) Ch. 6, Eqs. 6.1-6.7
+    Hognestad (1951) — Univ. of Illinois Bulletin No. 399
+    Mander, Priestley & Park (1988) — J. Structural Eng., ASCE
 """
 
 import math
@@ -192,6 +200,21 @@ def _hognestad_stress(ec_strain, fc, eco, ecu):
     return 0.0
 
 
+def _mander_stress(ec_strain, fcc, ecc, ecu, r):
+    """
+    Mander confined concrete stress-strain model.
+
+    Reference: Mander, Priestley & Park (1988), Eq. 6.15a
+    """
+    if ec_strain <= 0 or ec_strain > ecu:
+        return 0.0
+    x = ec_strain / ecc if ecc > 0 else 0
+    denom = r - 1 + x ** r
+    if denom == 0:
+        return 0.0
+    return fcc * x * r / denom
+
+
 def _steel_stress(strain, fy, es):
     """Elastic-perfectly-plastic steel model."""
     fs = es * strain
@@ -205,11 +228,14 @@ def _steel_stress(strain, fy, es):
 def moment_curvature_advanced(
     b, h, d, fc, fy, as_tension, es=200000.0,
     axial_load=0.0, n_increments=60, n_fibers=50,
+    d_prime=0.0, as_compression=0.0,
+    concrete_model="hognestad", mander_params=None,
 ):
     """
     Compute moment-curvature using incremental fiber approach.
 
-    Uses Hognestad concrete model and elastic-perfectly-plastic steel.
+    Supports Hognestad (unconfined) or Mander (confined) concrete,
+    compression steel, ductility computation, and event detection.
 
     Parameters
     ----------
@@ -233,109 +259,253 @@ def moment_curvature_advanced(
         Number of curvature increments.
     n_fibers : int
         Number of concrete fiber strips.
+    d_prime : float
+        Distance from compression face to compression steel (mm).
+    as_compression : float
+        Area of compression reinforcement (mm^2).
+    concrete_model : str
+        'hognestad' or 'mander'.
+    mander_params : dict or None
+        Result from confined_stress_strain() when using Mander model.
+        Required keys: fcc, ecc, ecu, r
 
     Returns
     -------
     dict
-        Keys: points (list), section_properties, hognestad_params
+        Keys: points, section_properties, hognestad_params or
+        mander_curve_params, ductility, events
     """
     if b <= 0 or h <= 0 or d <= 0 or fc <= 0 or fy <= 0:
         raise ValueError("All section/material parameters must be positive.")
 
     ec_mod = 4700 * math.sqrt(fc)  # concrete elastic modulus
-    eco = 2 * fc / ec_mod           # strain at peak stress
-    ecu = 0.003                     # ultimate concrete strain
+    fr = 0.62 * math.sqrt(fc)
+    ey = fy / es
+
+    # Select concrete model parameters
+    use_mander = (concrete_model == "mander" and mander_params is not None)
+    if use_mander:
+        fcc = mander_params['fcc']
+        ecc = mander_params['ecc']
+        ecu = mander_params['ecu']
+        r_mander = mander_params['r']
+        eco = ecc  # peak strain for Mander
+    else:
+        eco = 2 * fc / ec_mod           # strain at peak stress
+        ecu = 0.003                     # ultimate concrete strain
 
     # Axial load in N (input is kN)
     p_axial = axial_load * 1000.0
 
     # Fiber geometry: strips from bottom (y=0) to top (y=h)
     fiber_h = h / n_fibers
-    fiber_y = [(i + 0.5) * fiber_h for i in range(n_fibers)]  # centroid of each strip
+    fiber_y = [(i + 0.5) * fiber_h for i in range(n_fibers)]
 
-    # Steel layer: tension steel at depth d from top => y = h - d from bottom
-    steel_y = h - d
-    # (Could add compression steel later)
+    # Steel layers
+    steel_y_tens = h - d  # tension steel y from bottom
+    steel_y_comp = h - d_prime if (as_compression > 0 and d_prime > 0) else None
 
-    centroid = h / 2.0  # section centroid for moment reference
+    centroid = h / 2.0
 
     points = []
 
+    # Event detection state
+    events = []
+    cracking_detected = False
+    yield_detected = False
+    peak_moment = 0.0
+    peak_moment_point = None
+
     for step in range(1, n_increments + 1):
-        ec_top = step * ecu / n_increments  # strain at top fiber (compression)
+        ec_top = step * ecu / n_increments
 
         # Binary search for neutral axis depth c (from top)
         c_lo, c_hi = 1.0, h * 2.0
         c_found = None
+        final_total_moment = 0.0
+        final_strain_steel = 0.0
 
-        for _ in range(100):  # max iterations
+        for _ in range(100):
             c = (c_lo + c_hi) / 2.0
 
-            # Concrete forces
+            # Concrete forces (fiber approach)
             total_force = 0.0
             total_moment = 0.0
             for fy_i in fiber_y:
-                # Distance from top: h - fy_i
                 dist_from_top = h - fy_i
                 strain_i = ec_top * (c - dist_from_top) / c if c > 0 else 0
-                # Only compression (strain > 0)
-                stress_i = _hognestad_stress(strain_i, fc, eco, ecu)
+                if use_mander:
+                    stress_i = _mander_stress(strain_i, fcc, ecc, ecu, r_mander)
+                else:
+                    stress_i = _hognestad_stress(strain_i, fc, eco, ecu)
                 force_i = stress_i * b * fiber_h
                 total_force += force_i
                 total_moment += force_i * (fy_i - centroid)
 
-            # Steel force
-            dist_steel_from_top = d  # steel is at depth d from top
-            strain_steel = ec_top * (c - dist_steel_from_top) / c if c > 0 else 0
-            # Negative strain = tension in steel
+            # Tension steel
+            strain_steel = ec_top * (c - d) / c if c > 0 else 0
             stress_steel = _steel_stress(-strain_steel, fy, es)
-            force_steel = -stress_steel * as_tension  # tension is negative force
+            force_steel = -stress_steel * as_tension
             total_force += force_steel
-            total_moment += force_steel * (steel_y - centroid)
+            total_moment += force_steel * (steel_y_tens - centroid)
 
-            # Add axial load (compression positive)
+            # Compression steel
+            if steel_y_comp is not None:
+                strain_comp = ec_top * (c - d_prime) / c if c > 0 else 0
+                stress_comp = _steel_stress(strain_comp, fy, es)
+                force_comp = stress_comp * as_compression
+                total_force += force_comp
+                total_moment += force_comp * (steel_y_comp - centroid)
+
+            # Axial load
             net_force = total_force + p_axial
 
-            if abs(net_force) < 0.5:  # convergence (< 0.5 N)
+            if abs(net_force) < 0.5:
                 c_found = c
+                final_total_moment = total_moment
+                final_strain_steel = strain_steel
                 break
 
             if net_force > 0:
-                # Too much compression, reduce c
                 c_hi = c
             else:
-                # Too much tension, increase c
                 c_lo = c
 
         if c_found is None:
-            continue  # skip this step if no convergence
+            continue
 
         phi = ec_top / c_found if c_found > 0 else 0
 
         points.append({
             "ec_top": round(ec_top, 8),
             "phi": round(phi, 10),
-            "moment_knm": round(total_moment / 1e6, 2),
+            "moment_knm": round(final_total_moment / 1e6, 2),
             "c": round(c_found, 2),
         })
 
-    # Hognestad curve data for plotting
-    hog_strains = [i * ecu / 100 for i in range(101)]
-    hog_stresses = [round(_hognestad_stress(e, fc, eco, ecu), 4) for e in hog_strains]
-    hog_strains = [round(e, 6) for e in hog_strains]
+        # ── Event detection ──
+        moment_val = abs(final_total_moment / 1e6)
+
+        # Cracking: tension fiber strain exceeds fr/Ec
+        if not cracking_detected:
+            max_tension_strain = ec_top * (c_found - h) / c_found if c_found > 0 else 0
+            if abs(max_tension_strain) * ec_mod >= fr:
+                cracking_detected = True
+                events.append({
+                    "event": "Cracking",
+                    "phi": round(phi, 10),
+                    "moment_knm": round(final_total_moment / 1e6, 2),
+                    "step": step,
+                })
+
+        # Steel yield: tension steel strain >= ey
+        if not yield_detected:
+            if abs(final_strain_steel) >= ey:
+                yield_detected = True
+                events.append({
+                    "event": "Steel Yield",
+                    "phi": round(phi, 10),
+                    "moment_knm": round(final_total_moment / 1e6, 2),
+                    "step": step,
+                })
+
+        # Track peak moment
+        if moment_val > peak_moment:
+            peak_moment = moment_val
+            peak_moment_point = {
+                "event": "Peak Moment",
+                "phi": round(phi, 10),
+                "moment_knm": round(final_total_moment / 1e6, 2),
+                "step": step,
+            }
+
+    # Add peak moment event
+    if peak_moment_point:
+        events.append(peak_moment_point)
+
+    # Add ultimate event (last converged point)
+    if points:
+        last = points[-1]
+        events.append({
+            "event": "Ultimate",
+            "phi": last["phi"],
+            "moment_knm": last["moment_knm"],
+            "step": len(points),
+        })
+
+    # ── Ductility computation ──
+    ductility = None
+    yield_evt = next((e for e in events if e["event"] == "Steel Yield"), None)
+    ult_evt = next((e for e in events if e["event"] == "Ultimate"), None)
+    if yield_evt and ult_evt and yield_evt["phi"] > 0:
+        phi_y = yield_evt["phi"]
+        phi_u = ult_evt["phi"]
+        mu = phi_u / phi_y
+        ei_yield = (yield_evt["moment_knm"] * 1e6) / phi_y if phi_y > 0 else 0
+        ei_ultimate = (ult_evt["moment_knm"] * 1e6) / phi_u if phi_u > 0 else 0
+        ductility = {
+            "phi_yield": phi_y,
+            "moment_yield_knm": yield_evt["moment_knm"],
+            "phi_ultimate": phi_u,
+            "moment_ultimate_knm": ult_evt["moment_knm"],
+            "mu": round(mu, 2),
+            "ei_yield": round(ei_yield, 0),
+            "ei_ultimate": round(ei_ultimate, 0),
+        }
+
+    # ── Stress-strain curve data for plotting ──
+    if use_mander:
+        n_curve = 200
+        curve_strains = [i * ecu / n_curve for i in range(n_curve + 1)]
+        curve_stresses = [round(_mander_stress(e, fcc, ecc, ecu, r_mander), 4)
+                          for e in curve_strains]
+        curve_strains = [round(e, 8) for e in curve_strains]
+        model_params = {
+            "model": "mander",
+            "fcc": mander_params['fcc'],
+            "ecc": mander_params['ecc'],
+            "ecu": mander_params['ecu'],
+            "r": mander_params['r'],
+            "fc": fc,
+            "eco_unconfined": round(2 * fc / ec_mod, 6),
+            "strains": curve_strains,
+            "stresses": curve_stresses,
+        }
+    else:
+        hog_strains = [i * ecu / 100 for i in range(101)]
+        hog_stresses = [round(_hognestad_stress(e, fc, eco, ecu), 4)
+                        for e in hog_strains]
+        hog_strains = [round(e, 6) for e in hog_strains]
+        model_params = {
+            "model": "hognestad",
+            "eco": round(eco, 6),
+            "ecu": ecu,
+            "fc": fc,
+            "strains": hog_strains,
+            "stresses": hog_stresses,
+        }
 
     return {
         "points": points,
         "section_properties": {
             "ec_mod": round(ec_mod, 2),
             "n": round(es / ec_mod, 4),
-            "fr": round(0.62 * math.sqrt(fc), 4),
+            "fr": round(fr, 4),
         },
-        "hognestad_params": {
-            "eco": round(eco, 6),
-            "ecu": ecu,
+        "concrete_model_params": model_params,
+        "events": events,
+        "ductility": ductility,
+        "compression_steel": {
+            "d_prime": d_prime,
+            "as_compression": as_compression,
+        } if as_compression > 0 else None,
+        # Backward compat: keep hognestad_params for quick+adv overlay
+        "hognestad_params": model_params if not use_mander else {
+            "eco": round(2 * fc / ec_mod, 6),
+            "ecu": 0.003,
             "fc": fc,
-            "strains": hog_strains,
-            "stresses": hog_stresses,
+            "strains": [round(i * 0.003 / 100, 6) for i in range(101)],
+            "stresses": [round(_hognestad_stress(i * 0.003 / 100, fc,
+                         2 * fc / ec_mod, 0.003), 4) for i in range(101)],
         },
     }
