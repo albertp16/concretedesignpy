@@ -24,6 +24,8 @@ Modules:
     - beam_shear: Concrete and steel shear strength
     - beam_torsion: Torsion design checks per ACI/NSCP
     - beam_deflection: Short-term and long-term deflection
+    - frp_flexure: ACI 440.2R-17 Ch 10 FRP flexural strengthening
+    - frp_shear: ACI 440.2R-17 Ch 11 FRP shear strengthening
     - column_interaction: P-M interaction diagram generation
     - column_flexural: Minimum flexural strength ratio check
     - joint_shear: Joint shear verification for special moment frames
@@ -35,7 +37,7 @@ Modules:
     - alternative_inertia: Alternative moment of inertia per NSCP 2015
 
 Standards:
-    NSCP 2015, ACI 318-19, ASCE 41-17
+    NSCP 2015, ACI 318-19, ASCE 41-17, ACI 440.2R-17
 """
 
 from concretedesignpy.calculators.beam_moment import calculate_beam_moment
@@ -77,4 +79,13 @@ from concretedesignpy.calculators.rebar_layout import section_generate_rect
 from concretedesignpy.calculators.alternative_inertia import (
     alternative_inertia_column_wall,
     alternative_inertia_beam_slab,
+)
+from concretedesignpy.calculators.frp_flexure import (
+    frp_flexural_strengthening,
+    get_env_reduction,
+    ENV_REDUCTION,
+    CREEP_RUPTURE_LIMIT,
+)
+from concretedesignpy.calculators.frp_shear import (
+    frp_shear_strengthening,
 )

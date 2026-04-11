@@ -1,4 +1,4 @@
-__version__ = '0.5.0'
+__version__ = '0.6.0'
 
 from .general import area_diam, steel_area, area_ratio
 from .mgt import generateFIBERMGT
@@ -14,3 +14,5 @@ from .calculators.moment_curvature import (
 from .calculators.column_interaction import generate_interaction_diagram
 from .calculators.column_biaxial import generate_biaxial_diagram
 from .calculators.mander import confined_stress_strain
+from .calculators.frp_flexure import frp_flexural_strengthening, get_env_reduction
+from .calculators.frp_shear import frp_shear_strengthening
