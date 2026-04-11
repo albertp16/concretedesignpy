@@ -14,6 +14,7 @@ from concretedesignpy.calculators.moment_curvature import (
     moment_curvature_advanced,
     moment_rotation_from_mphi,
     plastic_hinge_length,
+    asce41_backbone_beam,
 )
 from concretedesignpy.calculators.mander import confined_stress_strain
 from concretedesignpy.calculators.rebar_layout import section_generate_rect
@@ -178,12 +179,31 @@ def moment_rotation():
         # Convert M-phi to M-theta
         mtheta_result = moment_rotation_from_mphi(mphi_result, lp)
 
-        # Return both
+        # ASCE 41 / FEMA 356 backbone curve
+        backbone_result = None
+        backbone_code = data.get("backbone_code", "none")
+        if backbone_code in ("asce41", "fema356"):
+            duct = mtheta_result.get("ductility_rotation")
+            if duct:
+                backbone_result = asce41_backbone_beam(
+                    my_knm=duct["moment_yield_knm"],
+                    theta_y_rad=duct["theta_y_rad"],
+                    fc=fc_val, fy=fy_val, b=b_val, d=float(data["d"]),
+                    as_tension=float(data["as_tension"]),
+                    as_compression=float(data.get("as_compression", 0)),
+                    stirrup_spacing=float(data.get("stirrup_spacing", 150)),
+                    db_stirrup=float(data.get("db_stirrup", 10)),
+                    v_demand=float(data.get("v_demand", 0)),
+                    code=backbone_code,
+                )
+
+        # Return all
         return jsonify({
             "status": "success",
             "result": {
                 "mphi": mphi_result,
                 "mtheta": mtheta_result,
+                "backbone": backbone_result,
             },
         })
     except (KeyError, ValueError, TypeError) as e:

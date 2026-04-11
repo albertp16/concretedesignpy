@@ -665,3 +665,248 @@ def moment_rotation_from_mphi(mphi_result, lp):
         "ductility_rotation": ductility_rotation,
         "lp": round(lp, 2),
     }
+
+
+# ---------------------------------------------------------------------------
+# ASCE 41-17 / FEMA 356 Backbone Curve
+# ---------------------------------------------------------------------------
+
+# Table 10-7 Condition i — beams controlled by flexure
+# Columns: (rho_ratio_max, v_ratio_max, conforming, a, b, c, IO, LS_pri, LS_sec, CP_pri, CP_sec)
+_TABLE_10_7 = [
+    # Conforming transverse reinforcement
+    (0.0, 3.0, True,  0.025, 0.050, 0.20, 0.010, 0.020, 0.025, 0.025, 0.050),
+    (0.0, 6.0, True,  0.020, 0.040, 0.20, 0.005, 0.010, 0.020, 0.020, 0.040),
+    (0.5, 3.0, True,  0.020, 0.030, 0.20, 0.005, 0.010, 0.020, 0.020, 0.030),
+    (0.5, 6.0, True,  0.015, 0.020, 0.20, 0.005, 0.005, 0.015, 0.015, 0.020),
+    # Nonconforming transverse reinforcement
+    (0.0, 3.0, False, 0.020, 0.030, 0.20, 0.005, 0.010, 0.020, 0.020, 0.030),
+    (0.0, 6.0, False, 0.010, 0.015, 0.20, 0.0015, 0.005, 0.010, 0.010, 0.015),
+    (0.5, 3.0, False, 0.010, 0.015, 0.20, 0.005, 0.010, 0.010, 0.010, 0.015),
+    (0.5, 6.0, False, 0.005, 0.010, 0.20, 0.0015, 0.005, 0.005, 0.005, 0.010),
+]
+
+
+def _interp(x, x0, x1, y0, y1):
+    """Linear interpolation clamped to [x0, x1]."""
+    if x1 == x0:
+        return y0
+    t = max(0.0, min(1.0, (x - x0) / (x1 - x0)))
+    return y0 + t * (y1 - y0)
+
+
+def _lookup_table_10_7(rho_ratio, v_ratio, conforming):
+    """
+    Interpolate ASCE 41-17 Table 10-7 for beams controlled by flexure.
+
+    Returns (a, b, c, IO, LS_pri, LS_sec, CP_pri, CP_sec).
+    """
+    conf = conforming
+    # Filter rows by conforming
+    rows = [r for r in _TABLE_10_7 if r[2] == conf]
+
+    # Clamp inputs
+    rho_ratio = max(0.0, min(0.5, rho_ratio))
+    v_ratio = max(3.0, min(6.0, v_ratio))
+
+    # 2D interpolation: first by v_ratio at rho=0 and rho=0.5, then by rho
+    def get_at_rho(rho_max):
+        r_lo = [r for r in rows if r[0] == rho_max and r[1] == 3.0]
+        r_hi = [r for r in rows if r[0] == rho_max and r[1] == 6.0]
+        if not r_lo or not r_hi:
+            return None
+        lo, hi = r_lo[0], r_hi[0]
+        return tuple(_interp(v_ratio, 3.0, 6.0, lo[i], hi[i]) for i in range(3, 11))
+
+    vals_0 = get_at_rho(0.0)
+    vals_5 = get_at_rho(0.5)
+    if vals_0 is None or vals_5 is None:
+        return (0.02, 0.03, 0.2, 0.005, 0.01, 0.02, 0.02, 0.03)
+
+    result = tuple(_interp(rho_ratio, 0.0, 0.5, vals_0[i], vals_5[i])
+                   for i in range(8))
+    return result
+
+
+def asce41_backbone_beam(
+    my_knm, theta_y_rad,
+    fc, fy, b, d,
+    as_tension, as_compression=0.0,
+    stirrup_spacing=150.0, db_stirrup=10.0,
+    v_demand=0.0,
+    code="asce41",
+):
+    """
+    Generate ASCE 41-17 (or FEMA 356) backbone curve for RC beams.
+
+    Constructs the generalized force-deformation relation per Fig. 10-1
+    with modeling parameters from Table 10-7 (Condition i — flexure).
+
+    Parameters
+    ----------
+    my_knm : float
+        Yield moment from M-phi analysis (kN-m).
+    theta_y_rad : float
+        Yield rotation (radians).
+    fc : float
+        Concrete compressive strength (MPa).
+    fy : float
+        Steel yield strength (MPa).
+    b : float
+        Section width (mm).
+    d : float
+        Effective depth (mm).
+    as_tension : float
+        Tension reinforcement area (mm^2).
+    as_compression : float
+        Compression reinforcement area (mm^2).
+    stirrup_spacing : float
+        Transverse reinforcement spacing (mm).
+    db_stirrup : float
+        Stirrup bar diameter (mm).
+    v_demand : float
+        Shear demand at section (kN). If 0, computed from My/Ln.
+    code : str
+        'asce41' or 'fema356'.
+
+    Returns
+    -------
+    dict
+        backbone_points, params, acceptance, calculation_steps
+    """
+    steps = []
+
+    # Step 1: Beta1
+    if fc <= 28:
+        beta1 = 0.85
+    elif fc < 55:
+        beta1 = max(0.85 - 0.05 * (fc - 28) / 7, 0.65)
+    else:
+        beta1 = 0.65
+    steps.append({
+        "step": 1, "title": "Whitney Stress Block Factor",
+        "eq": "beta1", "value": round(beta1, 4),
+        "detail": f"beta1 = {beta1:.4f} (f'c = {fc} MPa)",
+    })
+
+    # Step 2: Balanced reinforcement ratio
+    rho_bal = 0.85 * beta1 * (fc / fy) * (0.003 / (0.003 + fy / 200000))
+    steps.append({
+        "step": 2, "title": "Balanced Reinforcement Ratio",
+        "eq": "rho_bal = 0.85 * beta1 * (fc/fy) * (ecu / (ecu + ey))",
+        "value": round(rho_bal, 6),
+        "detail": f"rho_bal = {rho_bal:.6f}",
+    })
+
+    # Step 3: Reinforcement ratios
+    rho = as_tension / (b * d)
+    rho_prime = as_compression / (b * d) if as_compression > 0 else 0
+    rho_ratio = (rho - rho_prime) / rho_bal if rho_bal > 0 else 0
+    rho_ratio = max(0.0, rho_ratio)
+    steps.append({
+        "step": 3, "title": "Reinforcement Ratio",
+        "eq": "(rho - rho') / rho_bal",
+        "value": round(rho_ratio, 4),
+        "detail": (f"rho = {rho:.6f}, rho' = {rho_prime:.6f}, "
+                   f"(rho - rho')/rho_bal = {rho_ratio:.4f}"),
+    })
+
+    # Step 4: Shear ratio
+    if v_demand > 0:
+        v_ratio = (v_demand * 1000) / (b * d * math.sqrt(fc))
+    else:
+        v_ratio = 3.0  # default low shear
+    v_ratio_clamped = max(3.0, min(6.0, v_ratio))
+    steps.append({
+        "step": 4, "title": "Shear Stress Ratio",
+        "eq": "V / (bw * d * sqrt(f'c))",
+        "value": round(v_ratio, 4),
+        "detail": f"V_ratio = {v_ratio:.4f} (clamped to {v_ratio_clamped:.4f})",
+    })
+
+    # Step 5: Transverse reinforcement classification
+    conforming = stirrup_spacing <= d / 2
+    conf_label = "Conforming (C)" if conforming else "Nonconforming (NC)"
+    steps.append({
+        "step": 5, "title": "Transverse Reinforcement",
+        "eq": "s <= d/2 → Conforming",
+        "value": conf_label,
+        "detail": f"s = {stirrup_spacing} mm, d/2 = {d/2:.1f} mm → {conf_label}",
+    })
+
+    # Step 6: Table 10-7 lookup
+    a, b_val, c, io, ls_pri, ls_sec, cp_pri, cp_sec = _lookup_table_10_7(
+        rho_ratio, v_ratio_clamped, conforming,
+    )
+    table_ref = "ASCE 41-17 Table 10-7" if code == "asce41" else "FEMA 356 Table 6-7"
+    steps.append({
+        "step": 6, "title": f"Modeling Parameters ({table_ref})",
+        "eq": "Interpolated from table",
+        "value": f"a={a:.4f}, b={b_val:.4f}, c={c:.2f}",
+        "detail": (f"a = {a:.4f} rad, b = {b_val:.4f} rad, c = {c:.2f} "
+                   f"(Condition i — flexure-controlled)"),
+    })
+
+    # Step 7: Acceptance criteria
+    steps.append({
+        "step": 7, "title": "Acceptance Criteria",
+        "eq": "Plastic rotation limits (rad)",
+        "value": f"IO={io:.4f}, LS(Pri)={ls_pri:.4f}, CP(Pri)={cp_pri:.4f}",
+        "detail": (f"IO = {io:.4f}, LS(Pri) = {ls_pri:.4f}, "
+                   f"LS(Sec) = {ls_sec:.4f}, CP(Pri) = {cp_pri:.4f}, "
+                   f"CP(Sec) = {cp_sec:.4f} rad"),
+    })
+
+    # Step 8: Construct backbone points
+    # ASCE 41-17 Fig. 10-1: A-B-C-D-E
+    theta_y = theta_y_rad
+    backbone_points = [
+        {"label": "A", "theta_rad": 0, "theta_mrad": 0,
+         "moment_knm": 0, "q_ratio": 0},
+        {"label": "B", "theta_rad": round(theta_y, 8),
+         "theta_mrad": round(theta_y * 1000, 4),
+         "moment_knm": round(my_knm, 2), "q_ratio": 1.0},
+        {"label": "C", "theta_rad": round(theta_y + a, 8),
+         "theta_mrad": round((theta_y + a) * 1000, 4),
+         "moment_knm": round(my_knm, 2), "q_ratio": 1.0},
+        {"label": "D", "theta_rad": round(theta_y + a, 8),
+         "theta_mrad": round((theta_y + a) * 1000, 4),
+         "moment_knm": round(my_knm * c, 2), "q_ratio": c},
+        {"label": "E", "theta_rad": round(theta_y + b_val, 8),
+         "theta_mrad": round((theta_y + b_val) * 1000, 4),
+         "moment_knm": round(my_knm * c, 2), "q_ratio": c},
+    ]
+
+    # Acceptance criteria as absolute rotation (theta_y + plastic_rotation)
+    acceptance = {
+        "io_rad": round(theta_y + io, 8),
+        "io_mrad": round((theta_y + io) * 1000, 4),
+        "ls_pri_rad": round(theta_y + ls_pri, 8),
+        "ls_pri_mrad": round((theta_y + ls_pri) * 1000, 4),
+        "ls_sec_rad": round(theta_y + ls_sec, 8),
+        "ls_sec_mrad": round((theta_y + ls_sec) * 1000, 4),
+        "cp_pri_rad": round(theta_y + cp_pri, 8),
+        "cp_pri_mrad": round((theta_y + cp_pri) * 1000, 4),
+        "cp_sec_rad": round(theta_y + cp_sec, 8),
+        "cp_sec_mrad": round((theta_y + cp_sec) * 1000, 4),
+        "io_plastic": round(io, 4),
+        "ls_pri_plastic": round(ls_pri, 4),
+        "cp_pri_plastic": round(cp_pri, 4),
+    }
+
+    return {
+        "backbone_points": backbone_points,
+        "params": {
+            "a": round(a, 4), "b": round(b_val, 4), "c": round(c, 2),
+            "rho": round(rho, 6), "rho_prime": round(rho_prime, 6),
+            "rho_bal": round(rho_bal, 6), "rho_ratio": round(rho_ratio, 4),
+            "v_ratio": round(v_ratio, 4),
+            "conforming": conforming, "conf_label": conf_label,
+            "beta1": round(beta1, 4),
+            "theta_y_rad": round(theta_y, 8),
+            "my_knm": round(my_knm, 2),
+            "code": code, "table_ref": table_ref,
+        },
+        "acceptance": acceptance,
+        "calculation_steps": steps,
+    }

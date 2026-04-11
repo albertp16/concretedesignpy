@@ -159,6 +159,26 @@
                     </div>
                     <p id="lp-formula" style="font-size:.75rem;color:var(--gray-400);margin:.25rem 0 0;"></p>
                 </div>
+                <div class="form-section" id="backbone-section" style="display:none;">
+                    <h3>ASCE 41 Backbone Curve</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Code</label>
+                            <select name="backbone_code" style="width:100%;padding:.4rem;border:1px solid var(--gray-200);border-radius:4px;font-size:.9rem;">
+                                <option value="none">None</option>
+                                <option value="asce41" selected>ASCE 41-17</option>
+                                <option value="fema356">FEMA 356</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Stirrup spacing (mm)</label><input type="number" name="stirrup_spacing" value="150" step="10"></div>
+                        <div class="form-group"><label>Stirrup dia (mm)</label><input type="number" name="db_stirrup" value="10" step="1"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>V demand (kN)</label><input type="number" name="v_demand" value="0" step="1"><p style="font-size:.72rem;color:var(--gray-400);margin:.2rem 0 0;">0 = assume low shear</p></div>
+                    </div>
+                </div>
                 <button type="submit" class="btn-primary" style="width:100%;">Analyze</button>
             </form>
         </div>
@@ -225,6 +245,7 @@ function setMode(mode) {
     document.getElementById('axial-section').style.display = isAdv ? '' : 'none';
     document.getElementById('concrete-model-section').style.display = isAdv ? '' : 'none';
     document.getElementById('lp-section').style.display = mode === 'mtheta' ? '' : 'none';
+    document.getElementById('backbone-section').style.display = mode === 'mtheta' ? '' : 'none';
 }
 
 document.getElementById('calc-form').addEventListener('submit', function(e) {
@@ -254,14 +275,19 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         payload.lp_method = form.lp_method.value || 'manual';
         payload.lp = parseFloat(form.lp.value) || 300;
         payload.shear_span = parseFloat(form.shear_span.value) || 0;
+        payload.backbone_code = form.backbone_code.value || 'none';
+        payload.stirrup_spacing = parseFloat(form.stirrup_spacing.value) || 150;
+        payload.db_stirrup = parseFloat(form.db_stirrup.value) || 10;
+        payload.v_demand = parseFloat(form.v_demand.value) || 0;
 
         submitCalc('/api/section/moment-rotation', payload, function(result) {
             var mtheta = result.mtheta || {};
             var mphi = result.mphi || {};
+            var backbone = result.backbone || null;
             var fiberPlotMT = mphi.fiber_plot || null;
             document.getElementById('chart-mphi').style.display = 'none';
             document.getElementById('chart-mtheta').style.display = '';
-            renderMThetaResults(payload, mphi, mtheta);
+            renderMThetaResults(payload, mphi, mtheta, backbone);
             if (fiberPlotMT) renderFiberChart(fiberPlotMT, payload);
         });
         return;
@@ -803,7 +829,7 @@ function renderAdvancedReport(payload, sp, pts, advPts, hog, events, ductility, 
     if (window.MathJax) MathJax.typeset();
 }
 
-function renderMThetaResults(payload, mphi, mtheta) {
+function renderMThetaResults(payload, mphi, mtheta, backbone) {
     var pts = mtheta.points || [];
     var events = mtheta.events || [];
     var duct = mtheta.ductility_rotation || null;
@@ -816,6 +842,11 @@ function renderMThetaResults(payload, mphi, mtheta) {
         s += '&#956;<sub>&#952;</sub> = &#952;<sub>u</sub> / &#952;<sub>y</sub> = ' + duct.mu_theta.toFixed(2);
         s += '<span style="font-size:.8rem;font-weight:400;color:var(--gray-600);margin-left:1rem;">';
         s += 'Lp = ' + mtheta.lp + ' mm</span>';
+        if (backbone) {
+            s += '<br><span style="font-size:.82rem;font-weight:400;color:#333;">Backbone ('+backbone.params.table_ref+')</span>';
+            s += '<span style="font-size:.8rem;font-weight:400;color:var(--gray-600);margin-left:.5rem;">';
+            s += 'a=' + backbone.params.a + ' b=' + backbone.params.b + ' c=' + backbone.params.c + '</span>';
+        }
         s += '</div>';
     }
     s += '<table class="report-table">';
@@ -837,8 +868,51 @@ function renderMThetaResults(payload, mphi, mtheta) {
     }
     var traces = [{
         x: thetas, y: moments, mode: 'lines',
-        name: 'M-\u03b8 Curve', line: { color: '#7c3aed', width: 2.5 },
+        name: 'M-\u03b8 Envelope', line: { color: '#7c3aed', width: 2 },
     }];
+
+    // Backbone overlay
+    var bbShapes = [];
+    if (backbone) {
+        var bbPts = backbone.backbone_points || [];
+        var bbX = [], bbY = [];
+        for (var bi = 0; bi < bbPts.length; bi++) { bbX.push(bbPts[bi].theta_mrad); bbY.push(bbPts[bi].moment_knm); }
+        traces.push({
+            x: bbX, y: bbY, mode: 'lines+markers',
+            name: 'ASCE 41 Backbone', line: { color: '#2563eb', width: 3 },
+            marker: { size: 8, color: '#2563eb', symbol: 'circle' },
+        });
+        // Point labels A-E
+        for (var bl = 0; bl < bbPts.length; bl++) {
+            traces.push({
+                x: [bbPts[bl].theta_mrad], y: [bbPts[bl].moment_knm],
+                mode: 'text', showlegend: false,
+                text: [bbPts[bl].label], textposition: 'top left',
+                textfont: { size: 11, color: '#1e40af', family: 'Arial Black' },
+            });
+        }
+        // IO / LS / CP acceptance criteria lines
+        var acc = backbone.acceptance;
+        var accLines = [
+            { x: acc.io_mrad, label: 'IO', color: '#16a34a', dash: 'dash' },
+            { x: acc.ls_pri_mrad, label: 'LS (Pri)', color: '#f59e0b', dash: 'dashdot' },
+            { x: acc.cp_pri_mrad, label: 'CP (Pri)', color: '#dc2626', dash: 'dot' },
+        ];
+        var yMax = Math.max.apply(null, moments) * 1.1;
+        for (var ai = 0; ai < accLines.length; ai++) {
+            var al = accLines[ai];
+            bbShapes.push({
+                type: 'line', x0: al.x, x1: al.x, y0: 0, y1: yMax,
+                line: { color: al.color, width: 1.5, dash: al.dash },
+            });
+            traces.push({
+                x: [al.x], y: [yMax * 0.95],
+                mode: 'text', showlegend: false,
+                text: [al.label], textfont: { size: 10, color: al.color, family: 'Arial' },
+            });
+        }
+    }
+
     // Event markers
     var evtColors = { 'Cracking': '#f59e0b', 'Steel Yield': '#16a34a', 'Peak Moment': '#7c3aed', 'Ultimate': '#dc2626' };
     var evtSymbols = { 'Cracking': 'diamond', 'Steel Yield': 'triangle-up', 'Peak Moment': 'star', 'Ultimate': 'x' };
@@ -847,17 +921,19 @@ function renderMThetaResults(payload, mphi, mtheta) {
         traces.push({
             x: [ev.theta_mrad], y: [ev.moment_knm],
             mode: 'markers+text', showlegend: false,
-            marker: { size: 12, color: evtColors[ev.event] || '#333', symbol: evtSymbols[ev.event] || 'diamond', line: { width: 1.5, color: '#fff' } },
-            text: [ev.event], textposition: 'top center',
-            textfont: { size: 9, color: evtColors[ev.event] || '#333' },
+            marker: { size: 10, color: evtColors[ev.event] || '#333', symbol: evtSymbols[ev.event] || 'diamond', line: { width: 1.5, color: '#fff' } },
+            text: [ev.event], textposition: 'bottom right',
+            textfont: { size: 8, color: evtColors[ev.event] || '#333' },
         });
     }
     Plotly.newPlot('chart-mtheta', traces, {
         title: { text: 'Moment-Rotation Diagram (Lp = ' + mtheta.lp + ' mm)', font: { size: 14 } },
         xaxis: { title: 'Rotation, \u03b8 (mrad)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
         yaxis: { title: 'Moment, M (kN-m)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
-        height: 450, margin: { t: 40, r: 20, b: 60, l: 70 },
-        plot_bgcolor: '#fff', paper_bgcolor: '#fff', showlegend: false, hovermode: 'closest',
+        height: 500, margin: { t: 40, r: 20, b: 60, l: 70 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        showlegend: true, legend: { x: 1, xanchor: 'right', y: 0.05, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 9 } },
+        hovermode: 'closest', shapes: bbShapes,
     }, { responsive: true, displayModeBar: false });
 
     // Section chart from mphi data
@@ -887,6 +963,59 @@ function renderMThetaResults(payload, mphi, mtheta) {
         h += '<div class="report-result">\u03bc<sub>\u03b8</sub> = ' + duct.mu_theta.toFixed(2) + '</div>';
     }
     h += '</div>';
+
+    // ASCE 41 Backbone report
+    if (backbone) {
+        var bp = backbone.params;
+        var ba = backbone.acceptance;
+        var bsteps = backbone.calculation_steps || [];
+
+        h += '<div class="report-section">';
+        h += '<h4>Generalized Force-Deformation Backbone &mdash; ' + bp.table_ref + '</h4>';
+        h += '<p class="report-ref">' + bp.table_ref + ' Fig. 10-1, Table 10-7 (Condition i &mdash; Flexure-Controlled Beams)</p>';
+
+        // Step-by-step calculations
+        for (var si = 0; si < bsteps.length; si++) {
+            var st = bsteps[si];
+            h += '<p style="font-size:.85rem;margin-top:.75rem;"><b>Step ' + st.step + ': ' + st.title + '</b></p>';
+            h += '<p style="font-size:.82rem;color:var(--gray-600);margin:.15rem 0;">' + st.detail + '</p>';
+        }
+
+        // Modeling parameters table
+        h += '<p style="font-size:.85rem;margin-top:1rem;"><b>Modeling Parameters</b></p>';
+        h += '<table class="report-table">';
+        h += '<tr><th>Parameter</th><th>Value</th><th>Description</th></tr>';
+        h += '<tr><td>a</td><td>' + bp.a + ' rad</td><td>Plastic rotation at onset of strength degradation</td></tr>';
+        h += '<tr><td>b</td><td>' + bp.b + ' rad</td><td>Plastic rotation at residual strength</td></tr>';
+        h += '<tr><td>c</td><td>' + bp.c + '</td><td>Residual strength ratio (Q/Qy)</td></tr>';
+        h += '<tr><td>&rho;<sub>bal</sub></td><td>' + bp.rho_bal + '</td><td>Balanced reinforcement ratio</td></tr>';
+        h += '<tr><td>(&rho;-&rho;\')/&rho;<sub>bal</sub></td><td>' + bp.rho_ratio + '</td><td>Relative reinforcement ratio</td></tr>';
+        h += '<tr><td>V/(b<sub>w</sub>d&radic;f\'c)</td><td>' + bp.v_ratio + '</td><td>Shear stress ratio</td></tr>';
+        h += '<tr><td>Trans. Reinf.</td><td>' + bp.conf_label + '</td><td>s &le; d/2 &rarr; Conforming</td></tr>';
+        h += '</table>';
+
+        // Backbone points table
+        h += '<p style="font-size:.85rem;margin-top:1rem;"><b>Backbone Points (Fig. 10-1)</b></p>';
+        h += '<table class="report-table">';
+        h += '<tr><th>Point</th><th>&theta; (rad)</th><th>&theta; (mrad)</th><th>M (kN-m)</th><th>Q/Qy</th></tr>';
+        var bbp = backbone.backbone_points;
+        for (var pi = 0; pi < bbp.length; pi++) {
+            h += '<tr><td><b>' + bbp[pi].label + '</b></td><td>' + bbp[pi].theta_rad.toFixed(6) + '</td>';
+            h += '<td>' + bbp[pi].theta_mrad.toFixed(4) + '</td><td>' + bbp[pi].moment_knm + '</td>';
+            h += '<td>' + bbp[pi].q_ratio + '</td></tr>';
+        }
+        h += '</table>';
+
+        // Acceptance criteria table
+        h += '<p style="font-size:.85rem;margin-top:1rem;"><b>Acceptance Criteria (Plastic Rotation Limits)</b></p>';
+        h += '<table class="report-table">';
+        h += '<tr><th>Performance Level</th><th>Plastic Rotation (rad)</th><th>Total &theta; (mrad)</th></tr>';
+        h += '<tr style="background:#dcfce7;"><td style="text-align:left;font-weight:600;">IO (Immediate Occupancy)</td><td>' + ba.io_plastic + '</td><td>' + ba.io_mrad + '</td></tr>';
+        h += '<tr style="background:#fef3c7;"><td style="text-align:left;font-weight:600;">LS Primary (Life Safety)</td><td>' + ba.ls_pri_plastic + '</td><td>' + ba.ls_pri_mrad + '</td></tr>';
+        h += '<tr style="background:#fee2e2;"><td style="text-align:left;font-weight:600;">CP Primary (Collapse Prevention)</td><td>' + ba.cp_pri_plastic + '</td><td>' + ba.cp_pri_mrad + '</td></tr>';
+        h += '</table>';
+        h += '</div>';
+    }
 
     // Incremental M-theta table
     h += '<div class="report-section">';
