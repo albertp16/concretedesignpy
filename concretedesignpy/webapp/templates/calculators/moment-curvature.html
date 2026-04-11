@@ -76,7 +76,8 @@
                     <h3>Analysis Mode</h3>
                     <div style="display:flex;gap:.5rem;">
                         <button type="button" id="btn-quick" class="btn-primary" style="flex:1;" onclick="setMode('quick')">Quick (6-Point)</button>
-                        <button type="button" id="btn-advanced" class="btn-secondary" style="flex:1;" onclick="setMode('advanced')">Advanced (Incremental)</button>
+                        <button type="button" id="btn-advanced" class="btn-secondary" style="flex:1;" onclick="setMode('advanced')">Advanced (M-&#966;)</button>
+                        <button type="button" id="btn-mtheta" class="btn-secondary" style="flex:1;" onclick="setMode('mtheta')">M-&#952;</button>
                     </div>
                 </div>
                 <div class="form-section">
@@ -138,6 +139,26 @@
                         </div>
                     </div>
                 </div>
+                <div class="form-section" id="lp-section" style="display:none;">
+                    <h3>Plastic Hinge Length</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Lp Method</label>
+                            <select name="lp_method" id="lp-method" style="width:100%;padding:.4rem;border:1px solid var(--gray-200);border-radius:4px;font-size:.9rem;" onchange="toggleLpFields()">
+                                <option value="manual">Manual</option>
+                                <option value="park_paulay">Park &amp; Paulay (0.5h)</option>
+                                <option value="priestley">Priestley (0.08L + 0.022fy*db)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" id="lp-manual-fields">
+                        <div class="form-group"><label>Lp (mm)</label><input type="number" name="lp" value="300" step="10"></div>
+                    </div>
+                    <div class="form-row" id="lp-priestley-fields" style="display:none;">
+                        <div class="form-group"><label>Shear span, L (mm)</label><input type="number" name="shear_span" value="3000" step="100"></div>
+                    </div>
+                    <p id="lp-formula" style="font-size:.75rem;color:var(--gray-400);margin:.25rem 0 0;"></p>
+                </div>
                 <button type="submit" class="btn-primary" style="width:100%;">Analyze</button>
             </form>
         </div>
@@ -147,6 +168,7 @@
                 <h2>Results</h2>
                 <div id="results-summary"></div>
                 <div id="chart-mphi" style="width:100%;"></div>
+                <div id="chart-mtheta" style="width:100%;display:none;"></div>
             </div>
         </div>
     </div>
@@ -182,12 +204,25 @@ function toggleManderFields() {
     document.getElementById('mander-fields').style.display = sel === 'mander' ? '' : 'none';
 }
 
+function toggleLpFields() {
+    var m = document.getElementById('lp-method').value;
+    document.getElementById('lp-manual-fields').style.display = m === 'manual' ? '' : 'none';
+    document.getElementById('lp-priestley-fields').style.display = m === 'priestley' ? '' : 'none';
+    var f = document.getElementById('lp-formula');
+    if (m === 'park_paulay') f.textContent = 'Lp = 0.5 \u00d7 h (Park & Paulay, 1975)';
+    else if (m === 'priestley') f.textContent = 'Lp = 0.08L + 0.022\u00b7fy\u00b7db (Priestley, 1992)';
+    else f.textContent = '';
+}
+
 function setMode(mode) {
     currentMode = mode;
+    var isAdv = (mode === 'advanced' || mode === 'mtheta');
     document.getElementById('btn-quick').className = mode === 'quick' ? 'btn-primary' : 'btn-secondary';
     document.getElementById('btn-advanced').className = mode === 'advanced' ? 'btn-primary' : 'btn-secondary';
-    document.getElementById('axial-section').style.display = mode === 'advanced' ? '' : 'none';
-    document.getElementById('concrete-model-section').style.display = mode === 'advanced' ? '' : 'none';
+    document.getElementById('btn-mtheta').className = mode === 'mtheta' ? 'btn-primary' : 'btn-secondary';
+    document.getElementById('axial-section').style.display = isAdv ? '' : 'none';
+    document.getElementById('concrete-model-section').style.display = isAdv ? '' : 'none';
+    document.getElementById('lp-section').style.display = mode === 'mtheta' ? '' : 'none';
 }
 
 document.getElementById('calc-form').addEventListener('submit', function(e) {
@@ -203,6 +238,31 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         db_tension: parseFloat(form.db_tension.value) || 25,
     };
 
+    if (currentMode === 'mtheta') {
+        payload.axial_load = parseFloat(form.axial_load.value) || 0;
+        payload.concrete_model = form.concrete_model.value || 'hognestad';
+        if (payload.concrete_model === 'mander') {
+            payload.fy_transverse = parseFloat(form.fy_transverse.value) || 275;
+            payload.db_tie = parseFloat(form.db_tie.value) || 10;
+            payload.s_tie = parseFloat(form.s_tie.value) || 100;
+            payload.n_bars_x = parseInt(form.n_bars_x.value) || 4;
+            payload.n_bars_y = parseInt(form.n_bars_y.value) || 4;
+            payload.cover = parseFloat(form.cover.value) || 40;
+        }
+        payload.lp_method = form.lp_method.value || 'manual';
+        payload.lp = parseFloat(form.lp.value) || 300;
+        payload.shear_span = parseFloat(form.shear_span.value) || 0;
+
+        submitCalc('/api/section/moment-rotation', payload, function(result) {
+            var mtheta = result.mtheta || {};
+            var mphi = result.mphi || {};
+            document.getElementById('chart-mphi').style.display = 'none';
+            document.getElementById('chart-mtheta').style.display = '';
+            renderMThetaResults(payload, mphi, mtheta);
+        });
+        return;
+    }
+
     if (currentMode === 'advanced') {
         payload.axial_load = parseFloat(form.axial_load.value) || 0;
         payload.concrete_model = form.concrete_model.value || 'hognestad';
@@ -215,6 +275,8 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             payload.cover = parseFloat(form.cover.value) || 40;
         }
         // Run both quick and advanced in parallel
+        document.getElementById('chart-mphi').style.display = '';
+        document.getElementById('chart-mtheta').style.display = 'none';
         var quickDone = false, advDone = false;
         var quickResult = null, advResult = null;
         function onBothDone() {
@@ -232,6 +294,9 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         submitCalc('/api/section/moment-curvature-advanced', payload, function(r) { advResult = r; advDone = true; onBothDone(); });
         return;
     }
+
+    document.getElementById('chart-mphi').style.display = '';
+    document.getElementById('chart-mtheta').style.display = 'none';
 
     submitCalc('/api/section/moment-curvature', payload, function(result) {
         var pts = result.points || [];
@@ -550,6 +615,108 @@ function renderAdvancedReport(payload, sp, pts, advPts, hog, events, ductility, 
 
     document.getElementById('results-report').style.display = '';
     document.getElementById('results-report').innerHTML = h;
+    if (window.MathJax) MathJax.typeset();
+}
+
+function renderMThetaResults(payload, mphi, mtheta) {
+    var pts = mtheta.points || [];
+    var events = mtheta.events || [];
+    var duct = mtheta.ductility_rotation || null;
+
+    // Summary
+    var s = '';
+    if (duct) {
+        s += '<div class="report-result" style="margin-bottom:.75rem;">';
+        s += '<span style="font-size:.82rem;font-weight:400;color:#333;">Rotation Ductility</span><br>';
+        s += '&#956;<sub>&#952;</sub> = &#952;<sub>u</sub> / &#952;<sub>y</sub> = ' + duct.mu_theta.toFixed(2);
+        s += '<span style="font-size:.8rem;font-weight:400;color:var(--gray-600);margin-left:1rem;">';
+        s += 'Lp = ' + mtheta.lp + ' mm</span>';
+        s += '</div>';
+    }
+    s += '<table class="report-table">';
+    s += '<tr><th>Event</th><th>&#952; (mrad)</th><th>M (kN-m)</th></tr>';
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        s += '<tr><td style="text-align:left;">' + ev.event + '</td>';
+        s += '<td>' + ev.theta_mrad.toFixed(4) + '</td>';
+        s += '<td>' + ev.moment_knm + '</td></tr>';
+    }
+    s += '</table>';
+    document.getElementById('results-summary').innerHTML = s;
+
+    // M-theta chart
+    var thetas = [0], moments = [0];
+    for (var j = 0; j < pts.length; j++) {
+        thetas.push(pts[j].theta_mrad);
+        moments.push(pts[j].moment_knm);
+    }
+    var traces = [{
+        x: thetas, y: moments, mode: 'lines',
+        name: 'M-\u03b8 Curve', line: { color: '#7c3aed', width: 2.5 },
+    }];
+    // Event markers
+    var evtColors = { 'Cracking': '#f59e0b', 'Steel Yield': '#16a34a', 'Peak Moment': '#7c3aed', 'Ultimate': '#dc2626' };
+    var evtSymbols = { 'Cracking': 'diamond', 'Steel Yield': 'triangle-up', 'Peak Moment': 'star', 'Ultimate': 'x' };
+    for (var k = 0; k < events.length; k++) {
+        var ev = events[k];
+        traces.push({
+            x: [ev.theta_mrad], y: [ev.moment_knm],
+            mode: 'markers+text', showlegend: false,
+            marker: { size: 12, color: evtColors[ev.event] || '#333', symbol: evtSymbols[ev.event] || 'diamond', line: { width: 1.5, color: '#fff' } },
+            text: [ev.event], textposition: 'top center',
+            textfont: { size: 9, color: evtColors[ev.event] || '#333' },
+        });
+    }
+    Plotly.newPlot('chart-mtheta', traces, {
+        title: { text: 'Moment-Rotation Diagram (Lp = ' + mtheta.lp + ' mm)', font: { size: 14 } },
+        xaxis: { title: 'Rotation, \u03b8 (mrad)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
+        yaxis: { title: 'Moment, M (kN-m)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
+        height: 450, margin: { t: 40, r: 20, b: 60, l: 70 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff', showlegend: false, hovermode: 'closest',
+    }, { responsive: true, displayModeBar: false });
+
+    // Section chart from mphi data
+    var sp = mphi.section_properties || {};
+    renderSectionChart(payload, sp);
+
+    // Concrete model chart
+    var modelParams = mphi.concrete_model_params || {};
+    var hogFallback = mphi.hognestad_params || {};
+    renderConcreteModelChart(modelParams, hogFallback);
+    document.getElementById('charts-row').style.display = '';
+
+    // Report
+    var h = '';
+    h += '<div class="report-section">';
+    h += '<h4>Moment-Rotation Analysis</h4>';
+    h += '<p class="report-ref">Anwar &amp; Najam (2017), Ch. 6, Eq. 6.8 &mdash; \u03b8 = \u03c6 &times; Lp</p>';
+    h += '<div class="report-eq">\\[ \\theta = \\varphi \\times L_p = \\varphi \\times ' + mtheta.lp + ' \\text{ mm} \\]</div>';
+    if (duct) {
+        h += '<div class="report-eq">\\[ \\mu_\\theta = \\frac{\\theta_u}{\\theta_y} = \\frac{' + duct.theta_u_mrad.toFixed(4) + '}{' + duct.theta_y_mrad.toFixed(4) + '} = ' + duct.mu_theta.toFixed(2) + ' \\]</div>';
+        h += '<table class="report-table">';
+        h += '<tr><th>Parameter</th><th>At Yield</th><th>At Ultimate</th></tr>';
+        h += '<tr><td style="text-align:left;">\u03b8 (mrad)</td><td>' + duct.theta_y_mrad.toFixed(4) + '</td><td>' + duct.theta_u_mrad.toFixed(4) + '</td></tr>';
+        h += '<tr><td style="text-align:left;">M (kN-m)</td><td>' + duct.moment_yield_knm + '</td><td>' + duct.moment_ultimate_knm + '</td></tr>';
+        h += '</table>';
+        h += '<div class="report-result">\u03bc<sub>\u03b8</sub> = ' + duct.mu_theta.toFixed(2) + '</div>';
+    }
+    h += '</div>';
+
+    // Incremental M-theta table
+    h += '<div class="report-section">';
+    h += '<h4>Incremental M-\u03b8 Results (' + pts.length + ' steps)</h4>';
+    h += '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:4px;">';
+    h += '<table class="report-table">';
+    h += '<tr><th>Step</th><th>\u03b8 (mrad)</th><th>\u03c6 (1/mm)</th><th>M (kN-m)</th></tr>';
+    for (var i = 0; i < pts.length; i++) {
+        h += '<tr><td>' + (i+1) + '</td><td>' + pts[i].theta_mrad.toFixed(4) + '</td>';
+        h += '<td>' + pts[i].phi.toExponential(4) + '</td><td>' + pts[i].moment_knm + '</td></tr>';
+    }
+    h += '</table></div></div>';
+
+    document.getElementById('results-report').style.display = '';
+    document.getElementById('results-report').innerHTML = h;
+    document.getElementById('results').style.display = '';
     if (window.MathJax) MathJax.typeset();
 }
 
