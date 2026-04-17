@@ -79,27 +79,61 @@
                         <button type="button" id="btn-advanced" class="btn-secondary" style="flex:1;" onclick="setMode('advanced')">Advanced (M-&#966;)</button>
                         <button type="button" id="btn-mtheta" class="btn-secondary" style="flex:1;" onclick="setMode('mtheta')">M-&#952;</button>
                     </div>
+                    <div id="engine-selector" style="display:none;margin-top:.5rem;">
+                        <label style="font-size:.82rem;font-weight:600;">Analysis Engine</label>
+                        <div style="display:flex;gap:1rem;margin-top:.25rem;">
+                            <label style="font-size:.82rem;cursor:pointer;"><input type="radio" name="engine" value="builtin" checked> Built-in Fiber</label>
+                            <label style="font-size:.82rem;cursor:pointer;"><input type="radio" name="engine" value="opensees"> OpenSeesPy</label>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-section">
                     <h3>Section</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" value="450" required></div>
-                        <div class="form-group"><label>Height, h (mm)</label><input type="number" name="h" value="600" required></div>
-                        <div class="form-group"><label>Eff. depth, d (mm)</label><input type="number" name="d" value="550" required></div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Section Type</label>
+                            <select name="section_type" id="section-type" style="width:100%;padding:.45rem .6rem;border:1px solid var(--gray-200);border-radius:4px;font-size:.9rem;" onchange="toggleSectionType()">
+                                <option value="rectangular" selected>Rectangular</option>
+                                <option value="special">Special (I-Girder polygon)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" id="rect-fields">
+                        <div class="form-group"><label>Width, b (mm)</label><input type="number" name="b" id="field-b" value="450" required></div>
+                        <div class="form-group"><label>Height, h (mm)</label><input type="number" name="h" id="field-h" value="600" required></div>
+                        <div class="form-group"><label>Eff. depth, d (mm)</label><input type="number" name="d" id="field-d" value="550" required></div>
+                    </div>
+                    <div id="special-fields" style="display:none;">
+                        <p style="font-size:.78rem;color:var(--gray-400);margin:.25rem 0 .5rem;">Polygon vertices in <b>meters</b> (x, y) &mdash; one pair per line. Converted to mm internally. b, h derived from bounding box; d defaults to h &minus; 75.</p>
+                        <textarea name="vertices_text" id="vertices-text" rows="8" style="width:100%;font-family:'SF Mono','Fira Code',monospace;font-size:.8rem;padding:.5rem;border:1px solid var(--gray-200);border-radius:4px;" oninput="updateSpecialBBox()">0.3125, 0.0000
+1.0375, 0.0000
+1.0375, 0.2000
+0.8000, 0.4000
+0.8000, 1.7000
+0.8750, 1.8500
+1.3500, 1.8500
+1.3500, 2.0000
+0.0000, 2.0000
+0.0000, 1.8500
+0.4750, 1.8500
+0.5500, 1.7000
+0.5500, 0.4000
+0.3125, 0.2000</textarea>
+                        <p id="special-bbox" style="font-size:.75rem;color:var(--gray-600);margin:.35rem 0 0;"></p>
                     </div>
                 </div>
                 <div class="form-section">
                     <h3>Material &amp; Steel</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="0.1" required></div>
-                        <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="0.1" required></div>
+                        <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="any" required></div>
+                        <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="any" required></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Bar diameter (mm)</label><input type="number" id="db_tension" name="db_tension" value="25" step="1" required oninput="updateAs()"></div>
                         <div class="form-group"><label>No. of bars, n</label><input type="number" id="n_tension" name="n_tension" value="4" min="1" step="1" required oninput="updateAs()"></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>As tension (mm&sup2;)</label><input type="number" id="as_tension" name="as_tension" value="1963.50" step="0.01" readonly style="background:#f3f4f6;"></div>
+                        <div class="form-group"><label>As tension (mm&sup2;)</label><input type="number" id="as_tension" name="as_tension" value="1963.50" step="any" readonly style="background:#f3f4f6;"></div>
                         <div class="form-group"><label>Es (MPa)</label><input type="number" name="es" value="200000"></div>
                     </div>
                 </div>
@@ -230,6 +264,78 @@ function toggleManderFields() {
     document.getElementById('mander-fields').style.display = sel === 'mander' ? '' : 'none';
 }
 
+// ── Special (polygon) section helpers ──────────────────────────────────
+function parseVerticesText(txt) {
+    // Accepts "x, y" or "(x, y)" per line. Returns array of [x, y] in original units.
+    var verts = [];
+    var lines = (txt || '').split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i].replace(/[()\[\]]/g, '').trim();
+        if (!ln) continue;
+        var parts = ln.split(/[,\s]+/).filter(function(p){return p.length;});
+        if (parts.length < 2) continue;
+        var x = parseFloat(parts[0]), y = parseFloat(parts[1]);
+        if (isFinite(x) && isFinite(y)) verts.push([x, y]);
+    }
+    return verts;
+}
+function verticesBBox(verts) {
+    if (!verts.length) return null;
+    var xs = verts.map(function(v){return v[0];});
+    var ys = verts.map(function(v){return v[1];});
+    return {
+        xmin: Math.min.apply(null, xs), xmax: Math.max.apply(null, xs),
+        ymin: Math.min.apply(null, ys), ymax: Math.max.apply(null, ys),
+    };
+}
+function updateSpecialBBox() {
+    var verts = parseVerticesText(document.getElementById('vertices-text').value);
+    var bb = verticesBBox(verts);
+    var info = document.getElementById('special-bbox');
+    if (!bb) { info.textContent = 'No vertices parsed.'; return; }
+    var b_mm = (bb.xmax - bb.xmin) * 1000;
+    var h_mm = (bb.ymax - bb.ymin) * 1000;
+    var d_mm = h_mm - 75;  // 3-bar, 25mm bottom with ~62.5 cover+bar-center
+    document.getElementById('field-b').value = b_mm.toFixed(1);
+    document.getElementById('field-h').value = h_mm.toFixed(1);
+    document.getElementById('field-d').value = d_mm.toFixed(1);
+    info.textContent = verts.length + ' vertices \u2014 bbox: '
+        + b_mm.toFixed(0) + ' \u00d7 ' + h_mm.toFixed(0) + ' mm'
+        + ', d defaulted to ' + d_mm.toFixed(0) + ' mm';
+}
+function toggleSectionType() {
+    var t = document.getElementById('section-type').value;
+    var isSpecial = (t === 'special');
+    document.getElementById('rect-fields').style.display = isSpecial ? 'none' : '';
+    document.getElementById('special-fields').style.display = isSpecial ? '' : 'none';
+    // Make b/h/d non-required when hidden (browsers still validate hidden required inputs)
+    ['field-b','field-h','field-d'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (isSpecial) el.removeAttribute('required'); else el.setAttribute('required','');
+    });
+    if (isSpecial) {
+        // Defaults for Special: 3 top + 3 bottom 25 mm bars
+        document.getElementById('db_tension').value = 25;
+        document.getElementById('n_tension').value = 3;
+        document.getElementById('db_comp').value = 25;
+        document.getElementById('n_comp').value = 3;
+        document.querySelector('input[name="d_prime"]').value = 75;
+        updateAs(); updateAsComp();
+        updateSpecialBBox();
+        // Quick mode not supported for polygons
+        if (currentMode === 'quick') setMode('advanced');
+        document.getElementById('btn-quick').disabled = true;
+        document.getElementById('btn-quick').title = 'Quick (6-point) closed-form not supported for Special sections';
+        document.getElementById('btn-quick').style.opacity = '0.45';
+        document.getElementById('btn-quick').style.cursor = 'not-allowed';
+    } else {
+        document.getElementById('btn-quick').disabled = false;
+        document.getElementById('btn-quick').title = '';
+        document.getElementById('btn-quick').style.opacity = '';
+        document.getElementById('btn-quick').style.cursor = '';
+    }
+}
+
 function toggleLpFields() {
     var m = document.getElementById('lp-method').value;
     document.getElementById('lp-manual-fields').style.display = m === 'manual' ? '' : 'none';
@@ -248,6 +354,7 @@ function setMode(mode) {
     document.getElementById('btn-mtheta').className = mode === 'mtheta' ? 'btn-primary' : 'btn-secondary';
     document.getElementById('axial-section').style.display = isAdv ? '' : 'none';
     document.getElementById('concrete-model-section').style.display = isAdv ? '' : 'none';
+    document.getElementById('engine-selector').style.display = isAdv ? '' : 'none';
     document.getElementById('lp-section').style.display = mode === 'mtheta' ? '' : 'none';
     document.getElementById('backbone-section').style.display = mode === 'mtheta' ? '' : 'none';
 }
@@ -264,6 +371,26 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         as_compression: parseFloat(form.as_compression.value) || 0,
         db_tension: parseFloat(form.db_tension.value) || 25,
     };
+
+    // Special (polygon) section: convert vertices from meters to mm and
+    // override b/h to the bounding box.
+    if (document.getElementById('section-type').value === 'special') {
+        if (currentMode === 'quick') {
+            showToast('Quick mode is not supported for Special sections \u2014 switched to Advanced.', 'warn');
+            setMode('advanced');
+        }
+        var vertsM = parseVerticesText(document.getElementById('vertices-text').value);
+        if (vertsM.length < 3) {
+            showToast('Need at least 3 vertices for Special section.', 'warn');
+            return;
+        }
+        var vertsMm = vertsM.map(function(v){ return [v[0]*1000, v[1]*1000]; });
+        payload.section_vertices = vertsMm;
+        var bb = verticesBBox(vertsMm);
+        payload.b = bb.xmax - bb.xmin;
+        payload.h = bb.ymax - bb.ymin;
+        if (!(payload.d > 0)) payload.d = payload.h - 75;
+    }
 
     if (currentMode === 'mtheta') {
         payload.axial_load = parseFloat(form.axial_load.value) || 0;
@@ -308,7 +435,17 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             payload.n_bars_y = parseInt(form.n_bars_y.value) || 4;
             payload.cover = parseFloat(form.cover.value) || 40;
         }
-        // Run both quick and advanced in parallel
+        var engine = document.querySelector('input[name="engine"]:checked').value;
+        // OpenSeesPy needs bar counts and cover
+        if (engine === 'opensees') {
+            payload.n_tension = parseInt(form.n_tension.value) || 4;
+            payload.n_comp = parseInt(document.getElementById('n_comp').value) || 0;
+            if (!payload.cover) payload.cover = 40;
+        }
+        var advUrl = engine === 'opensees'
+            ? '/api/section/moment-curvature-opensees'
+            : '/api/section/moment-curvature-advanced';
+        // Run both quick and advanced/opensees in parallel
         document.getElementById('chart-mphi').style.display = '';
         document.getElementById('chart-mtheta').style.display = 'none';
         var quickDone = false, advDone = false;
@@ -323,10 +460,25 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
             var ductility = advResult.ductility || null;
             var concreteModelParams = advResult.concrete_model_params || {};
             var fiberPlot = advResult.fiber_plot || null;
-            renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams, fiberPlot);
+            // For Special (polygon) sections, surface polygon props + c_ult as kd-proxy
+            if (payload.section_vertices && advResult.section_properties) {
+                sp = Object.assign({}, advResult.section_properties);
+                if (fiberPlot && fiberPlot.c) sp.kd = fiberPlot.c;
+            }
+            renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams, fiberPlot, engine);
         }
-        submitCalc('/api/section/moment-curvature', payload, function(r) { quickResult = r; quickDone = true; onBothDone(); });
-        submitCalc('/api/section/moment-curvature-advanced', payload, function(r) { advResult = r; advDone = true; onBothDone(); });
+        if (payload.section_vertices) {
+            // Quick (6-point) is rectangular-only; skip for Special sections.
+            quickResult = { points: [], section_properties: {} };
+            quickDone = true;
+        } else {
+            submitCalc('/api/section/moment-curvature', payload, function(r) { quickResult = r; quickDone = true; onBothDone(); });
+        }
+        submitCalc(advUrl, payload, function(r) { advResult = r; advDone = true; onBothDone(); }, function(errMsg) {
+            advResult = { points: [], events: [], ductility: null, hognestad_params: {}, concrete_model_params: {}, fiber_plot: null };
+            advDone = true; onBothDone();
+            showToast(engine === 'opensees' ? 'OpenSeesPy unavailable \u2014 showing Quick results only.' : 'Advanced analysis failed.', 'warn');
+        });
         return;
     }
 
@@ -366,7 +518,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     });
 });
 
-function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams, fiberPlot) {
+function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, concreteModelParams, fiberPlot, engine) {
     // Ductility summary card
     var s = '';
     if (ductility) {
@@ -392,7 +544,7 @@ function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, con
     document.getElementById('results-summary').innerHTML = s;
 
     // M-phi chart with both curves + event markers
-    renderMPhiChartBoth(pts, advPts, events);
+    renderMPhiChartBoth(pts, advPts, events, engine);
 
     // Section and strain/stress charts
     renderSectionChart(payload, sp);
@@ -408,10 +560,11 @@ function renderResultsBoth(payload, pts, sp, advPts, hog, events, ductility, con
     renderAdvancedReport(payload, sp, pts, advPts, hog, events, ductility, concreteModelParams);
 }
 
-function renderMPhiChartBoth(pts, advPts, events) {
+function renderMPhiChartBoth(pts, advPts, events, engine) {
     var traces = [];
+    var curveName = engine === 'opensees' ? 'OpenSeesPy' : 'Advanced (Fiber)';
 
-    // Advanced smooth curve
+    // Advanced / OpenSeesPy smooth curve
     if (advPts.length > 0) {
         var advPhis = [0], advM = [0];
         for (var i = 0; i < advPts.length; i++) {
@@ -420,8 +573,8 @@ function renderMPhiChartBoth(pts, advPts, events) {
         }
         traces.push({
             x: advPhis, y: advM, mode: 'lines',
-            name: 'Advanced (Fiber)',
-            line: { color: '#dc2626', width: 2.5 },
+            name: curveName,
+            line: { color: engine === 'opensees' ? '#059669' : '#dc2626', width: 2.5 },
         });
     }
 
@@ -1212,81 +1365,151 @@ function renderSectionChart(payload, sp) {
     var kd = sp.kd || 0;
     var cover = h - d;
 
+    // Polygon outline (Special section) or rectangle
+    var verts = payload.section_vertices || (sp && sp.vertices);
+    var outerShape;
+    if (verts && verts.length >= 3) {
+        var path = 'M ' + verts[0][0] + ',' + verts[0][1];
+        for (var vi = 1; vi < verts.length; vi++) {
+            path += ' L ' + verts[vi][0] + ',' + verts[vi][1];
+        }
+        path += ' Z';
+        outerShape = {
+            type: 'path', path: path,
+            line: { color: '#333', width: 2 },
+            fillcolor: 'rgba(200,200,200,0.15)',
+        };
+    } else {
+        outerShape = {
+            type: 'rect', x0: 0, y0: 0, x1: b, y1: h,
+            line: { color: '#333', width: 2 }, fillcolor: 'rgba(200,200,200,0.15)',
+        };
+    }
+    var xAxisMin = -30, xAxisMax = b + 30;
+    if (verts && verts.length >= 3) {
+        var xs = verts.map(function(v){return v[0];});
+        xAxisMin = Math.min.apply(null, xs) - 30;
+        xAxisMax = Math.max.apply(null, xs) + 30;
+    }
+
     // Build section shapes
     var shapes = [
-        // Outer section rectangle
-        { type: 'rect', x0: 0, y0: 0, x1: b, y1: h, line: { color: '#333', width: 2 }, fillcolor: 'rgba(200,200,200,0.15)' },
+        outerShape,
         // Neutral axis line
-        { type: 'line', x0: -30, y0: h - kd, x1: b + 30, y1: h - kd, line: { color: '#dc2626', width: 2, dash: 'dash' } },
+        { type: 'line', x0: xAxisMin, y0: h - kd, x1: xAxisMax, y1: h - kd, line: { color: '#dc2626', width: 2, dash: 'dash' } },
         // Effective depth line
-        { type: 'line', x0: -20, y0: h - d, x1: b + 20, y1: h - d, line: { color: '#2563eb', width: 1.5, dash: 'dot' } },
+        { type: 'line', x0: xAxisMin + 10, y0: h - d, x1: xAxisMax - 10, y1: h - d, line: { color: '#2563eb', width: 1.5, dash: 'dot' } },
     ];
 
-    // Tension rebar (bottom)
-    var nBars = Math.round(payload.as_tension / (Math.PI * 12.5 * 12.5));
-    if (nBars < 2) nBars = 2;
-    if (nBars > 10) nBars = 10;
-    var barR = 12;
-    var spacing = (b - 2 * cover) / (nBars - 1);
+    // Tension rebar placement
+    var nBars = parseInt(document.getElementById('n_tension').value) || 0;
+    if (!nBars) {
+        nBars = Math.round(payload.as_tension / (Math.PI * 12.5 * 12.5));
+        if (nBars < 2) nBars = 2;
+        if (nBars > 10) nBars = 10;
+    }
+    var barYTens = h - d;
+    var tensLeft, tensRight;
+    if (verts && verts.length >= 3) {
+        // Span across the width of the polygon at the tension steel y
+        var inter = (function(vs, yq){
+            var out = []; var eps = 1e-9;
+            for (var k = 0; k < vs.length; k++) {
+                var p1 = vs[k], p2 = vs[(k+1) % vs.length];
+                if (Math.abs(p2[1] - p1[1]) < eps) continue;
+                var ylo = Math.min(p1[1], p2[1]), yhi = Math.max(p1[1], p2[1]);
+                if (yq < ylo - eps || yq > yhi + eps) continue;
+                var t = (yq - p1[1]) / (p2[1] - p1[1]);
+                out.push(p1[0] + t * (p2[0] - p1[0]));
+            }
+            out.sort(function(a,b){return a-b;});
+            return out;
+        })(verts, barYTens);
+        tensLeft = inter.length ? inter[0] + 50 : 0 + cover;
+        tensRight = inter.length ? inter[inter.length-1] - 50 : b - cover;
+    } else {
+        tensLeft = cover; tensRight = b - cover;
+    }
+    var spacing = nBars > 1 ? (tensRight - tensLeft) / (nBars - 1) : 0;
     var rebarX = [], rebarY = [];
     for (var i = 0; i < nBars; i++) {
-        var cx = cover + i * spacing;
-        rebarX.push(cx);
-        rebarY.push(h - d);
+        rebarX.push(nBars === 1 ? (tensLeft + tensRight) / 2 : tensLeft + i * spacing);
+        rebarY.push(barYTens);
     }
 
     var traces = [
-        // Tension rebar markers
-        {
-            x: rebarX, y: rebarY, mode: 'markers', name: 'Tension Steel',
-            marker: { size: 14, color: '#1e40af', symbol: 'circle', line: { width: 2, color: '#fff' } },
-        },
-        // Compression zone fill
-        {
+        { x: rebarX, y: rebarY, mode: 'markers', name: 'Tension Steel',
+          marker: { size: 14, color: '#1e40af', symbol: 'circle', line: { width: 2, color: '#fff' } } },
+    ];
+
+    // Compression zone fill: for polygons, skip (it would need clipping);
+    // for rectangles, keep the legacy overlay.
+    if (!(verts && verts.length >= 3)) {
+        traces.push({
             x: [0, b, b, 0, 0], y: [h, h, h - kd, h - kd, h],
             fill: 'toself', fillcolor: 'rgba(239,68,68,0.15)',
             line: { color: 'rgba(239,68,68,0.4)', width: 1 },
             name: 'Compression Zone', mode: 'lines',
-        },
-    ];
+        });
+    }
 
     // Compression steel (if provided)
     var dp = payload.d_prime || 0;
     var asComp = payload.as_compression || 0;
     if (asComp > 0 && dp > 0) {
-        var dbComp = parseFloat(document.getElementById('db_comp').value) || 16;
         var nComp = parseInt(document.getElementById('n_comp').value) || 2;
         if (nComp < 2) nComp = 2;
-        var compSpacing = (b - 2 * cover) / Math.max(nComp - 1, 1);
+        var barYComp = h - dp;
+        var compLeft, compRight;
+        if (verts && verts.length >= 3) {
+            var interC = (function(vs, yq){
+                var out = []; var eps = 1e-9;
+                for (var k = 0; k < vs.length; k++) {
+                    var p1 = vs[k], p2 = vs[(k+1) % vs.length];
+                    if (Math.abs(p2[1] - p1[1]) < eps) continue;
+                    var ylo = Math.min(p1[1], p2[1]), yhi = Math.max(p1[1], p2[1]);
+                    if (yq < ylo - eps || yq > yhi + eps) continue;
+                    var t = (yq - p1[1]) / (p2[1] - p1[1]);
+                    out.push(p1[0] + t * (p2[0] - p1[0]));
+                }
+                out.sort(function(a,b){return a-b;});
+                return out;
+            })(verts, barYComp);
+            compLeft = interC.length ? interC[0] + 50 : cover;
+            compRight = interC.length ? interC[interC.length-1] - 50 : b - cover;
+        } else {
+            compLeft = cover; compRight = b - cover;
+        }
+        var compSpacing = nComp > 1 ? (compRight - compLeft) / (nComp - 1) : 0;
         var compX = [], compY = [];
         for (var j = 0; j < nComp; j++) {
-            compX.push(cover + j * compSpacing);
-            compY.push(h - dp);
+            compX.push(nComp === 1 ? (compLeft + compRight) / 2 : compLeft + j * compSpacing);
+            compY.push(barYComp);
         }
         traces.push({
             x: compX, y: compY, mode: 'markers', name: 'Compression Steel',
             marker: { size: 12, color: '#dc2626', symbol: 'circle', line: { width: 2, color: '#fff' } },
         });
-        // d' line
         shapes.push({
-            type: 'line', x0: -20, y0: h - dp, x1: b + 20, y1: h - dp,
+            type: 'line', x0: xAxisMin + 10, y0: h - dp, x1: xAxisMax - 10, y1: h - dp,
             line: { color: '#dc2626', width: 1.5, dash: 'dot' },
         });
     }
 
     var annotations = [
-        { x: b + 40, y: h - kd, text: 'NA (kd=' + kd.toFixed(1) + ')', showarrow: false, font: { size: 10, color: '#dc2626' } },
-        { x: b + 40, y: h - d, text: 'd=' + d + 'mm', showarrow: false, font: { size: 10, color: '#2563eb' } },
-        { x: b / 2, y: h + 25, text: 'b=' + b + 'mm', showarrow: false, font: { size: 10, color: '#333' } },
-        { x: -45, y: h / 2, text: 'h=' + h + 'mm', showarrow: false, font: { size: 10, color: '#333' }, textangle: -90 },
+        { x: xAxisMax + 10, y: h - kd, text: 'NA (kd=' + kd.toFixed(1) + ')', showarrow: false, font: { size: 10, color: '#dc2626' } },
+        { x: xAxisMax + 10, y: h - d, text: 'd=' + d + 'mm', showarrow: false, font: { size: 10, color: '#2563eb' } },
+        { x: (xAxisMin + xAxisMax) / 2, y: h + 25, text: 'b=' + b.toFixed(0) + 'mm', showarrow: false, font: { size: 10, color: '#333' } },
+        { x: xAxisMin - 15, y: h / 2, text: 'h=' + h.toFixed(0) + 'mm', showarrow: false, font: { size: 10, color: '#333' }, textangle: -90 },
     ];
     if (asComp > 0 && dp > 0) {
-        annotations.push({ x: b + 40, y: h - dp, text: "d'=" + dp + 'mm', showarrow: false, font: { size: 10, color: '#dc2626' } });
+        annotations.push({ x: xAxisMax + 10, y: h - dp, text: "d'=" + dp + 'mm', showarrow: false, font: { size: 10, color: '#dc2626' } });
     }
 
+    var xRange = [xAxisMin - 50, xAxisMax + 70];
     var layout = {
         title: { text: 'Cross-Section', font: { size: 14 } },
-        xaxis: { visible: false, range: [-80, b + 100], scaleanchor: 'y' },
+        xaxis: { visible: false, range: xRange, scaleanchor: 'y' },
         yaxis: { visible: false, range: [-30, h + 50] },
         shapes: shapes,
         annotations: annotations,

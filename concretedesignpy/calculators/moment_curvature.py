@@ -30,6 +30,89 @@ Reference:
 import math
 
 
+# ---------------------------------------------------------------------------
+# Polygon geometry helpers (for Special / custom-polygon sections)
+# ---------------------------------------------------------------------------
+
+def polygon_area(vertices):
+    """Signed-area via shoelace; returns absolute area."""
+    n = len(vertices)
+    if n < 3:
+        return 0.0
+    a = 0.0
+    for i in range(n):
+        x1, y1 = vertices[i]
+        x2, y2 = vertices[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return abs(a) / 2.0
+
+
+def polygon_centroid(vertices):
+    """Centroid (x_bar, y_bar) of a simple polygon."""
+    n = len(vertices)
+    a = 0.0
+    cx = 0.0
+    cy = 0.0
+    for i in range(n):
+        x1, y1 = vertices[i]
+        x2, y2 = vertices[(i + 1) % n]
+        cross = x1 * y2 - x2 * y1
+        a += cross
+        cx += (x1 + x2) * cross
+        cy += (y1 + y2) * cross
+    a /= 2.0
+    if abs(a) < 1e-12:
+        return 0.0, 0.0
+    return cx / (6.0 * a), cy / (6.0 * a)
+
+
+def polygon_inertia_x(vertices, y_axis=None):
+    """
+    Second moment of area about a horizontal axis at y=y_axis.
+    If y_axis is None, uses the centroidal axis.
+    """
+    n = len(vertices)
+    # Integral of y^2 dA via Green's theorem
+    ix_origin = 0.0
+    for i in range(n):
+        x1, y1 = vertices[i]
+        x2, y2 = vertices[(i + 1) % n]
+        cross = x1 * y2 - x2 * y1
+        ix_origin += cross * (y1 * y1 + y1 * y2 + y2 * y2)
+    ix_origin = abs(ix_origin) / 12.0
+    area = polygon_area(vertices)
+    _, y_bar = polygon_centroid(vertices)
+    ix_centroid = ix_origin - area * y_bar * y_bar
+    if y_axis is None:
+        return ix_centroid
+    return ix_centroid + area * (y_bar - y_axis) ** 2
+
+
+def polygon_width_at(vertices, y):
+    """
+    Total horizontal extent of the polygon at height y
+    (sum of interval widths for non-convex shapes).
+    """
+    intersections = []
+    n = len(vertices)
+    eps = 1e-9
+    for i in range(n):
+        x1, y1 = vertices[i]
+        x2, y2 = vertices[(i + 1) % n]
+        if abs(y2 - y1) < eps:
+            continue
+        y_lo, y_hi = (y1, y2) if y1 < y2 else (y2, y1)
+        if y < y_lo - eps or y > y_hi + eps:
+            continue
+        t = (y - y1) / (y2 - y1)
+        intersections.append(x1 + t * (x2 - x1))
+    intersections.sort()
+    width = 0.0
+    for k in range(0, len(intersections) - 1, 2):
+        width += intersections[k + 1] - intersections[k]
+    return width
+
+
 def moment_curvature_analysis(b, h, d, fc, fy, as_tension, es=200000.0):
     """
     Compute 6-point moment-curvature relationship.
@@ -230,6 +313,7 @@ def moment_curvature_advanced(
     axial_load=0.0, n_increments=60, n_fibers=50,
     d_prime=0.0, as_compression=0.0,
     concrete_model="hognestad", mander_params=None,
+    section_vertices=None,
 ):
     """
     Compute moment-curvature using incremental fiber approach.
@@ -297,15 +381,24 @@ def moment_curvature_advanced(
     # Axial load in N (input is kN)
     p_axial = axial_load * 1000.0
 
-    # Fiber geometry: strips from bottom (y=0) to top (y=h)
+    # Fiber geometry: strips from bottom (y=0) to top (y=h).
+    # For polygon sections, width varies with y via polygon_width_at().
+    use_polygon = section_vertices is not None and len(section_vertices) >= 3
     fiber_h = h / n_fibers
     fiber_y = [(i + 0.5) * fiber_h for i in range(n_fibers)]
+    if use_polygon:
+        fiber_b = [polygon_width_at(section_vertices, y) for y in fiber_y]
+    else:
+        fiber_b = [b] * n_fibers
 
     # Steel layers
     steel_y_tens = h - d  # tension steel y from bottom
     steel_y_comp = h - d_prime if (as_compression > 0 and d_prime > 0) else None
 
-    centroid = h / 2.0
+    if use_polygon:
+        _, centroid = polygon_centroid(section_vertices)
+    else:
+        centroid = h / 2.0
 
     points = []
 
@@ -331,14 +424,14 @@ def moment_curvature_advanced(
             # Concrete forces (fiber approach)
             total_force = 0.0
             total_moment = 0.0
-            for fy_i in fiber_y:
+            for idx_f, fy_i in enumerate(fiber_y):
                 dist_from_top = h - fy_i
                 strain_i = ec_top * (c - dist_from_top) / c if c > 0 else 0
                 if use_mander:
                     stress_i = _mander_stress(strain_i, fcc, ecc, ecu, r_mander)
                 else:
                     stress_i = _hognestad_stress(strain_i, fc, eco, ecu)
-                force_i = stress_i * b * fiber_h
+                force_i = stress_i * fiber_b[idx_f] * fiber_h
                 total_force += force_i
                 total_moment += force_i * (fy_i - centroid)
 
@@ -490,6 +583,7 @@ def moment_curvature_advanced(
 
         fiber_plot = {
             "y": [round(fy_i, 1) for fy_i in fiber_y],
+            "widths": [round(w, 2) for w in fiber_b],
             "strains": fiber_strains,
             "stresses": fiber_stresses,
             "c": c_ult,
@@ -531,13 +625,25 @@ def moment_curvature_advanced(
             "stresses": hog_stresses,
         }
 
+    section_props = {
+        "ec_mod": round(ec_mod, 2),
+        "n": round(es / ec_mod, 4),
+        "fr": round(fr, 4),
+    }
+    if use_polygon:
+        area_poly = polygon_area(section_vertices)
+        ig_poly = polygon_inertia_x(section_vertices)
+        section_props.update({
+            "area": round(area_poly, 2),
+            "ig": round(ig_poly, 2),
+            "y_bar": round(centroid, 2),
+            "section_type": "polygon",
+            "vertices": [[round(x, 3), round(y, 3)] for x, y in section_vertices],
+        })
+
     return {
         "points": points,
-        "section_properties": {
-            "ec_mod": round(ec_mod, 2),
-            "n": round(es / ec_mod, 4),
-            "fr": round(fr, 4),
-        },
+        "section_properties": section_props,
         "concrete_model_params": model_params,
         "events": events,
         "ductility": ductility,
@@ -554,6 +660,333 @@ def moment_curvature_advanced(
             "strains": [round(i * 0.003 / 100, 6) for i in range(101)],
             "stresses": [round(_hognestad_stress(i * 0.003 / 100, fc,
                          2 * fc / ec_mod, 0.003), 4) for i in range(101)],
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Moment-Curvature via OpenSeesPy (zero-length section element)
+# ---------------------------------------------------------------------------
+
+def moment_curvature_opensees(
+    b, h, d, fc, fy, as_tension, es=200000.0,
+    axial_load=0.0, n_increments=100,
+    d_prime=0.0, as_compression=0.0,
+    cover=40.0, n_bars_tension=4, n_bars_comp=0,
+    concrete_model="hognestad", mander_params=None,
+):
+    """
+    Moment-curvature analysis using OpenSeesPy.
+
+    Uses a zero-length section element with fiber discretisation,
+    Concrete01 (Kent-Park) for concrete and Steel01 for reinforcement.
+
+    Parameters
+    ----------
+    b, h, d, fc, fy, as_tension, es :
+        Same as moment_curvature_advanced().
+    axial_load : float
+        Axial load in kN (positive = compression).
+    n_increments : int
+        Number of curvature steps.
+    d_prime : float
+        Distance from compression face to compression steel (mm).
+    as_compression : float
+        Compression steel area (mm^2).
+    cover : float
+        Clear cover to ties/stirrups (mm).
+    n_bars_tension, n_bars_comp : int
+        Number of tension/compression bars.
+    concrete_model : str
+        'hognestad' or 'mander'.
+    mander_params : dict or None
+        Result from confined_stress_strain() with keys fcc, ecc, ecu, r.
+
+    Returns
+    -------
+    dict
+        Compatible with moment_curvature_advanced() output format.
+    """
+    try:
+        import openseespy.opensees as ops
+    except (ImportError, RuntimeError, OSError) as e:
+        raise ImportError(
+            "openseespy is not available: " + str(e)
+            + " — Install a compatible version with: pip install openseespy"
+        )
+
+    if b <= 0 or h <= 0 or d <= 0 or fc <= 0 or fy <= 0:
+        raise ValueError("All section/material parameters must be positive.")
+
+    ec_mod = 4700 * math.sqrt(fc)
+    fr = 0.62 * math.sqrt(fc)
+    ey = fy / es
+    eco = 2 * fc / ec_mod
+
+    use_mander = concrete_model == "mander" and mander_params is not None
+
+    # ── Build OpenSees model ──
+    ops.wipe()
+    ops.model('basic', '-ndm', 2, '-ndf', 3)
+
+    # -- Material definitions (Concrete01: fpc, epsc0, fpcu, epsU) --
+    # All values negative per OpenSees sign convention for compression.
+    if use_mander:
+        fcc = mander_params['fcc']
+        ecc = mander_params['ecc']
+        ecu_conf = mander_params['ecu']
+        # Core – confined
+        ops.uniaxialMaterial('Concrete01', 1,
+                             -fcc, -ecc, -0.2 * fcc, -ecu_conf)
+        # Cover – unconfined
+        ops.uniaxialMaterial('Concrete01', 2,
+                             -fc, -eco, 0.0, -0.006)
+        ecu_analysis = ecu_conf
+    else:
+        ecu_hog = 0.003
+        # Core (lightly confined)
+        ops.uniaxialMaterial('Concrete01', 1,
+                             -fc, -eco, -0.2 * fc, -0.005)
+        # Cover (unconfined)
+        ops.uniaxialMaterial('Concrete01', 2,
+                             -fc, -eco, 0.0, -0.006)
+        ecu_analysis = ecu_hog
+
+    # Steel01: Fy, E0, b (strain-hardening ratio)
+    ops.uniaxialMaterial('Steel01', 3, fy, es, 0.01)
+
+    # -- Fiber section --
+    y1 = h / 2.0   # half-depth
+    z1 = b / 2.0   # half-width
+    n_core = max(20, n_increments // 2)
+
+    ops.section('Fiber', 1)
+
+    # Core concrete (inside cover)
+    ops.patch('rect', 1, n_core, 1,
+              cover - y1, cover - z1, y1 - cover, z1 - cover)
+
+    # Cover patches (top, bottom, left, right)
+    ops.patch('rect', 2, 2, 1, y1 - cover, -z1, y1, z1)
+    ops.patch('rect', 2, 2, 1, -y1, -z1, -(y1 - cover), z1)
+    ops.patch('rect', 2, n_core, 1,
+              -(y1 - cover), -z1, y1 - cover, -(z1 - cover))
+    ops.patch('rect', 2, n_core, 1,
+              -(y1 - cover), z1 - cover, y1 - cover, z1)
+
+    # Tension reinforcement layer
+    y_tens = y1 - d   # negative: below centroid
+    if n_bars_tension > 0 and as_tension > 0:
+        a_bar = as_tension / n_bars_tension
+        if n_bars_tension == 1:
+            ops.fiber(y_tens, 0.0, a_bar, 3)
+        else:
+            ops.layer('straight', 3, n_bars_tension, a_bar,
+                      y_tens, -(z1 - cover), y_tens, z1 - cover)
+
+    # Compression reinforcement layer
+    if n_bars_comp > 0 and as_compression > 0 and d_prime > 0:
+        y_comp = y1 - d_prime
+        a_bar_c = as_compression / n_bars_comp
+        if n_bars_comp == 1:
+            ops.fiber(y_comp, 0.0, a_bar_c, 3)
+        else:
+            ops.layer('straight', 3, n_bars_comp, a_bar_c,
+                      y_comp, -(z1 - cover), y_comp, z1 - cover)
+
+    # -- Nodes & element --
+    ops.node(1, 0.0, 0.0)
+    ops.node(2, 0.0, 0.0)
+    ops.fix(1, 1, 1, 1)
+    ops.fix(2, 0, 1, 0)
+    ops.element('zeroLengthSection', 1, 1, 2, 1)
+
+    # -- Phase 1: apply axial load --
+    p_axial = axial_load * 1000.0  # kN → N
+    ops.timeSeries('Constant', 1)
+    ops.pattern('Plain', 1, 1)
+    ops.load(2, p_axial, 0.0, 0.0)
+
+    ops.integrator('LoadControl', 0)
+    ops.system('BandGeneral')
+    ops.test('NormUnbalance', 1.0e-9, 10)
+    ops.numberer('Plain')
+    ops.constraints('Plain')
+    ops.algorithm('Newton')
+    ops.analysis('Static')
+    ops.analyze(1)
+
+    ops.loadConst('-time', 0.0)
+
+    # -- Phase 2: displacement-controlled curvature --
+    c_approx = d * 0.4
+    max_k = ecu_analysis / c_approx
+    dk = max_k / n_increments
+
+    ops.timeSeries('Linear', 2)
+    ops.pattern('Plain', 2, 2)
+    ops.load(2, 0.0, 0.0, 1.0)
+    ops.integrator('DisplacementControl', 2, 3, dk)
+    ops.analysis('Static')
+
+    phi_list = []
+    moment_list = []
+
+    for i in range(n_increments):
+        ok = ops.analyze(1)
+        if ok != 0:
+            ops.algorithm('ModifiedNewton')
+            ok = ops.analyze(1)
+        if ok != 0:
+            ops.algorithm('Newton', '-initial')
+            ok = ops.analyze(1)
+        if ok != 0:
+            break  # use data collected so far
+        ops.algorithm('Newton')
+
+        phi = ops.nodeDisp(2, 3)
+        forces = ops.eleForce(1)
+        moment = -forces[2]  # N·mm, sign convention
+
+        phi_list.append(phi)
+        moment_list.append(moment / 1e6)  # → kN·m
+
+    ops.wipe()
+
+    if not phi_list:
+        raise RuntimeError("OpenSeesPy analysis failed to converge.")
+
+    # ── Build points list ──
+    points = []
+    for idx in range(len(phi_list)):
+        points.append({
+            "ec_top": 0.0,
+            "phi": round(phi_list[idx], 10),
+            "moment_knm": round(moment_list[idx], 4),
+            "c": 0.0,
+        })
+
+    # ── Event detection ──
+    events = []
+
+    # Cracking moment
+    ig = b * h ** 3 / 12
+    mcr = fr * ig / (h / 2) / 1e6  # kN·m
+    for idx, m in enumerate(moment_list):
+        if abs(m) >= mcr:
+            events.append({
+                "event": "Cracking",
+                "phi": round(phi_list[idx], 10),
+                "moment_knm": round(m, 4),
+                "step": idx + 1,
+            })
+            break
+
+    # Steel yield: approximate phi_y = ey / (d - c_approx)
+    # Detect by slope change: when tangent stiffness drops below
+    # 20% of the initial stiffness
+    if len(phi_list) > 2:
+        ei_init = abs(moment_list[1] - moment_list[0]) / \
+                  abs(phi_list[1] - phi_list[0]) if abs(phi_list[1] - phi_list[0]) > 0 else 0
+        for idx in range(2, len(phi_list)):
+            dphi = phi_list[idx] - phi_list[idx - 1]
+            dm = moment_list[idx] - moment_list[idx - 1]
+            if dphi <= 0:
+                continue
+            ei_local = abs(dm / dphi)
+            if ei_init > 0 and ei_local < 0.20 * ei_init:
+                events.append({
+                    "event": "Steel Yield",
+                    "phi": round(phi_list[idx], 10),
+                    "moment_knm": round(moment_list[idx], 4),
+                    "step": idx + 1,
+                })
+                break
+
+    # Peak moment
+    peak_idx = max(range(len(moment_list)), key=lambda i: abs(moment_list[i]))
+    events.append({
+        "event": "Peak Moment",
+        "phi": round(phi_list[peak_idx], 10),
+        "moment_knm": round(moment_list[peak_idx], 4),
+        "step": peak_idx + 1,
+    })
+
+    # Ultimate (last converged point)
+    events.append({
+        "event": "Ultimate",
+        "phi": round(phi_list[-1], 10),
+        "moment_knm": round(moment_list[-1], 4),
+        "step": len(phi_list),
+    })
+
+    # ── Ductility ──
+    ductility = None
+    yield_evt = next((e for e in events if e["event"] == "Steel Yield"), None)
+    ult_evt = events[-1]  # Ultimate
+    if yield_evt and yield_evt["phi"] > 0:
+        phi_y = yield_evt["phi"]
+        phi_u = ult_evt["phi"]
+        mu = phi_u / phi_y
+        ei_y = (yield_evt["moment_knm"] * 1e6) / phi_y
+        ei_u = (ult_evt["moment_knm"] * 1e6) / phi_u if phi_u > 0 else 0
+        ductility = {
+            "phi_yield": phi_y,
+            "moment_yield_knm": yield_evt["moment_knm"],
+            "phi_ultimate": phi_u,
+            "moment_ultimate_knm": ult_evt["moment_knm"],
+            "mu": round(mu, 2),
+            "ei_yield": round(ei_y, 0),
+            "ei_ultimate": round(ei_u, 0),
+        }
+
+    # ── Concrete model curve data (for stress-strain chart) ──
+    if use_mander:
+        n_curve = 200
+        curve_strains = [i * ecu_conf / n_curve for i in range(n_curve + 1)]
+        curve_stresses = [
+            round(_mander_stress(e, fcc, ecc, ecu_conf,
+                                 mander_params['r']), 4)
+            for e in curve_strains
+        ]
+        model_params = {
+            "model": "mander",
+            "fcc": fcc, "ecc": ecc, "ecu": ecu_conf,
+            "r": mander_params['r'], "fc": fc,
+            "eco_unconfined": round(eco, 6),
+            "strains": [round(e, 8) for e in curve_strains],
+            "stresses": curve_stresses,
+        }
+    else:
+        hog_strains = [i * 0.003 / 100 for i in range(101)]
+        hog_stresses = [
+            round(_hognestad_stress(e, fc, eco, 0.003), 4)
+            for e in hog_strains
+        ]
+        model_params = {
+            "model": "hognestad",
+            "eco": round(eco, 6), "ecu": 0.003, "fc": fc,
+            "strains": [round(e, 6) for e in hog_strains],
+            "stresses": hog_stresses,
+        }
+
+    return {
+        "points": points,
+        "events": events,
+        "ductility": ductility,
+        "engine": "opensees",
+        "concrete_model_params": model_params,
+        "section_properties": {
+            "ec_mod": round(ec_mod, 2),
+            "n": round(es / ec_mod, 4),
+            "fr": round(fr, 4),
+        },
+        "fiber_plot": None,
+        "hognestad_params": model_params if not use_mander else {
+            "eco": round(eco, 6), "ecu": 0.003, "fc": fc,
+            "strains": [round(i * 0.003 / 100, 6) for i in range(101)],
+            "stresses": [round(_hognestad_stress(i * 0.003 / 100, fc,
+                         eco, 0.003), 4) for i in range(101)],
         },
     }
 

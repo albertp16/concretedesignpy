@@ -12,6 +12,7 @@ from concretedesignpy.calculators.development_length import (
 from concretedesignpy.calculators.moment_curvature import (
     moment_curvature_analysis,
     moment_curvature_advanced,
+    moment_curvature_opensees,
     moment_rotation_from_mphi,
     plastic_hinge_length,
     asce41_backbone_beam,
@@ -72,6 +73,17 @@ def moment_curvature():
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
+def _parse_section_vertices(data):
+    """Parse an optional list of (x, y) vertices from the request payload."""
+    raw = data.get("section_vertices")
+    if not raw:
+        return None
+    verts = [(float(v[0]), float(v[1])) for v in raw]
+    if len(verts) < 3:
+        return None
+    return verts
+
+
 @section_bp.route("/moment-curvature-advanced", methods=["POST"])
 def moment_curvature_adv():
     """Advanced moment-curvature with selectable concrete model."""
@@ -102,6 +114,8 @@ def moment_curvature_adv():
                 s_tie=float(data.get("s_tie", 100)),
             )
 
+        section_vertices = _parse_section_vertices(data)
+
         result = moment_curvature_advanced(
             b=b_val,
             h=h_val,
@@ -115,9 +129,64 @@ def moment_curvature_adv():
             as_compression=as_compression,
             concrete_model=concrete_model,
             mander_params=mander_params,
+            section_vertices=section_vertices,
         )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@section_bp.route("/moment-curvature-opensees", methods=["POST"])
+def moment_curvature_ops():
+    """Moment-curvature via OpenSeesPy zero-length section element."""
+    data = request.get_json()
+    try:
+        b_val = float(data["b"])
+        h_val = float(data["h"])
+        fc_val = float(data["fc"])
+
+        concrete_model = data.get("concrete_model", "hognestad")
+        mander_params = None
+        if concrete_model == "mander":
+            mander_params = confined_stress_strain(
+                fc=fc_val,
+                fy_transverse=float(data.get("fy_transverse", 275)),
+                b=b_val, h=h_val,
+                cover=float(data.get("cover", 40)),
+                db_main=float(data.get("db_tension", 25)),
+                db_tie=float(data.get("db_tie", 10)),
+                n_bars_x=int(data.get("n_bars_x", 4)),
+                n_bars_y=int(data.get("n_bars_y", 4)),
+                s_tie=float(data.get("s_tie", 100)),
+            )
+
+        n_tension = int(data.get("n_tension", 4))
+        n_comp = int(data.get("n_comp", 0))
+        cover_val = float(data.get("cover", 40))
+        d_prime = float(data.get("d_prime", 0))
+        as_comp = float(data.get("as_compression", 0))
+
+        result = moment_curvature_opensees(
+            b=b_val, h=h_val,
+            d=float(data["d"]),
+            fc=fc_val,
+            fy=float(data["fy"]),
+            as_tension=float(data["as_tension"]),
+            es=float(data.get("es", 200000)),
+            axial_load=float(data.get("axial_load", 0)),
+            n_increments=100,
+            d_prime=d_prime,
+            as_compression=as_comp,
+            cover=cover_val,
+            n_bars_tension=n_tension,
+            n_bars_comp=n_comp,
+            concrete_model=concrete_model,
+            mander_params=mander_params,
+        )
+        return jsonify({"status": "success", "result": result})
+    except ImportError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except (KeyError, ValueError, TypeError, RuntimeError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
@@ -149,6 +218,8 @@ def moment_rotation():
                 s_tie=float(data.get("s_tie", 100)),
             )
 
+        section_vertices = _parse_section_vertices(data)
+
         # Run M-phi first
         mphi_result = moment_curvature_advanced(
             b=b_val, h=h_val,
@@ -161,6 +232,7 @@ def moment_rotation():
             as_compression=as_compression,
             concrete_model=concrete_model,
             mander_params=mander_params,
+            section_vertices=section_vertices,
         )
 
         # Plastic hinge length
