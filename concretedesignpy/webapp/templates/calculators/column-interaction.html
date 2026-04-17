@@ -64,8 +64,8 @@
                 <div class="form-section">
                     <h3>Materials</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="0.1" required></div>
-                        <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="0.1" required></div>
+                        <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="30" step="any" required></div>
+                        <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="415" step="any" required></div>
                     </div>
                 </div>
 
@@ -283,9 +283,9 @@ function addRebarRow(area, y, z) {
     rebarCounter++;
     var tr = document.createElement('tr');
     tr.innerHTML = '<td>' + rebarCounter + '</td>'
-        + '<td><input type="number" class="rb-area" value="' + (area || 490.9) + '" step="0.1"></td>'
-        + '<td><input type="number" class="rb-y" value="' + (y || 0) + '" step="0.1"></td>'
-        + '<td><input type="number" class="rb-z" value="' + (z || 0) + '" step="0.1"></td>'
+        + '<td><input type="number" class="rb-area" value="' + (area || 490.9) + '" step="any"></td>'
+        + '<td><input type="number" class="rb-y" value="' + (y || 0) + '" step="any"></td>'
+        + '<td><input type="number" class="rb-z" value="' + (z || 0) + '" step="any"></td>'
         + '<td><button type="button" class="btn-remove" onclick="this.closest(\'tr\').remove();renumberBars();">&times;</button></td>';
     document.getElementById('rebar-tbody').appendChild(tr);
 }

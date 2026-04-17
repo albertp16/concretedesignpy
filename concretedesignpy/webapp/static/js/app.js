@@ -9,7 +9,7 @@
  * @param {object} payload - JSON request body
  * @param {function} [chartCallback] - Optional callback for chart rendering
  */
-function submitCalc(url, payload, chartCallback) {
+function submitCalc(url, payload, chartCallback, errorCallback) {
     var resultsDiv = document.getElementById('results');
     var contentDiv = document.getElementById('results-content');
 
@@ -25,15 +25,18 @@ function submitCalc(url, payload, chartCallback) {
     .then(function(data) {
         if (data.status === 'error') {
             if (contentDiv) contentDiv.innerHTML = '<div class="error-msg">Error: ' + escapeHtml(data.message) + '</div>';
+            if (errorCallback) errorCallback(data.message);
             return;
         }
         if (contentDiv) contentDiv.innerHTML = renderResult(data.result);
         if (chartCallback) {
             chartCallback(data.result);
         }
+        showToast('Analysis completed successfully.');
     })
     .catch(function(err) {
         if (contentDiv) contentDiv.innerHTML = '<div class="error-msg">Request failed: ' + escapeHtml(err.message) + '</div>';
+        if (errorCallback) errorCallback(err.message);
     });
 }
 
@@ -156,4 +159,20 @@ function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+/**
+ * Show a brief toast notification.
+ */
+function showToast(msg, type) {
+    var bg = type === 'error' ? '#dc2626' : type === 'warn' ? '#f59e0b' : '#16a34a';
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;top:1rem;right:1rem;background:' + bg + ';color:#fff;padding:.6rem 1.2rem;border-radius:6px;font-size:.85rem;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:400px;';
+    document.body.appendChild(t);
+    requestAnimationFrame(function() { t.style.opacity = '1'; });
+    setTimeout(function() {
+        t.style.opacity = '0';
+        setTimeout(function() { t.remove(); }, 300);
+    }, 4000);
 }

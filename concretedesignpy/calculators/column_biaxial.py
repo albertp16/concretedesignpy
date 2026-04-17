@@ -164,8 +164,8 @@ def generate_biaxial_diagram(
     corners_x = np.array([-b / 2, b / 2, b / 2, -b / 2])
     corners_y = np.array([-h / 2, -h / 2, h / 2, h / 2])
 
-    # Angle sweep (0 to 180 degrees)
-    angles = np.linspace(0, math.pi, n_angles, endpoint=False)
+    # Angle sweep (0 to 180 degrees, inclusive)
+    angles = np.linspace(0, math.pi, n_angles + 1)
 
     surface_points = []
 
@@ -377,7 +377,7 @@ def extract_contour_at_pu(biaxial_result, pu_level):
     # Mirror to 180-360 for full contour
     mirrored = []
     for p in reversed(contour):
-        if p["theta_deg"] == 0:
+        if p["theta_deg"] in (0, 180):
             continue
         mirrored.append({
             "theta_deg": round(p["theta_deg"] + 180, 1),
