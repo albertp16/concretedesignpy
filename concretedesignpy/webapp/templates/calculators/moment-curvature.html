@@ -120,6 +120,18 @@
 0.5500, 0.4000
 0.3125, 0.2000</textarea>
                         <p id="special-bbox" style="font-size:.75rem;color:var(--gray-600);margin:.35rem 0 0;"></p>
+                        <div style="margin-top:.85rem;padding-top:.65rem;border-top:1px dashed var(--gray-200);">
+                            <p style="font-size:.82rem;font-weight:600;margin:0 0 .35rem;">Steel Plate Strengthening <span style="font-weight:400;font-size:.75rem;color:var(--gray-400);">(A36, optional)</span></p>
+                            <p style="font-size:.72rem;color:var(--gray-400);margin:0 0 .4rem;">Plate width is taken from the polygon top/bottom face. Set thickness to 0 to disable.</p>
+                            <div class="form-row">
+                                <div class="form-group"><label>Top plate t (mm)</label><input type="number" name="plate_top_thickness" id="plate_top_thickness" value="0" min="0" step="any"></div>
+                                <div class="form-group"><label>Bottom plate t (mm)</label><input type="number" name="plate_bottom_thickness" id="plate_bottom_thickness" value="0" min="0" step="any"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Plate Fy (MPa)</label><input type="number" name="plate_fy" id="plate_fy" value="250" step="any"></div>
+                                <div class="form-group"><label>Plate Es (MPa)</label><input type="number" name="plate_es" id="plate_es" value="200000" step="any"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-section">
@@ -390,6 +402,11 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         payload.b = bb.xmax - bb.xmin;
         payload.h = bb.ymax - bb.ymin;
         if (!(payload.d > 0)) payload.d = payload.h - 75;
+        // Steel plates (A36 default) — Special section only
+        payload.plate_top_thickness = parseFloat(document.getElementById('plate_top_thickness').value) || 0;
+        payload.plate_bottom_thickness = parseFloat(document.getElementById('plate_bottom_thickness').value) || 0;
+        payload.plate_fy = parseFloat(document.getElementById('plate_fy').value) || 250;
+        payload.plate_es = parseFloat(document.getElementById('plate_es').value) || 200000;
     }
 
     if (currentMode === 'mtheta') {
@@ -1401,6 +1418,46 @@ function renderSectionChart(payload, sp) {
         { type: 'line', x0: xAxisMin + 10, y0: h - d, x1: xAxisMax - 10, y1: h - d, line: { color: '#2563eb', width: 1.5, dash: 'dot' } },
     ];
 
+    // External steel plates (A36) — drawn over polygon top/bottom face width
+    var tTop = parseFloat(payload.plate_top_thickness) || 0;
+    var tBot = parseFloat(payload.plate_bottom_thickness) || 0;
+    function widthSpanAtY(vs, yq) {
+        var out = []; var eps = 1e-6;
+        for (var k = 0; k < vs.length; k++) {
+            var p1 = vs[k], p2 = vs[(k+1) % vs.length];
+            if (Math.abs(p2[1] - p1[1]) < eps) continue;
+            var ylo = Math.min(p1[1], p2[1]), yhi = Math.max(p1[1], p2[1]);
+            if (yq < ylo - eps || yq > yhi + eps) continue;
+            var t = (yq - p1[1]) / (p2[1] - p1[1]);
+            out.push(p1[0] + t * (p2[0] - p1[0]));
+        }
+        out.sort(function(a,b){return a-b;});
+        if (out.length < 2) return null;
+        return [out[0], out[out.length - 1]];
+    }
+    if (tTop > 0) {
+        var spanTop;
+        if (verts && verts.length >= 3) spanTop = widthSpanAtY(verts, h - 1e-3);
+        else spanTop = [0, b];
+        if (spanTop) {
+            shapes.push({
+                type: 'rect', x0: spanTop[0], y0: h, x1: spanTop[1], y1: h + tTop,
+                line: { color: '#1f2937', width: 2 }, fillcolor: 'rgba(75,85,99,0.55)',
+            });
+        }
+    }
+    if (tBot > 0) {
+        var spanBot;
+        if (verts && verts.length >= 3) spanBot = widthSpanAtY(verts, 1e-3);
+        else spanBot = [0, b];
+        if (spanBot) {
+            shapes.push({
+                type: 'rect', x0: spanBot[0], y0: -tBot, x1: spanBot[1], y1: 0,
+                line: { color: '#1f2937', width: 2 }, fillcolor: 'rgba(75,85,99,0.55)',
+            });
+        }
+    }
+
     // Tension rebar placement
     var nBars = parseInt(document.getElementById('n_tension').value) || 0;
     if (!nBars) {
@@ -1507,10 +1564,12 @@ function renderSectionChart(payload, sp) {
     }
 
     var xRange = [xAxisMin - 50, xAxisMax + 70];
+    var yMin = -30 - tBot;
+    var yMax = h + 50 + tTop;
     var layout = {
         title: { text: 'Cross-Section', font: { size: 14 } },
         xaxis: { visible: false, range: xRange, scaleanchor: 'y' },
-        yaxis: { visible: false, range: [-30, h + 50] },
+        yaxis: { visible: false, range: [yMin, yMax] },
         shapes: shapes,
         annotations: annotations,
         height: 450,

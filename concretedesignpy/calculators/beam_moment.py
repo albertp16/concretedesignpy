@@ -13,6 +13,30 @@ Reference: NSCP 2015 / ACI 318-19
 
 import math
 
+from concretedesignpy.calculators.moment_curvature import (
+    polygon_area,
+    polygon_centroid,
+    polygon_width_at,
+)
+
+
+def _polygon_strip_area_and_centroid(vertices, y_lo, y_hi, n_strips=80):
+    """Numerically integrate polygon area and y-centroid in [y_lo, y_hi]."""
+    if y_hi <= y_lo:
+        return 0.0, (y_lo + y_hi) / 2.0
+    dy = (y_hi - y_lo) / n_strips
+    a_total = 0.0
+    ay_total = 0.0
+    for i in range(n_strips):
+        y_mid = y_lo + (i + 0.5) * dy
+        wi = polygon_width_at(vertices, y_mid)
+        ai = wi * dy
+        a_total += ai
+        ay_total += ai * y_mid
+    if a_total <= 0:
+        return 0.0, (y_lo + y_hi) / 2.0
+    return a_total, ay_total / a_total
+
 
 def _calculate_beta_one(fc):
     """Whitney stress block factor per NSCP 2015 Section 422.2.2.4.3."""
@@ -37,7 +61,12 @@ def _strength_reduction_factor(epsilon_t, epsilon_ty):
         return phi, "transition"
 
 
-def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
+def calculate_beam_moment(
+    rebar_list, fc, fy, b, h, es=200000.0,
+    section_vertices=None,
+    plate_top_thickness=0.0, plate_bottom_thickness=0.0,
+    plate_fy=250.0, plate_es=200000.0,
+):
     """
     Calculate moment capacity of an RC beam section.
 
@@ -53,11 +82,22 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
     fy : float
         Steel yield strength (MPa).
     b : float
-        Beam width (mm).
+        Beam width (mm). For polygon sections this is the bbox width
+        (used as fallback for plate widths if polygon-width lookup fails).
     h : float
         Beam total height (mm).
     es : float, optional
         Steel modulus of elasticity (MPa). Default 200000.
+    section_vertices : list of (x, y) or None
+        Optional polygon vertices in mm describing the concrete cross-section.
+        When provided, the Whitney compression block uses the polygon area
+        in the top `a` strip (instead of `a*b`). Width above NA is taken from
+        the polygon. y=0 is the bottom; y=h the top.
+    plate_top_thickness, plate_bottom_thickness : float
+        External A36 steel plate thickness (mm) bonded above/below the section.
+        Plate width = polygon top/bottom face width (or `b` for rectangular).
+    plate_fy, plate_es : float
+        Plate yield strength and modulus (MPa). Default A36.
 
     Returns
     -------
@@ -73,19 +113,78 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
     epsilon_ty = fy / es
     ecu = 0.003
 
+    use_polygon = section_vertices is not None and len(section_vertices) >= 3
+
     # Process rebar data
     rebars = []
     for bar in rebar_list:
         area = (math.pi / 4) * bar["diam"] ** 2 * bar["num"]
         rebars.append({"d": bar["d"], "area": area, "num": bar["num"], "diam": bar["diam"]})
 
-    # d_max for c/dt ratio
+    # External steel plates (A36) — modelled as virtual rebar layers
+    # at depth-from-top d_plate. Top plate is "above" the polygon (negative d).
+    plate_layers = []
+    if plate_top_thickness > 0 or plate_bottom_thickness > 0:
+        if use_polygon:
+            xs = [v[0] for v in section_vertices]
+            bbox_w = max(xs) - min(xs)
+            if plate_top_thickness > 0:
+                w_top = polygon_width_at(section_vertices, h - 1e-3) or bbox_w
+                plate_layers.append({
+                    "label": "Top Plate (A36)",
+                    "d": -plate_top_thickness / 2.0,  # above polygon top
+                    "thickness": plate_top_thickness,
+                    "width": w_top,
+                    "area": w_top * plate_top_thickness,
+                    "fy": plate_fy,
+                })
+            if plate_bottom_thickness > 0:
+                w_bot = polygon_width_at(section_vertices, 1e-3) or bbox_w
+                plate_layers.append({
+                    "label": "Bottom Plate (A36)",
+                    "d": h + plate_bottom_thickness / 2.0,  # below polygon bottom
+                    "thickness": plate_bottom_thickness,
+                    "width": w_bot,
+                    "area": w_bot * plate_bottom_thickness,
+                    "fy": plate_fy,
+                })
+        else:
+            if plate_top_thickness > 0:
+                plate_layers.append({
+                    "label": "Top Plate (A36)",
+                    "d": -plate_top_thickness / 2.0,
+                    "thickness": plate_top_thickness,
+                    "width": b,
+                    "area": b * plate_top_thickness,
+                    "fy": plate_fy,
+                })
+            if plate_bottom_thickness > 0:
+                plate_layers.append({
+                    "label": "Bottom Plate (A36)",
+                    "d": h + plate_bottom_thickness / 2.0,
+                    "thickness": plate_bottom_thickness,
+                    "width": b,
+                    "area": b * plate_bottom_thickness,
+                    "fy": plate_fy,
+                })
+
+    # d_max for c/dt ratio (extreme tension fibre — bottom plate if present)
     d_max = max(rb["d"] for rb in rebars)
+    if plate_layers:
+        d_max = max(d_max, max(pl["d"] for pl in plate_layers))
 
     # Helper: compute forces at a given neutral axis depth
     def _compute_forces(c_val):
         a_val = beta1 * c_val
-        fc_val = 0.85 * fc * a_val * b  # concrete compression
+        if use_polygon:
+            y_lo = max(0.0, h - a_val)
+            fc_area, y_centroid_compr = _polygon_strip_area_and_centroid(
+                section_vertices, y_lo, h)
+            fc_val = 0.85 * fc * fc_area
+            d_compr = h - y_centroid_compr  # depth from top to compression centroid
+        else:
+            fc_val = 0.85 * fc * a_val * b
+            d_compr = a_val / 2.0
         comp_steel = 0.0  # compression steel (absolute)
         tens_steel = 0.0  # tension steel
         fs_net = 0.0      # net steel force (tension positive)
@@ -104,7 +203,23 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
                 "num": rb["num"], "diam": rb["diam"],
                 "strain": strain, "stress": stress, "force": force,
             })
-        return fc_val, comp_steel, tens_steel, fs_net, forces
+        for pl in plate_layers:
+            strain = ecu * (pl["d"] - c_val) / c_val
+            stress = max(-pl["fy"], min(pl["fy"], strain * plate_es))
+            force = stress * pl["area"]
+            fs_net += force
+            if force >= 0:
+                tens_steel += force
+            else:
+                comp_steel += abs(force)
+            forces.append({
+                "d": pl["d"], "area": pl["area"],
+                "num": 1, "diam": 0,
+                "strain": strain, "stress": stress, "force": force,
+                "label": pl["label"], "thickness": pl["thickness"],
+                "width": pl["width"], "is_plate": True,
+            })
+        return fc_val, comp_steel, tens_steel, fs_net, forces, d_compr
 
     # Phase 1: coarse search for neutral axis
     iterations = []
@@ -114,7 +229,7 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
     coarse_iter = 0
 
     while c > 0:
-        fc_concrete, comp_steel, tens_steel, fs_net, _ = _compute_forces(c)
+        fc_concrete, comp_steel, tens_steel, fs_net, _, _ = _compute_forces(c)
         # Ratio: (concrete compression + steel compression) / steel tension
         ratio = (fc_concrete + comp_steel) / tens_steel if tens_steel > 1e-9 else float('inf')
         coarse_iter += 1
@@ -140,8 +255,11 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
     c = c_start
     fine_iter = 0
 
+    converged = False
     for _ in range(int(step_coarse / step_fine) + 500):
-        fc_concrete, comp_steel, tens_steel, fs_net, rebar_forces = _compute_forces(c)
+        if c <= step_fine:
+            break
+        fc_concrete, comp_steel, tens_steel, fs_net, rebar_forces, d_compr = _compute_forces(c)
         ratio = (fc_concrete + comp_steel) / tens_steel if tens_steel > 1e-9 else float('inf')
         fine_iter += 1
         iterations.append({
@@ -156,16 +274,26 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
         })
 
         if abs(fc_concrete - fs_net) < 0.5:
+            converged = True
             break
         if fc_concrete < fs_net:
+            converged = True
             break
         c -= step_fine
 
-    # Compute moment about top fiber
+    if not converged or c <= 1.0:
+        raise ValueError(
+            "No flexural equilibrium found at axial load = 0. The compression "
+            "capacity (top plate / compression rebar / Whitney block) exceeds "
+            "the available tension capacity. Try a thinner top plate, more "
+            "tension rebar / a thicker bottom plate, or apply axial compression."
+        )
+
+    # Compute moment about the centroid of the concrete compression block
     a = beta1 * c
     mn = 0.0
     for rf in rebar_forces:
-        mn += rf["force"] * (rf["d"] - a / 2)
+        mn += rf["force"] * (rf["d"] - d_compr)
     mn_knm = mn / 1e6
 
     # Tensile strain at extreme tension bar
@@ -184,10 +312,30 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
             "as_mm2": round(area, 2),
         })
 
+    section_info = {"type": "polygon" if use_polygon else "rectangular"}
+    if use_polygon:
+        section_info["vertices"] = [[round(x, 3), round(y, 3)]
+                                    for x, y in section_vertices]
+        section_info["area"] = round(polygon_area(section_vertices), 2)
+        section_info["centroid_y"] = round(polygon_centroid(section_vertices)[1], 2)
+
+    plates_info = None
+    if plate_layers:
+        plates_info = {"fy": plate_fy, "es": plate_es}
+        for pl in plate_layers:
+            key = "top" if pl["d"] < 0 else "bottom"
+            plates_info[key] = {
+                "thickness": pl["thickness"],
+                "width": round(pl["width"], 2),
+                "area": round(pl["area"], 2),
+                "d": pl["d"],
+            }
+
     return {
         "neutral_axis": round(c, 2),
         "a": round(a, 2),
         "beta1": round(beta1, 4),
+        "d_compr": round(d_compr, 2),
         "mn": round(mn_knm, 2),
         "mu": round(mu_knm, 2),
         "phi": round(phi, 4),
@@ -201,4 +349,6 @@ def calculate_beam_moment(rebar_list, fc, fy, b, h, es=200000.0):
         "rebar_forces": rebar_forces,
         "rebar_pattern": rebar_pattern,
         "iterations": iterations,
+        "section": section_info,
+        "steel_plates": plates_info,
     }

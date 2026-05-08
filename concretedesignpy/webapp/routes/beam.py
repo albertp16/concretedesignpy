@@ -36,6 +36,21 @@ def beam_moment():
     """Calculate beam moment capacity."""
     data = request.get_json()
     try:
+        # Optional polygon vertices (Special section)
+        raw_verts = data.get("section_vertices")
+        section_vertices = None
+        if raw_verts:
+            section_vertices = [(float(v[0]), float(v[1])) for v in raw_verts]
+            if len(section_vertices) < 3:
+                section_vertices = None
+
+        plate_kwargs = {
+            "plate_top_thickness": float(data.get("plate_top_thickness", 0) or 0),
+            "plate_bottom_thickness": float(data.get("plate_bottom_thickness", 0) or 0),
+            "plate_fy": float(data.get("plate_fy", 250) or 250),
+            "plate_es": float(data.get("plate_es", 200000) or 200000),
+        }
+
         result = calculate_beam_moment(
             rebar_list=data["rebar_list"],
             fc=float(data["fc"]),
@@ -43,6 +58,8 @@ def beam_moment():
             b=float(data["b"]),
             h=float(data["h"]),
             es=float(data.get("es", 200000)),
+            section_vertices=section_vertices,
+            **plate_kwargs,
         )
         # Generate cross-section SVG
         result["svg"] = svg_beam_cross_section(
@@ -51,6 +68,8 @@ def beam_moment():
             rebar_forces=result["rebar_forces"],
             c=result["neutral_axis"],
             a=result["a"],
+            section_vertices=section_vertices,
+            steel_plates=result.get("steel_plates"),
         )
         # Round rebar forces for display
         for rf in result["rebar_forces"]:

@@ -314,6 +314,8 @@ def moment_curvature_advanced(
     d_prime=0.0, as_compression=0.0,
     concrete_model="hognestad", mander_params=None,
     section_vertices=None,
+    plate_top_thickness=0.0, plate_bottom_thickness=0.0,
+    plate_fy=250.0, plate_es=200000.0,
 ):
     """
     Compute moment-curvature using incremental fiber approach.
@@ -352,6 +354,12 @@ def moment_curvature_advanced(
     mander_params : dict or None
         Result from confined_stress_strain() when using Mander model.
         Required keys: fcc, ecc, ecu, r
+    plate_top_thickness, plate_bottom_thickness : float
+        External steel plate thickness (mm) bonded above/below the section.
+        Width is taken from the polygon top/bottom face (or `b` for
+        rectangular). Set 0 to disable. Default A36 (Fy=250 MPa).
+    plate_fy, plate_es : float
+        Plate yield strength and modulus (MPa). Default A36 values.
 
     Returns
     -------
@@ -400,6 +408,32 @@ def moment_curvature_advanced(
     else:
         centroid = h / 2.0
 
+    # External steel plates (A36 default) — bonded above/below the polygon.
+    # Plate width is taken from the polygon top/bottom face width.
+    use_top_plate = plate_top_thickness > 0
+    use_bottom_plate = plate_bottom_thickness > 0
+    plate_top_width = 0.0
+    plate_bottom_width = 0.0
+    if use_top_plate or use_bottom_plate:
+        if use_polygon:
+            xs = [v[0] for v in section_vertices]
+            bbox_w = max(xs) - min(xs)
+            if use_top_plate:
+                plate_top_width = polygon_width_at(section_vertices, h - 1e-3)
+                if plate_top_width <= 0:
+                    plate_top_width = bbox_w
+            if use_bottom_plate:
+                plate_bottom_width = polygon_width_at(section_vertices, 1e-3)
+                if plate_bottom_width <= 0:
+                    plate_bottom_width = bbox_w
+        else:
+            plate_top_width = b if use_top_plate else 0.0
+            plate_bottom_width = b if use_bottom_plate else 0.0
+    plate_top_area = plate_top_width * plate_top_thickness
+    plate_bottom_area = plate_bottom_width * plate_bottom_thickness
+    plate_top_y = h + plate_top_thickness / 2.0   # centroid above polygon
+    plate_bottom_y = -plate_bottom_thickness / 2.0  # centroid below polygon
+
     points = []
 
     # Event detection state
@@ -412,8 +446,8 @@ def moment_curvature_advanced(
     for step in range(1, n_increments + 1):
         ec_top = step * ecu / n_increments
 
-        # Binary search for neutral axis depth c (from top)
-        c_lo, c_hi = 1.0, h * 2.0
+        # Binary search for neutral axis depth c (from top of polygon)
+        c_lo, c_hi = 1.0, (h + plate_top_thickness + plate_bottom_thickness) * 2.0
         c_found = None
         final_total_moment = 0.0
         final_strain_steel = 0.0
@@ -449,6 +483,24 @@ def moment_curvature_advanced(
                 force_comp = stress_comp * as_compression
                 total_force += force_comp
                 total_moment += force_comp * (steel_y_comp - centroid)
+
+            # Top steel plate (above polygon, dist_from_top = -t_top/2)
+            if use_top_plate:
+                dist_top = -plate_top_thickness / 2.0
+                strain_pt = ec_top * (c - dist_top) / c if c > 0 else 0
+                stress_pt = _steel_stress(strain_pt, plate_fy, plate_es)
+                force_pt = stress_pt * plate_top_area
+                total_force += force_pt
+                total_moment += force_pt * (plate_top_y - centroid)
+
+            # Bottom steel plate (below polygon, dist_from_top = h + t_bot/2)
+            if use_bottom_plate:
+                dist_bot = h + plate_bottom_thickness / 2.0
+                strain_pb = ec_top * (c - dist_bot) / c if c > 0 else 0
+                stress_pb = _steel_stress(strain_pb, plate_fy, plate_es)
+                force_pb = stress_pb * plate_bottom_area
+                total_force += force_pb
+                total_moment += force_pb * (plate_bottom_y - centroid)
 
             # Axial load
             net_force = total_force + p_axial
@@ -580,6 +632,23 @@ def moment_curvature_advanced(
                 "y": round(h - d_prime, 1), "strain": round(strain_c, 8),
                 "stress": round(stress_c, 2), "label": "Compression",
             })
+        # External steel plates (A36)
+        if use_top_plate:
+            dist_pt = -plate_top_thickness / 2.0
+            strain_pt = ec_ult * (c_ult - dist_pt) / c_ult if c_ult > 0 else 0
+            stress_pt = _steel_stress(strain_pt, plate_fy, plate_es)
+            rebar_data.append({
+                "y": round(plate_top_y, 1), "strain": round(strain_pt, 8),
+                "stress": round(stress_pt, 2), "label": "Top Plate (A36)",
+            })
+        if use_bottom_plate:
+            dist_pb = h + plate_bottom_thickness / 2.0
+            strain_pb = ec_ult * (c_ult - dist_pb) / c_ult if c_ult > 0 else 0
+            stress_pb = _steel_stress(strain_pb, plate_fy, plate_es)
+            rebar_data.append({
+                "y": round(plate_bottom_y, 1), "strain": round(strain_pb, 8),
+                "stress": round(stress_pb, 2), "label": "Bottom Plate (A36)",
+            })
 
         fiber_plot = {
             "y": [round(fy_i, 1) for fy_i in fiber_y],
@@ -652,6 +721,22 @@ def moment_curvature_advanced(
             "d_prime": d_prime,
             "as_compression": as_compression,
         } if as_compression > 0 else None,
+        "steel_plates": {
+            "top": {
+                "thickness": plate_top_thickness,
+                "width": round(plate_top_width, 2),
+                "area": round(plate_top_area, 2),
+                "y_centroid": round(plate_top_y, 2),
+            } if use_top_plate else None,
+            "bottom": {
+                "thickness": plate_bottom_thickness,
+                "width": round(plate_bottom_width, 2),
+                "area": round(plate_bottom_area, 2),
+                "y_centroid": round(plate_bottom_y, 2),
+            } if use_bottom_plate else None,
+            "fy": plate_fy,
+            "es": plate_es,
+        } if (use_top_plate or use_bottom_plate) else None,
         # Backward compat: keep hognestad_params for quick+adv overlay
         "hognestad_params": model_params if not use_mander else {
             "eco": round(2 * fc / ec_mod, 6),

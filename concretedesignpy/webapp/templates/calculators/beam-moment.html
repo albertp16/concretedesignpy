@@ -61,8 +61,48 @@
                 <div class="form-section">
                     <h3>Section Properties</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>Width, b (mm)</label><input type="number" id="beam-b" name="b" value="500" step="1" required></div>
-                        <div class="form-group"><label>Height, h (mm)</label><input type="number" id="beam-h" name="h" value="800" step="1" required></div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Section Type</label>
+                            <select id="section-type" name="section_type" style="width:100%;padding:.45rem .6rem;border:1px solid var(--gray-200);border-radius:4px;font-size:.9rem;" onchange="toggleSectionType()">
+                                <option value="rectangular" selected>Rectangle</option>
+                                <option value="special">Special (I-Girder polygon)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="rect-fields" class="form-row">
+                        <div class="form-group"><label>Width, b (mm)</label><input type="number" id="beam-b" name="b" value="500" step="any" required></div>
+                        <div class="form-group"><label>Height, h (mm)</label><input type="number" id="beam-h" name="h" value="800" step="any" required></div>
+                    </div>
+                    <div id="special-fields" style="display:none;">
+                        <p style="font-size:.78rem;color:var(--gray-400);margin:.25rem 0 .5rem;">Polygon vertices in <b>meters</b> (x, y) &mdash; one pair per line. Converted to mm internally. b, h auto-derived from bbox.</p>
+                        <textarea id="vertices-text" rows="8" style="width:100%;font-family:'SF Mono','Fira Code',monospace;font-size:.8rem;padding:.5rem;border:1px solid var(--gray-200);border-radius:4px;" oninput="updateSpecialBBox()">0.3125, 0.0000
+1.0375, 0.0000
+1.0375, 0.2000
+0.8000, 0.4000
+0.8000, 1.7000
+0.8750, 1.8500
+1.3500, 1.8500
+1.3500, 2.0000
+0.0000, 2.0000
+0.0000, 1.8500
+0.4750, 1.8500
+0.5500, 1.7000
+0.5500, 0.4000
+0.3125, 0.2000</textarea>
+                        <p id="special-bbox" style="font-size:.75rem;color:var(--gray-600);margin:.35rem 0 0;"></p>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Steel Plate Strengthening <span style="font-weight:400;font-size:.8rem;color:var(--gray-400);">(A36, optional)</span></h3>
+                    <p style="font-size:.72rem;color:var(--gray-400);margin:0 0 .5rem;">Plate width = section top/bottom face width. Set thickness to 0 to disable.</p>
+                    <div class="form-row">
+                        <div class="form-group"><label>Top plate t (mm)</label><input type="number" id="plate_top_thickness" name="plate_top_thickness" value="0" min="0" step="any"></div>
+                        <div class="form-group"><label>Bottom plate t (mm)</label><input type="number" id="plate_bottom_thickness" name="plate_bottom_thickness" value="0" min="0" step="any"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Plate Fy (MPa)</label><input type="number" id="plate_fy" name="plate_fy" value="250" step="any"></div>
+                        <div class="form-group"><label>Plate Es (MPa)</label><input type="number" id="plate_es" name="plate_es" value="200000" step="any"></div>
                     </div>
                 </div>
 
@@ -89,6 +129,52 @@
 </div>
 
 <script>
+// ── Section type helpers (Rectangle / Special polygon) ──
+function parseVerticesText(txt) {
+    var verts = [];
+    var lines = (txt || '').split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i].replace(/[()\[\]]/g, '').trim();
+        if (!ln) continue;
+        var parts = ln.split(/[,\s]+/).filter(function(p){return p.length;});
+        if (parts.length < 2) continue;
+        var x = parseFloat(parts[0]), y = parseFloat(parts[1]);
+        if (isFinite(x) && isFinite(y)) verts.push([x, y]);
+    }
+    return verts;
+}
+function verticesBBox(verts) {
+    if (!verts.length) return null;
+    var xs = verts.map(function(v){return v[0];});
+    var ys = verts.map(function(v){return v[1];});
+    return {
+        xmin: Math.min.apply(null, xs), xmax: Math.max.apply(null, xs),
+        ymin: Math.min.apply(null, ys), ymax: Math.max.apply(null, ys),
+    };
+}
+function updateSpecialBBox() {
+    var verts = parseVerticesText(document.getElementById('vertices-text').value);
+    var bb = verticesBBox(verts);
+    var info = document.getElementById('special-bbox');
+    if (!bb) { info.textContent = 'No vertices parsed.'; return; }
+    var b_mm = (bb.xmax - bb.xmin) * 1000;
+    var h_mm = (bb.ymax - bb.ymin) * 1000;
+    document.getElementById('beam-b').value = b_mm.toFixed(1);
+    document.getElementById('beam-h').value = h_mm.toFixed(1);
+    info.textContent = verts.length + ' vertices — bbox: ' + b_mm.toFixed(0) + ' × ' + h_mm.toFixed(0) + ' mm';
+}
+function toggleSectionType() {
+    var t = document.getElementById('section-type').value;
+    var isSpecial = (t === 'special');
+    document.getElementById('rect-fields').style.display = isSpecial ? 'none' : '';
+    document.getElementById('special-fields').style.display = isSpecial ? '' : 'none';
+    ['beam-b','beam-h'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (isSpecial) el.removeAttribute('required'); else el.setAttribute('required','');
+    });
+    if (isSpecial) updateSpecialBBox();
+}
+
 // ── Handsontable Rebar Table ──
 var rebarData = [
     [62.5, 25, 2],
@@ -133,7 +219,27 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var rebar_list = getRebarList();
     if (rebar_list.length === 0) { alert('Add at least one rebar layer.'); return; }
-    var payload = { fc: parseFloat(this.fc.value), fy: parseFloat(this.fy.value), es: parseFloat(this.es.value), b: parseFloat(this.b.value), h: parseFloat(this.h.value), rebar_list: rebar_list };
+    var payload = {
+        fc: parseFloat(this.fc.value), fy: parseFloat(this.fy.value),
+        es: parseFloat(this.es.value),
+        b: parseFloat(document.getElementById('beam-b').value),
+        h: parseFloat(document.getElementById('beam-h').value),
+        rebar_list: rebar_list,
+        plate_top_thickness: parseFloat(document.getElementById('plate_top_thickness').value) || 0,
+        plate_bottom_thickness: parseFloat(document.getElementById('plate_bottom_thickness').value) || 0,
+        plate_fy: parseFloat(document.getElementById('plate_fy').value) || 250,
+        plate_es: parseFloat(document.getElementById('plate_es').value) || 200000,
+    };
+
+    if (document.getElementById('section-type').value === 'special') {
+        var vertsM = parseVerticesText(document.getElementById('vertices-text').value);
+        if (vertsM.length < 3) { alert('Need at least 3 vertices for Special section.'); return; }
+        var vertsMm = vertsM.map(function(v){ return [v[0]*1000, v[1]*1000]; });
+        payload.section_vertices = vertsMm;
+        var bb = verticesBBox(vertsMm);
+        payload.b = bb.xmax - bb.xmin;
+        payload.h = bb.ymax - bb.ymin;
+    }
 
     submitCalc('/api/beam/moment', payload, function(result) {
         // Cross-section SVG

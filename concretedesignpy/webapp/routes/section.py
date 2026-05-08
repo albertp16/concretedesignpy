@@ -84,6 +84,16 @@ def _parse_section_vertices(data):
     return verts
 
 
+def _parse_steel_plates(data):
+    """Pull optional A36 steel plate kwargs from payload."""
+    return {
+        "plate_top_thickness": float(data.get("plate_top_thickness", 0) or 0),
+        "plate_bottom_thickness": float(data.get("plate_bottom_thickness", 0) or 0),
+        "plate_fy": float(data.get("plate_fy", 250) or 250),
+        "plate_es": float(data.get("plate_es", 200000) or 200000),
+    }
+
+
 @section_bp.route("/moment-curvature-advanced", methods=["POST"])
 def moment_curvature_adv():
     """Advanced moment-curvature with selectable concrete model."""
@@ -115,6 +125,7 @@ def moment_curvature_adv():
             )
 
         section_vertices = _parse_section_vertices(data)
+        plate_kwargs = _parse_steel_plates(data)
 
         result = moment_curvature_advanced(
             b=b_val,
@@ -130,6 +141,7 @@ def moment_curvature_adv():
             concrete_model=concrete_model,
             mander_params=mander_params,
             section_vertices=section_vertices,
+            **plate_kwargs,
         )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
@@ -219,6 +231,7 @@ def moment_rotation():
             )
 
         section_vertices = _parse_section_vertices(data)
+        plate_kwargs = _parse_steel_plates(data)
 
         # Run M-phi first
         mphi_result = moment_curvature_advanced(
@@ -233,6 +246,7 @@ def moment_rotation():
             concrete_model=concrete_model,
             mander_params=mander_params,
             section_vertices=section_vertices,
+            **plate_kwargs,
         )
 
         # Plastic hinge length

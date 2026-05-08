@@ -126,48 +126,151 @@ def svg_hook_geometry(bend_diameter, lext, bar_size, angle, ldh=None):
     return svg
 
 
-def svg_beam_cross_section(b, h, rebar_forces, c, a, scale_factor=None):
+def svg_beam_cross_section(b, h, rebar_forces, c, a, scale_factor=None,
+                           section_vertices=None, steel_plates=None):
     """
     Generate SVG of beam cross-section with neutral axis and rebar.
 
     Parameters
     ----------
     b, h : float
-        Beam width and height (mm).
+        Beam width and height (mm). For polygons, the bbox extents.
     rebar_forces : list of dict
-        Each has 'd', 'area', 'force' keys.
+        Each has 'd', 'area', 'force' keys; entries with 'is_plate'=True
+        represent steel plates and are drawn as rectangles instead of bars.
     c : float
         Neutral axis depth (mm).
     a : float
         Whitney block depth (mm).
+    section_vertices : list of [x, y] or None
+        Optional polygon vertices in mm (y=0 bottom, y=h top).
+    steel_plates : dict or None
+        Optional {'top': {...}, 'bottom': {...}} from beam_moment result,
+        with each entry having 'thickness', 'width'.
 
     Returns
     -------
     str : SVG markup
     """
-    w = 320
-    ht = 420
+    use_poly = section_vertices is not None and len(section_vertices) >= 3
+    plates = steel_plates or {}
+    pt = plates.get("top") or {}
+    pb = plates.get("bottom") or {}
+    t_top = pt.get("thickness", 0)
+    t_bot = pb.get("thickness", 0)
+
+    if use_poly:
+        xs = [v[0] for v in section_vertices]
+        ys = [v[1] for v in section_vertices]
+        poly_xmin, poly_xmax = min(xs), max(xs)
+        poly_ymin, poly_ymax = min(ys), max(ys)
+    else:
+        poly_xmin, poly_xmax = 0.0, b
+        poly_ymin, poly_ymax = 0.0, h
+
+    bw_mm = poly_xmax - poly_xmin
+    bh_mm = poly_ymax - poly_ymin
+    total_h_mm = bh_mm + t_top + t_bot
+
+    w = 360
+    ht = 460
     pad = 50
 
     if scale_factor is None:
-        scale_factor = min((w - 2 * pad) / b, (ht - 2 * pad) / h)
+        scale_factor = min((w - 2 * pad) / max(bw_mm, 1),
+                           (ht - 2 * pad) / max(total_h_mm, 1))
 
-    bw = b * scale_factor
-    bh = h * scale_factor
+    bw = bw_mm * scale_factor
+    bh = bh_mm * scale_factor
     ox = (w - bw) / 2
-    oy = pad
+    oy = pad + t_top * scale_factor   # leave room for top plate above polygon
 
-    svg = f'<svg viewBox="0 0 {w} {ht}" xmlns="http://www.w3.org/2000/svg" style="max-width:320px;width:100%">\n'
+    def y2sy(y_mm):
+        return oy + (poly_ymax - y_mm) * scale_factor
+
+    svg = f'<svg viewBox="0 0 {w} {ht}" xmlns="http://www.w3.org/2000/svg" style="max-width:360px;width:100%">\n'
     svg += '<rect width="100%" height="100%" fill="#fff"/>\n'
 
     # Concrete section
-    svg += f'<rect x="{ox}" y="{oy}" width="{bw}" height="{bh}" '
-    svg += 'fill="#e5e7eb" stroke="#333" stroke-width="2"/>\n'
+    if use_poly:
+        pts = []
+        for vx, vy in section_vertices:
+            sx = ox + (vx - poly_xmin) * scale_factor
+            sy = y2sy(vy)
+            pts.append(f"{sx:.2f},{sy:.2f}")
+        svg += f'<polygon points="{" ".join(pts)}" fill="#e5e7eb" stroke="#333" stroke-width="2"/>\n'
+    else:
+        svg += f'<rect x="{ox}" y="{oy}" width="{bw}" height="{bh}" '
+        svg += 'fill="#e5e7eb" stroke="#333" stroke-width="2"/>\n'
 
-    # Whitney stress block
+    # Top steel plate (above polygon top)
+    if t_top > 0:
+        pw_mm = pt.get("width", b)
+        if use_poly:
+            top_xs = [v[0] for v in section_vertices if abs(v[1] - poly_ymax) < 1e-3]
+            if len(top_xs) >= 2:
+                px = ox + (min(top_xs) - poly_xmin) * scale_factor
+                pw = (max(top_xs) - min(top_xs)) * scale_factor
+            else:
+                pw = pw_mm * scale_factor
+                px = ox + bw / 2 - pw / 2
+        else:
+            pw = pw_mm * scale_factor
+            px = ox + bw / 2 - pw / 2
+        svg += f'<rect x="{px:.2f}" y="{(oy - t_top * scale_factor):.2f}" '
+        svg += f'width="{pw:.2f}" height="{t_top * scale_factor:.2f}" '
+        svg += 'fill="#4b5563" stroke="#1f2937" stroke-width="1.5"/>\n'
+        svg += f'<text x="{px + pw + 5:.2f}" y="{(oy - t_top * scale_factor / 2 + 4):.2f}" '
+        svg += f'font-size="9" fill="#1f2937">A36 t={t_top:.0f}</text>\n'
+
+    # Bottom steel plate (below polygon bottom)
+    if t_bot > 0:
+        pw_mm = pb.get("width", b)
+        if use_poly:
+            bot_xs = [v[0] for v in section_vertices if abs(v[1] - poly_ymin) < 1e-3]
+            if len(bot_xs) >= 2:
+                px = ox + (min(bot_xs) - poly_xmin) * scale_factor
+                pw = (max(bot_xs) - min(bot_xs)) * scale_factor
+            else:
+                pw = pw_mm * scale_factor
+                px = ox + bw / 2 - pw / 2
+        else:
+            pw = pw_mm * scale_factor
+            px = ox + bw / 2 - pw / 2
+        svg += f'<rect x="{px:.2f}" y="{(oy + bh):.2f}" '
+        svg += f'width="{pw:.2f}" height="{t_bot * scale_factor:.2f}" '
+        svg += 'fill="#4b5563" stroke="#1f2937" stroke-width="1.5"/>\n'
+        svg += f'<text x="{px + pw + 5:.2f}" y="{(oy + bh + t_bot * scale_factor / 2 + 4):.2f}" '
+        svg += f'font-size="9" fill="#1f2937">A36 t={t_bot:.0f}</text>\n'
+
+    # Whitney stress block (top `a` of the polygon/rectangle, clipped to the section)
     ah = a * scale_factor
-    svg += f'<rect x="{ox}" y="{oy}" width="{bw}" height="{ah}" '
-    svg += 'fill="rgba(59,130,246,0.2)" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,2"/>\n'
+    if use_poly:
+        eps = 1e-6
+        y_clip = poly_ymax - a
+        clipped = []
+        n = len(section_vertices)
+        for i in range(n):
+            x1, y1 = section_vertices[i]
+            x2, y2 = section_vertices[(i + 1) % n]
+            in1 = y1 >= y_clip - eps
+            in2 = y2 >= y_clip - eps
+            if in1:
+                clipped.append((x1, y1))
+            if in1 != in2 and abs(y2 - y1) > eps:
+                t_param = (y_clip - y1) / (y2 - y1)
+                clipped.append((x1 + t_param * (x2 - x1), y_clip))
+        if len(clipped) >= 3:
+            pts = []
+            for vx, vy in clipped:
+                sx = ox + (vx - poly_xmin) * scale_factor
+                sy = y2sy(vy)
+                pts.append(f"{sx:.2f},{sy:.2f}")
+            svg += f'<polygon points="{" ".join(pts)}" '
+            svg += 'fill="rgba(59,130,246,0.25)" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,2"/>\n'
+    else:
+        svg += f'<rect x="{ox}" y="{oy}" width="{bw}" height="{ah}" '
+        svg += 'fill="rgba(59,130,246,0.2)" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,2"/>\n'
     svg += f'<text x="{ox + bw + 5}" y="{oy + ah / 2 + 4}" font-size="10" fill="#3b82f6">a={a:.1f}</text>\n'
 
     # Neutral axis
@@ -176,18 +279,46 @@ def svg_beam_cross_section(b, h, rebar_forces, c, a, scale_factor=None):
     svg += 'stroke="#dc2626" stroke-width="1.5" stroke-dasharray="6,3"/>\n'
     svg += f'<text x="{ox + bw + 5}" y="{cy - 4}" font-size="10" fill="#dc2626">c={c:.1f}</text>\n'
 
-    # Rebar
+    # Rebar (skip plate entries)
     for rb in rebar_forces:
+        if rb.get("is_plate"):
+            continue
         ry = oy + rb["d"] * scale_factor
-        # Use actual bar count if available, otherwise estimate
         n_bars = rb.get("num", max(1, round(rb["area"] / (math.pi * 64))))
-        bar_r = max(4, min(8, 6))
-        if n_bars == 1:
-            positions = [ox + bw / 2]
+        bar_r = 6
+        if use_poly:
+            y_mm = poly_ymax - rb["d"]
+            ylo = max(poly_ymin, min(poly_ymax, y_mm))
+            xs_at = []
+            ne = len(section_vertices)
+            for i in range(ne):
+                x1, y1 = section_vertices[i]
+                x2, y2 = section_vertices[(i + 1) % ne]
+                if abs(y2 - y1) < 1e-9:
+                    continue
+                ylo2, yhi2 = (y1, y2) if y1 < y2 else (y2, y1)
+                if ylo < ylo2 - 1e-6 or ylo > yhi2 + 1e-6:
+                    continue
+                t_param = (ylo - y1) / (y2 - y1)
+                xs_at.append(x1 + t_param * (x2 - x1))
+            xs_at.sort()
+            if len(xs_at) >= 2:
+                left = ox + (xs_at[0] - poly_xmin) * scale_factor
+                right = ox + (xs_at[-1] - poly_xmin) * scale_factor
+            else:
+                left, right = ox, ox + bw
+            margin = 18
+            if right - left > 2 * margin:
+                left += margin; right -= margin
         else:
             margin = 25
-            spacing = (bw - 2 * margin) / (n_bars - 1) if n_bars > 1 else 0
-            positions = [ox + margin + i * spacing for i in range(n_bars)]
+            left = ox + margin; right = ox + bw - margin
+
+        if n_bars == 1:
+            positions = [(left + right) / 2]
+        else:
+            spacing = (right - left) / (n_bars - 1) if n_bars > 1 else 0
+            positions = [left + i * spacing for i in range(n_bars)]
 
         color = "#16a34a" if rb.get("force", 0) > 0 else "#dc2626"
         for px in positions:
@@ -195,13 +326,13 @@ def svg_beam_cross_section(b, h, rebar_forces, c, a, scale_factor=None):
 
         svg += f'<text x="{ox - 5}" y="{ry + 4}" text-anchor="end" font-size="9" fill="#666">d={rb["d"]:.0f}</text>\n'
 
-    # Dimension labels
-    # Width
-    dy = oy + bh + 20
-    svg += _svg_dim_line(ox, dy, ox + bw, dy, f"b = {b:.0f} mm")
-    # Height
+    # Dimensions
+    dy = oy + bh + (t_bot * scale_factor) + 20
+    svg += _svg_dim_line(ox, dy, ox + bw, dy, f"b = {bw_mm:.0f} mm")
     dx = ox - 20
-    svg += _svg_dim_line_v(dx, oy, dx, oy + bh, f"h = {h:.0f} mm")
+    svg += _svg_dim_line_v(dx, oy - t_top * scale_factor, dx,
+                            oy + bh + t_bot * scale_factor,
+                            f"h = {bh_mm:.0f} mm")
 
     svg += '</svg>'
     return svg
