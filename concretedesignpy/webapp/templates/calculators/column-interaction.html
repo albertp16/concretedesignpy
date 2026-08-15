@@ -4,7 +4,7 @@
 {% block head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.css">
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
 /* Column page specific styles */
 .col-page-layout { display: flex; gap: 2rem; align-items: flex-start; }
@@ -367,8 +367,8 @@ function renderPlotlyChart(points, combos, payload) {
     var label = payload.b + '\u00d7' + payload.h + ' mm | ' + (payload.n_bars || (payload.manual_bars ? payload.manual_bars.length : '')) + '-\u03c6' + payload.d_bar;
     var layout = {
         title: { text: 'P-M Interaction Diagram<br><sup>' + label + ' | f\'c=' + payload.fc + ', fy=' + payload.fy + ' MPa</sup>', font: { size: 14 } },
-        xaxis: { title: 'Moment, \u03d5Mn (kN-m)', zeroline: true, gridcolor: '#e5e7eb' },
-        yaxis: { title: 'Axial, \u03d5Pn (kN)', zeroline: true, zerolinecolor: '#374151', zerolinewidth: 1.5, gridcolor: '#e5e7eb' },
+        xaxis: { title: { text: 'Moment, \u03d5Mn (kN-m)' }, zeroline: true, gridcolor: '#e5e7eb' },
+        yaxis: { title: { text: 'Axial, \u03d5Pn (kN)' }, zeroline: true, zerolinecolor: '#374151', zerolinewidth: 1.5, gridcolor: '#e5e7eb' },
         showlegend: true, legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
         height: 600,
         margin: { t: 60, r: 20, b: 50, l: 65 },
@@ -397,7 +397,7 @@ function render3DChart(pts, combos) {
         type: 'mesh3d', alphahull: 0,
         intensity: allPhi,
         colorscale: [[0, '#1e3a5f'], [0.3, '#1e40af'], [0.5, '#3b82f6'], [0.7, '#60a5fa'], [1, '#93c5fd']],
-        colorbar: { title: '\u03c6', thickness: 15, len: 0.5 },
+        colorbar: { title: { text: '\u03c6' }, thickness: 15, len: 0.5 },
         opacity: 0.35,
         name: 'Interaction Surface',
         showlegend: false,
@@ -421,9 +421,9 @@ function render3DChart(pts, combos) {
     Plotly.newPlot('chart-3d', traces, {
         title: { text: 'P-M-M Interaction Surface (Factored)', font: { size: 14 } },
         scene: {
-            xaxis: { title: 'Mux (kN-m)', gridcolor: '#e5e7eb' },
-            yaxis: { title: 'Muy (kN-m)', gridcolor: '#e5e7eb' },
-            zaxis: { title: 'Pu (kN)', gridcolor: '#e5e7eb' },
+            xaxis: { title: { text: 'Mux (kN-m)' }, gridcolor: '#e5e7eb' },
+            yaxis: { title: { text: 'Muy (kN-m)' }, gridcolor: '#e5e7eb' },
+            zaxis: { title: { text: 'Pu (kN)' }, gridcolor: '#e5e7eb' },
             camera: { eye: { x: 1.5, y: 1.5, z: 1.0 } },
         },
         height: 800, margin: { t: 40, r: 10, b: 10, l: 10 },
@@ -469,8 +469,8 @@ function renderContourChart(contours, combos, puLevel) {
     }
     Plotly.newPlot('chart-contour', traces, {
         title: { text: 'Mx-My Interaction Contours at Multiple Pu Levels', font: { size: 14 } },
-        xaxis: { title: 'Mux (kN-m)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb', scaleanchor: 'y' },
-        yaxis: { title: 'Muy (kN-m)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
+        xaxis: { title: { text: 'Mux (kN-m)' }, zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb', scaleanchor: 'y' },
+        yaxis: { title: { text: 'Muy (kN-m)' }, zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
         height: 500, margin: { t: 40, r: 20, b: 60, l: 70 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff', showlegend: true,
         legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 9 } },
@@ -504,7 +504,7 @@ function renderFiberPlotCol(fp) {
         z: zStress, x: xVals, y: yVals,
         type: 'heatmap', xgap: 1, ygap: 1,
         colorscale: [[0,'#f8fafc'],[0.15,'#e0f2fe'],[0.3,'#7dd3fc'],[0.5,'#0ea5e9'],[0.7,'#0369a1'],[1,'#0c4a6e']],
-        colorbar: { title: 'Stress (MPa)', thickness: 12, len: 0.7, titleside: 'right', titlefont: { size: 10 } },
+        colorbar: { title: { text: 'Stress (MPa)', side: 'right', font: { size: 10 } }, thickness: 12, len: 0.7 },
         hovertemplate: 'x=%{x:.0f}, y=%{y:.0f}<br>\u03c3=%{z:.2f} MPa<extra></extra>',
     }];
 
@@ -547,8 +547,8 @@ function renderFiberPlotCol(fp) {
 
     Plotly.newPlot('chart-fiber-col', traces, {
         title: { text: 'Fiber Stress Distribution (\u03b8=0\u00b0, c=' + fp.c + ' mm)', font: { size: 14 } },
-        xaxis: { title: 'x (mm)', gridcolor: '#e5e7eb', scaleanchor: 'y', zeroline: false },
-        yaxis: { title: 'y (mm)', gridcolor: '#e5e7eb', zeroline: false },
+        xaxis: { title: { text: 'x (mm)' }, gridcolor: '#e5e7eb', scaleanchor: 'y', zeroline: false },
+        yaxis: { title: { text: 'y (mm)' }, gridcolor: '#e5e7eb', zeroline: false },
         height: 500, margin: { t: 40, r: 60, b: 50, l: 60 },
         plot_bgcolor: '#f8fafc', paper_bgcolor: '#fff',
         showlegend: true,

@@ -4,7 +4,7 @@
 {% block head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.css">
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
 .beam-page-layout { display: flex; gap: 2rem; align-items: flex-start; }
 .beam-page-left { flex: 0 0 480px; }
@@ -408,9 +408,9 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
                 },
             ];
             var layout = {
-                title: 'Variation of \u03c6 with Net Tensile Strain \u03b5<sub>t</sub>',
-                xaxis: { title: 'Net Tensile Strain (\u03b5t)', range: [0, xMax] },
-                yaxis: { title: 'Strength Reduction Factor (\u03c6)', range: [0.6, 0.95] },
+                title: { text: 'Variation of \u03c6 with Net Tensile Strain \u03b5<sub>t</sub>' },
+                xaxis: { title: { text: 'Net Tensile Strain (\u03b5t)' }, range: [0, xMax] },
+                yaxis: { title: { text: 'Strength Reduction Factor (\u03c6)' }, range: [0.6, 0.95] },
                 showlegend: true,
             };
             Plotly.newPlot('phi-plot', traces, layout, { responsive: true });
