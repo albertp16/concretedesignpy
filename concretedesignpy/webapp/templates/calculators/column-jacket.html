@@ -23,14 +23,62 @@
     font-family: "SF Mono","Fira Code",monospace; font-size: .78rem;
 }
 .report-table tr:nth-child(even) { background: var(--gray-50); }
+.report-table td.tl { text-align: left; font-family: inherit; }
 .report-result {
     background: #dcfce7; padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0;
     font-size: .95rem; font-weight: 700;
 }
-.report-ref { font-size: .78rem; color: #3b82f6; font-style: italic; margin: 0; }
+.report-ref { font-size: .78rem; color: #3b82f6; font-style: italic; margin: 0 0 .5rem; }
 .report-grid { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1rem; font-size: .82rem; }
 .report-grid dt { color: var(--gray-500); }
 .report-grid dd { margin: 0; font-family: "SF Mono","Fira Code",monospace; }
+
+/* ---- the calculation sheet: REFERENCES | CALCULATIONS | RESULTS ---- */
+.sheet {
+    display: grid; grid-template-columns: 168px minmax(0, 1fr) 168px;
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius); overflow: hidden; margin: .25rem 0 .5rem;
+}
+.sheet .hd {
+    background: var(--primary-dark); color: #fff; font-size: .7rem;
+    font-weight: 700; letter-spacing: .08em; padding: .5rem .65rem;
+}
+.sheet .s-head {
+    grid-column: 1 / -1; background: var(--gray-100); color: var(--primary-dark);
+    font-weight: 700; font-size: .85rem; padding: .5rem .75rem;
+    border-top: 1px solid var(--gray-200);
+}
+.sheet .s-ref {
+    font-size: .7rem; color: var(--gray-500); padding: .65rem .6rem;
+    border-top: 1px solid var(--gray-100); line-height: 1.45;
+}
+.sheet .s-calc {
+    padding: .65rem .8rem; border-top: 1px solid var(--gray-100);
+    border-left: 1px solid var(--gray-100); border-right: 1px solid var(--gray-100);
+    font-size: .85rem; min-width: 0; overflow-x: auto;
+}
+.sheet .s-calc .desc { font-size: .8rem; color: var(--gray-700); margin: 0 0 .25rem; }
+.sheet .s-res {
+    padding: .65rem .6rem; border-top: 1px solid var(--gray-100);
+    font-size: .8rem; font-weight: 700;
+    font-family: "SF Mono","Fira Code",monospace; line-height: 1.5;
+}
+.sheet .s-res .good { color: var(--success); }
+.sheet .s-res .bad { color: var(--danger); }
+.sheet .s-res .dim { color: var(--gray-500); font-weight: 400; font-size: .72rem; }
+
+/* ---- QAQC chips ---- */
+.qq-pass, .qq-fail {
+    display: inline-block; padding: .05rem .5rem; border-radius: 999px;
+    font-size: .7rem; font-weight: 700; letter-spacing: .04em;
+}
+.qq-pass { background: #dcfce7; color: var(--success); }
+.qq-fail { background: #fee2e2; color: var(--danger); }
+.qq-banner-fail {
+    background: #fee2e2; border-left: 5px solid var(--danger);
+    border-radius: 4px; padding: .6rem .9rem; margin-bottom: .6rem;
+    font-size: .82rem; font-weight: 600;
+}
 
 /* ---- page layout ---- */
 .cj-layout { display: flex; gap: 2rem; align-items: flex-start; }
@@ -99,9 +147,13 @@
     .cj-layout { display: block !important; }
     .cj-right .results-panel { position: static !important; }
     .report-section, .cj-adv, .results-panel { page-break-inside: avoid; }
+    .sheet { break-inside: auto; }
+    .sheet .s-head { break-after: avoid; }
     .report-result, .cj-verdict.pass { background: #dcfce7 !important;
         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .cj-verdict.fail { background: #fee2e2 !important;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sheet .hd, .report-table th { background: var(--primary-dark) !important; color: #fff !important;
         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     /* Advisories print IN FULL. The screen hides the remainder behind hover
        purely to keep the panel scannable; paper has no hover, so nothing may
@@ -304,9 +356,11 @@
 // ---------------------------------------------------------------------------
 // This page holds NO engineering equations and performs NO arithmetic on the
 // values it is given. Every number below is printed exactly as the server
-// returned it; the LaTeX is annotation with server values substituted in.
-// Arithmetic appears only where a figure has to be laid out (rectangle corners
-// and axis padding), and is confined to the two draw functions.
+// returned it; the LaTeX blocks are annotation with server values substituted
+// in, and the QAQC table's expected/computed pairs are BOTH computed on the
+// server along independent arithmetic paths. Layout arithmetic (rectangle
+// corners, dimension-line offsets, axis padding) exists only between the
+// [figure-layout] markers, and nowhere else.
 // ---------------------------------------------------------------------------
 var LAST = null;
 
@@ -319,8 +373,7 @@ function esc(s) {
                     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function lockPrint() {
-    var b = document.getElementById('btn-print');
-    b.disabled = true;
+    document.getElementById('btn-print').disabled = true;
     LAST = null;
 }
 
@@ -354,69 +407,106 @@ function renderVerdict(d) {
     document.getElementById('cj-verdict').innerHTML = h;
 }
 
-// ------------------------------------------------------------- P-M chart
+// ---------------------------------------------------------------- figures
+// [figure-layout:start] -- rectangle corners, dimension-line offsets and axis
+// padding only. Nothing in this region invents an engineering value.
 function drawPM(d) {
     var it = d.interaction;
     var traces = [
         // Plotly does not decode HTML entities -- these strings use literal
         // Unicode. It DOES honour <sub>/<sup>, so those stay as tags.
-        { x: it.design_jacketed.map(function(p) { return p.M; }),
-          y: it.design_jacketed.map(function(p) { return p.P; }),
-          mode: 'lines', name: 'φ jacketed', line: { color: '#1e40af', width: 2.5 } },
+        // The raw nominal envelope is deliberately NOT drawn: it reaches Po
+        // and pure tension, which crushes the design curves into a corner of
+        // the axes. The design curves are the check; the nominal values are
+        // in the response for anyone who needs them.
         { x: it.design_existing.map(function(p) { return p.M; }),
           y: it.design_existing.map(function(p) { return p.P; }),
-          mode: 'lines', name: 'φ existing', line: { color: '#93c5fd', width: 2, dash: 'dash' } },
+          mode: 'lines', name: 'φ existing', line: { color: '#9ca3af', width: 2, dash: 'dash' } },
+        { x: it.design_jacketed.map(function(p) { return p.M; }),
+          y: it.design_jacketed.map(function(p) { return p.P; }),
+          mode: 'lines', name: 'φ jacketed', line: { color: '#1e40af', width: 2.8 } },
         { x: [d.request_echo.demand.Mu], y: [d.request_echo.demand.Pu],
-          mode: 'markers', name: 'demand', marker: { color: '#dc2626', size: 11,
-          line: { color: '#fff', width: 1.5 } } },
+          mode: 'markers', name: 'demand (Mu, Pu)', marker: { color: '#dc2626', size: 12,
+          symbol: 'diamond', line: { color: '#fff', width: 1.5 } } },
     ];
     var cap = d.axial.phiPn_max_jacketed;
     var layout = {
-        title: { text: 'P–M Interaction — existing vs jacketed', font: { size: 14 } },
-        // Plotly 3 removed the `title: 'string'` shorthand -- a bare string is
-        // silently dropped and the axis renders unlabelled.
-        xaxis: { title: { text: 'φM<sub>n</sub> (kN·m)' }, gridcolor: '#e5e7eb',
-                 zeroline: true, rangemode: 'tozero' },
-        yaxis: { title: { text: 'φP<sub>n</sub> (kN)' }, gridcolor: '#e5e7eb', zeroline: true },
+        title: { text: 'P–M Interaction', font: { size: 15 }, x: 0.5, y: 0.97 },
+        xaxis: { title: { text: 'φM<sub>n</sub> (kN·m)', font: { size: 12 } },
+                 gridcolor: '#eceff3', zeroline: true, zerolinecolor: '#d1d5db',
+                 rangemode: 'tozero', ticks: 'outside', tickcolor: '#d1d5db' },
+        yaxis: { title: { text: 'φP<sub>n</sub> (kN)', font: { size: 12 } },
+                 gridcolor: '#eceff3', zeroline: true, zerolinecolor: '#d1d5db',
+                 ticks: 'outside', tickcolor: '#d1d5db' },
         shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: cap, y1: cap,
                    line: { color: '#6b7280', width: 1, dash: 'dot' } }],
-        annotations: [{ xref: 'paper', x: 0.02, y: cap, text: 'φP<sub>n,max</sub> = ' + num(cap, 0) + ' kN',
-                        showarrow: false, yanchor: 'bottom', font: { size: 10, color: '#6b7280' } }],
+        annotations: [
+            { xref: 'paper', x: 0.02, y: cap, text: 'φP<sub>n,max</sub> = ' + num(cap, 0) + ' kN',
+              showarrow: false, yanchor: 'bottom', font: { size: 10, color: '#6b7280' } },
+            { x: d.request_echo.demand.Mu, y: d.request_echo.demand.Pu,
+              text: 'Pu = ' + num(d.request_echo.demand.Pu, 0) + ' kN<br>Mu = '
+                    + num(d.request_echo.demand.Mu, 0) + ' kN·m',
+              showarrow: true, arrowhead: 2, arrowcolor: '#dc2626',
+              ax: 55, ay: 25, font: { size: 10, color: '#dc2626' },
+              bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#fecaca', borderwidth: 1 },
+        ],
         showlegend: true,
-        legend: { orientation: 'h', x: 0, y: 1.12, bgcolor: 'rgba(255,255,255,0.85)',
+        legend: { orientation: 'h', x: 0, y: 1.09, bgcolor: 'rgba(255,255,255,0.85)',
                   bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
-        height: 520, margin: { t: 70, r: 20, b: 60, l: 70 },
+        height: 540, margin: { t: 90, r: 25, b: 60, l: 70 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'closest',
     };
     Plotly.newPlot('chart-pm', traces, layout,
         { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false });
 
-    var u = d.interaction.utilisation_jacketed;
+    var u = it.utilisation_jacketed;
     document.getElementById('cap-pm').innerHTML =
-        'Demand Pu = ' + num(d.request_echo.demand.Pu, 0) + ' kN, Mu = ' + num(d.request_echo.demand.Mu, 0)
-        + ' kN-m. &phi;Mn at Pu = ' + num(it.phiMn_at_Pu_jacketed, 1) + ' kN-m, D/C = '
+        'Design curves, ' + esc(it.stress_block) + '; moments about the plastic centroid. '
+        + '&phi;Mn at Pu = ' + num(it.phiMn_at_Pu_jacketed, 1) + ' kN-m, D/C = '
         + (u === null ? 'beyond capacity' : num(u, 3)) + '.';
 }
 
-// ---------------------------------------------------------- section figure
 function drawSection(g) {
-    // Layout arithmetic only. Engine axes: y runs down from the jacket outer
-    // face, z across from the centreline, so z is horizontal and the y axis is
-    // reversed to read upright. Every coordinate comes from the response.
-    var PAD = 40;
+    // Engine axes: y runs down from the jacket outer face, z across from the
+    // centreline, so z is horizontal and the y axis is reversed to read
+    // upright. Every coordinate comes from the response.
+    var PAD = 92;
     var halfB = g.B / 2;
+    var dimOff = 34;      // dimension-line offset from the section edge
+    var txtOff = 56;      // dimension-text offset
+
     var shapes = [
+        // outer jacket
         { type: 'rect', x0: -halfB, x1: halfB, y0: 0, y1: g.H,
-          line: { color: '#1e40af', width: 2 }, fillcolor: 'rgba(30,64,175,0.10)' },
+          line: { color: '#1e40af', width: 2.2 }, fillcolor: 'rgba(30,64,175,0.10)' },
+        // existing core, at the position the engine analysed
         { type: 'rect', x0: g.existing_z0, x1: g.existing_z1, y0: g.existing_y0, y1: g.existing_y1,
-          line: { color: '#6b7280', width: 1.5, dash: 'dash' }, fillcolor: 'rgba(107,114,128,0.14)' },
+          line: { color: '#6b7280', width: 1.5, dash: 'dash' }, fillcolor: 'rgba(107,114,128,0.16)' },
+        // centrelines
+        { type: 'line', x0: -halfB - 14, x1: halfB + 14, y0: g.H / 2, y1: g.H / 2,
+          line: { color: '#9ca3af', width: 0.7, dash: 'dashdot' } },
+        { type: 'line', x0: 0, x1: 0, y0: -14, y1: g.H + 14,
+          line: { color: '#9ca3af', width: 0.7, dash: 'dashdot' } },
+        // dimension lines with witness ticks
+        { type: 'line', x0: -halfB, x1: halfB, y0: g.H + dimOff, y1: g.H + dimOff,
+          line: { color: '#374151', width: 1 } },
+        { type: 'line', x0: -halfB, x1: -halfB, y0: g.H + dimOff - 7, y1: g.H + dimOff + 7,
+          line: { color: '#374151', width: 1 } },
+        { type: 'line', x0: halfB, x1: halfB, y0: g.H + dimOff - 7, y1: g.H + dimOff + 7,
+          line: { color: '#374151', width: 1 } },
+        { type: 'line', x0: -halfB - dimOff, x1: -halfB - dimOff, y0: 0, y1: g.H,
+          line: { color: '#374151', width: 1 } },
+        { type: 'line', x0: -halfB - dimOff - 7, x1: -halfB - dimOff + 7, y0: 0, y1: 0,
+          line: { color: '#374151', width: 1 } },
+        { type: 'line', x0: -halfB - dimOff - 7, x1: -halfB - dimOff + 7, y0: g.H, y1: g.H,
+          line: { color: '#374151', width: 1 } },
     ];
     if (g.tie_cage_b && g.tie_cage_h) {
         var cx = g.tie_cage_b / 2;
         var cy0 = (g.H - g.tie_cage_h) / 2;
         var cy1 = (g.H + g.tie_cage_h) / 2;
         shapes.push({ type: 'rect', x0: -cx, x1: cx, y0: cy0, y1: cy1,
-                      line: { color: '#dc2626', width: 1.2 }, fillcolor: 'rgba(0,0,0,0)' });
+                      line: { color: '#dc2626', width: 1.1, dash: 'dot' }, fillcolor: 'rgba(0,0,0,0)' });
     }
     g.bars.forEach(function(b) {
         var r = b.dia / 2;
@@ -425,37 +515,59 @@ function drawSection(g) {
                       fillcolor: b.zone === 'jacket' ? '#1e40af' : '#111827' });
     });
 
+    var annotations = [
+        { x: 0, y: g.H + txtOff, text: 'B = ' + num(g.B, 0) + ' mm', showarrow: false,
+          font: { size: 11, color: '#374151' } },
+        { x: -halfB - txtOff, y: g.H / 2, text: 'H = ' + num(g.H, 0) + ' mm', showarrow: false,
+          textangle: -90, font: { size: 11, color: '#374151' } },
+        { x: (g.existing_z0 + g.existing_z1) / 2, y: (g.existing_y0 + g.existing_y1) / 2,
+          text: 'existing<br>' + num(g.existing_b, 0) + ' × ' + num(g.existing_h, 0) + ' mm',
+          showarrow: false, font: { size: 10, color: '#4b5563' } },
+    ];
+    if (g.existing_y0 > 0) {
+        annotations.push({ x: halfB / 2, y: g.existing_y0 / 2,
+            text: 't = ' + num(g.jacket_thickness, 0) + ' mm',
+            showarrow: true, arrowhead: 2, arrowcolor: '#1e40af',
+            ax: 40, ay: -28, font: { size: 10, color: '#1e40af' } });
+    }
+
     // Shapes carry no hover or legend, so a transparent marker trace per zone
-    // supplies both.
+    // supplies both, plus a legend entry for the tie cage.
     function zoneTrace(zone, color, label) {
         var pts = g.bars.filter(function(b) { return b.zone === zone; });
         return { x: pts.map(function(b) { return b.z; }), y: pts.map(function(b) { return b.y; }),
                  mode: 'markers', name: label,
-                 marker: { color: color, size: 8, opacity: 0 },
+                 marker: { color: color, size: 9, opacity: 0 },
                  hovertemplate: label + '<br>z %{x:.0f}, y %{y:.0f} mm<extra></extra>' };
     }
     var traces = [zoneTrace('existing', '#111827', 'existing bars'),
                   zoneTrace('jacket', '#1e40af', 'jacket bars')];
+    if (g.tie_cage_b && g.tie_cage_h) {
+        traces.push({ x: [null], y: [null], mode: 'lines', name: 'jacket tie cage (c/c)',
+                      line: { color: '#dc2626', width: 1.1, dash: 'dot' } });
+    }
 
     var layout = {
-        title: { text: 'Jacketed section — ' + num(g.B, 0) + ' × ' + num(g.H, 0) + ' mm',
-                 font: { size: 14 } },
+        title: { text: 'Jacketed Section<br><sup>drawn from the engine bar coordinates — bars at true diameter</sup>',
+                 font: { size: 15 } },
         xaxis: { visible: false, range: [-halfB - PAD, halfB + PAD], scaleanchor: 'y', scaleratio: 1 },
         yaxis: { visible: false, range: [g.H + PAD, -PAD] },
+        shapes: shapes, annotations: annotations,
         showlegend: true,
-        legend: { orientation: 'h', x: 0, y: 1.08, font: { size: 10 } },
-        height: 470, margin: { t: 60, r: 20, b: 20, l: 20 },
+        legend: { orientation: 'h', x: 0, y: 1.1, font: { size: 10 } },
+        height: 500, margin: { t: 70, r: 15, b: 15, l: 15 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
     };
     Plotly.newPlot('chart-section', traces, layout, { responsive: true, displayModeBar: false });
 
     document.getElementById('cap-section').innerHTML =
-        'Existing ' + num(g.existing_b, 0) + ' &times; ' + num(g.existing_h, 0) + ' mm, jacket t = '
+        'Existing ' + num(g.existing_b, 0) + ' &times; ' + num(g.existing_h, 0) + ' mm core (dashed), jacket t = '
         + num(g.jacket_thickness, 0) + ' mm. Tie cage '
-        + (g.tie_cage_b ? num(g.tie_cage_b, 0) + ' &times; ' + num(g.tie_cage_h, 0) + ' mm c/c'
+        + (g.tie_cage_b ? num(g.tie_cage_b, 0) + ' &times; ' + num(g.tie_cage_h, 0) + ' mm c/c (dotted red)'
                         : 'not applicable to a partial jacket')
         + '. Interface perimeter p = ' + num(g.interface_perimeter, 0) + ' mm.';
 }
+// [figure-layout:end]
 
 // -------------------------------------------------------------- advisories
 function advisory(a) {
@@ -474,144 +586,280 @@ function advisory(a) {
     return h + '</div>';
 }
 
-// ------------------------------------------------------------------ report
-function buildReport(d) {
+// ------------------------------------------------------ calculation sheet
+function step(ref, desc, eqHtml, res) {
+    return '<div class="s-ref">' + ref + '</div>'
+         + '<div class="s-calc"><p class="desc">' + desc + '</p>' + (eqHtml || '') + '</div>'
+         + '<div class="s-res">' + res + '</div>';
+}
+function heading(t) {
+    return '<div class="s-head">' + t + '</div>';
+}
+
+function buildInputSummary(d) {
+    var e = d.request_echo.existing, j = d.request_echo.jacket;
+    var dm = d.request_echo.demand, c = d.request_echo.construction;
+    var rows = [
+        ['\\( b_e \\)', 'Existing width', 'Width of the existing column as measured', num(e.width, 1) + ' mm'],
+        ['\\( h_e \\)', 'Existing depth', 'Depth of the existing column as measured', num(e.depth, 1) + ' mm'],
+        ["\\( f'_{c,e} \\)", 'Existing concrete', 'Cylinder strength of the existing concrete', num(e.fc, 1) + ' MPa'],
+        ['\\( f_{y,e} \\)', 'Existing bar yield', 'Yield strength of the existing longitudinal bars', num(e.fy, 0) + ' MPa'],
+        ['\\( d_{b,e} \\)', 'Existing bar dia.', 'Diameter of the existing longitudinal bars', num(e.bar_dia, 1) + ' mm'],
+        ['\\( n_e \\)', 'Existing bars per face', 'Width face &times; depth face, corners counted once', num(e.bars_per_face_width, 0) + ' &times; ' + num(e.bars_per_face_depth, 0)],
+        ['\\( c_e \\)', 'Existing cover', 'Cover to the existing bar centre', num(e.cover_to_bar_centre, 1) + ' mm'],
+        ['&mdash;', 'Faces enlarged', 'Which faces of the column carry jacket concrete', esc(j.sides)],
+        ['\\( t \\)', 'Jacket thickness', 'Thickness of the jacket, each enlarged face', num(j.thickness, 1) + ' mm'],
+        ["\\( f'_{c,j} \\)", 'Jacket concrete', 'Cylinder strength of the jacket concrete', num(j.fc, 1) + ' MPa'],
+        ['\\( f_{y,j} \\)', 'Jacket bar yield', 'Yield strength of the new jacket bars', num(j.fy, 0) + ' MPa'],
+        ['\\( d_{b,j} \\)', 'Jacket bar dia.', 'Diameter of the new jacket bars', num(j.bar_dia, 1) + ' mm'],
+        ['\\( n_j \\)', 'Jacket bars per face', 'Width face &times; depth face, corners counted once', num(j.bars_per_face_width, 0) + ' &times; ' + num(j.bars_per_face_depth, 0)],
+        ['&mdash;', 'Clear cover to tie', 'Jacket face to jacket tie, clear', num(j.clear_cover_to_tie, 1) + ' mm'],
+        ['\\( d_t \\)', 'Tie diameter', 'Jacket tie bar diameter', num(j.tie_dia, 1) + ' mm'],
+        ['\\( s \\)', 'Tie spacing', 'Centre-to-centre tie spacing along the member', num(j.tie_spacing, 1) + ' mm'],
+        ['\\( f_{yt} \\)', 'Tie yield', 'Yield strength of the jacket ties', num(j.tie_fy, 0) + ' MPa'],
+        ['&mdash;', 'Tie legs each way', 'Legs crossing each shear plane', num(j.tie_legs_each_way, 0)],
+        ['\\( n_{sup} \\)', 'Bars restrained/face', 'Laterally supported bars per face (drives k&#8337;)', num(j.bars_restrained_per_face, 0)],
+        ['&mdash;', 'Transverse steel', 'Ties, or a spiral conforming to ACI 318-19 25.7.3', j.spiral ? 'spiral' : 'ties'],
+        ['\\( P_u \\)', 'Factored axial', 'Compression positive, on the JACKETED column', num(dm.Pu, 1) + ' kN'],
+        ['\\( M_u \\)', 'Factored moment', 'On the jacketed column', num(dm.Mu, 1) + ' kN-m'],
+        ['\\( V_u \\)', 'Factored shear', 'On the jacketed column', num(dm.Vu, 1) + ' kN'],
+        ['\\( L \\)', 'Clear height', 'Clear storey height of the column', num(dm.clear_height, 0) + ' mm'],
+        ['&mdash;', 'Continuity', 'Whether the jacket bears on the foundation', esc(c.continuity)],
+        ['\\( P_0 \\)', 'Load at casting', 'Sustained axial load when the jacket is cast; 0 = shored', num(c.P0_at_casting, 1) + ' kN'],
+        ['\\( P_s \\)', 'Service load', 'Service axial load after jacketing', num(c.P_service, 1) + ' kN'],
+        ['\\( \\varphi_{cc} \\)', 'Creep coefficient', 'Applied to the sustained part of the preload strain', num(c.creep_coefficient, 2)],
+        ['&mdash;', 'Interface surface', 'Preparation of the existing surface', esc(c.interface_surface)],
+        ['&mdash;', 'Dowels', 'Diameter / per row / row spacing / yield', num(c.dowel_dia, 0) + ' mm / ' + num(c.dowels_per_row, 0) + ' / ' + num(c.dowel_row_spacing, 0) + ' mm / ' + num(c.dowel_fy, 0) + ' MPa'],
+    ];
+    var h = '<div class="report-section"><h4>Input Summary</h4>';
+    h += '<p class="report-ref">The validated inputs, echoed in full so the report is self-contained.</p>';
+    h += '<table class="report-table"><tr><th>Symbol</th><th>Input</th><th>Description</th><th>Value</th></tr>';
+    rows.forEach(function(r) {
+        h += '<tr><td>' + r[0] + '</td><td class="tl">' + r[1] + '</td><td class="tl" style="font-family:inherit">'
+           + r[2] + '</td><td>' + r[3] + '</td></tr>';
+    });
+    return h + '</table></div>';
+}
+
+function buildSheet(d) {
     var sec = d.section, ax = d.axial, it = d.interaction, cf = d.confinement;
     var sh = d.shear, pl = d.preload, inf = d.interface, st = d.stiffness, mo = d.monolithic;
-    var h = '';
+    var h = '<div class="report-section"><h4>Calculation Sheet</h4>';
+    h += '<p class="report-ref">Symbolic form, substituted values, then the result. Every number is the '
+       + 'server&rsquo;s; the page substitutes, it never computes.</p>';
+    h += '<div class="sheet">';
+    h += '<div class="hd">REFERENCES</div><div class="hd">CALCULATIONS</div><div class="hd">RESULTS</div>';
 
-    h += '<div class="report-section"><h4>1. Jacketed Section</h4>';
-    h += '<p class="report-ref">Existing column enlarged on ' + esc(d.request_echo.jacket.sides) + ' face(s)</p>';
-    h += '<dl class="report-grid">';
-    h += '<dt>Overall B &times; H</dt><dd>' + num(sec.B, 0) + ' &times; ' + num(sec.H, 0) + ' mm</dd>';
-    h += '<dt>Ag existing / jacketed</dt><dd>' + num(sec.Ag_existing, 0) + ' / ' + num(sec.Ag_jacketed, 0) + ' mm&sup2;</dd>';
-    h += '<dt>Ast existing / jacket</dt><dd>' + num(sec.Ast_existing, 0) + ' / ' + num(sec.Ast_jacket, 0) + ' mm&sup2;</dd>';
-    h += '<dt>Total steel ratio</dt><dd>' + num(sec.rho_total_percent, 2) + ' %</dd>';
-    h += '<dt>&beta;&#8321; existing / jacket</dt><dd>' + num(sec.beta1_existing, 3) + ' / ' + num(sec.beta1_jacket, 3) + '</dd>';
-    h += '</dl></div>';
+    // ---- 1: section ----
+    h += heading('1 &mdash; Jacketed Section');
+    h += step(esc(d.request_echo.jacket.sides) + '-sided jacket, faces mapping',
+        'Overall dimensions of the composite section',
+        '<div class="report-eq">\\[ B \\times H = ' + num(sec.B, 0) + ' \\times ' + num(sec.H, 0) + '\\text{ mm} \\]</div>',
+        num(sec.B, 0) + ' &times; ' + num(sec.H, 0) + ' mm');
+    h += step('Gross and reinforcement areas',
+        'Existing core, jacket annulus, and steel each side of the interface',
+        '<div class="report-eq">\\[ A_{g,e} = ' + num(sec.Ag_existing, 0) + ' \\quad A_{g,j} = '
+            + num(sec.Ag_jacket_annulus, 0) + ' \\quad A_{st,e} = ' + num(sec.Ast_existing, 0)
+            + ' \\quad A_{st,j} = ' + num(sec.Ast_jacket, 0) + ' \\text{ mm}^2 \\]</div>',
+        '&rho; = ' + num(sec.rho_total_percent, 2) + ' %<br><span class="dim">'
+            + num(sec.n_bars_existing, 0) + ' + ' + num(sec.n_bars_jacket, 0) + ' bars</span>');
 
-    h += '<div class="report-section"><h4>2. Axial Strength</h4>';
-    h += '<p class="report-ref">' + esc(ax.clause) + '</p>';
-    h += '<div class="report-eq">\\[ P_o = 0.85 f\'_c (A_g - A_{st}) + f_y A_{st} \\]</div>';
-    h += '<div class="report-eq">\\[ P_{o,existing} = ' + num(ax.Po_existing, 1) + '\\text{ kN} \\qquad '
-       + 'P_{o,jacketed} = ' + num(ax.Po_jacketed, 1) + '\\text{ kN} \\]</div>';
-    h += '<div class="report-result">\\[ \\mathbf{\\phi P_{n,max} = ' + num(ax.phiPn_max_jacketed, 1)
-       + '\\text{ kN}} \\quad \\text{(gain } \\times ' + num(ax.strength_gain, 3) + ')\\]</div>';
-    h += '</div>';
+    // ---- 2: axial ----
+    h += heading('2 &mdash; Axial Strength');
+    h += step(esc(ax.clause),
+        'Nominal axial strength at zero eccentricity, each concrete and steel population',
+        '<div class="report-eq">\\[ P_o = 0.85 f\'_{c,e}(A_{g,e}-A_{st,e}) + f_{y,e}A_{st,e} + 0.85 f\'_{c,j}(A_{g,j}-A_{st,j}) + f_{y,j}A_{st,j} \\]</div>'
+        + '<div class="report-eq">\\[ P_{o,exist} = ' + num(ax.Po_existing, 1) + ' \\quad P_{o,jack} = '
+            + num(ax.Po_jacketed, 1) + ' \\text{ kN} \\]</div>',
+        'gain &times; ' + num(ax.strength_gain, 2));
+    h += step('ACI 318-19 22.4.2.1, Table 21.2.2',
+        'Design ceiling for a tied (or spiral) column',
+        '<div class="report-eq">\\[ \\phi P_{n,max} = \\phi \\, \\alpha \\, P_o = ' + num(ax.phiPn_max_jacketed, 1) + ' \\text{ kN} \\]</div>',
+        '<span class="good">&phi;Pn,max = ' + num(ax.phiPn_max_jacketed, 0) + ' kN</span>');
 
+    // ---- 3: confinement ----
     if (cf) {
-        h += '<div class="report-section"><h4>3. Confinement of the Existing Core</h4>';
-        h += '<p class="report-ref">' + esc(cf.clause) + '</p>';
-        h += '<div class="report-eq">\\[ f_l = \\tfrac{1}{2} k_e \\rho_{st} f_{yh} = ' + num(cf.fl, 3) + '\\text{ MPa} \\]</div>';
-        h += '<div class="report-eq">\\[ k_e = ' + num(cf.ke_computed, 3) + ' \\quad \\rho_s = '
-           + num(cf.rho_s_percent, 3) + '\\% \\]</div>';
-        h += '<div class="report-result">\\[ \\mathbf{f\'_{cc} = ' + num(cf.fcc_core, 2) + '\\text{ MPa}} '
-           + '\\quad (\\times ' + num(cf.strength_gain, 3) + ') \\quad \\varepsilon_{cu} = '
-           + num(cf.eps_cu_core, 5) + ' \\]</div>';
-        h += '<p class="report-ref">k&#8337; is computed from the actual tie and bar geometry, never assumed. '
-           + 'Unconfined &epsilon;cu for comparison: ' + num(cf.eps_cu_unconfined, 4) + '</p>';
-        h += '</div>';
+        h += heading('3 &mdash; Confinement of the Existing Core');
+        h += step(esc(cf.clause),
+            'Effective lateral pressure from the jacket ties; k&#8337; computed from the actual tie and bar geometry, never assumed',
+            '<div class="report-eq">\\[ f_l = \\tfrac{1}{2} k_e \\rho_{st} f_{yh} = ' + num(cf.fl, 3) + ' \\text{ MPa} \\qquad k_e = '
+                + num(cf.ke_computed, 3) + ', \\; \\rho_s = ' + num(cf.rho_s_percent, 3) + '\\% \\]</div>',
+            'k&#8337; = ' + num(cf.ke_computed, 3) + '<br><span class="dim">&rho;s = ' + num(cf.rho_s_percent, 3) + ' %</span>');
+        h += step('fib B14 Eq. (6-5), (6-36)',
+            'Confined strength and ultimate strain of the existing core',
+            '<div class="report-eq">\\[ f\'_{cc} = ' + num(cf.fcc_core, 2) + ' \\text{ MPa} \\; (\\times ' + num(cf.strength_gain, 3)
+                + ') \\qquad \\varepsilon_{cu} = ' + num(cf.eps_cu_core, 5) + ' \\]</div>',
+            "f'cc = " + num(cf.fcc_core, 2) + ' MPa<br><span class="dim">&epsilon;cu unconf. ' + num(cf.eps_cu_unconfined, 4) + '</span>');
     }
 
-    h += '<div class="report-section"><h4>4. P-M Interaction</h4>';
-    h += '<p class="report-ref">' + esc(it.clause) + ' &mdash; ' + esc(it.stress_block) + '</p>';
-    h += '<table class="report-table"><tr><th></th><th>&phi;Mn at Pu (kN-m)</th><th>D/C</th></tr>';
-    h += '<tr><td>Existing</td><td>' + num(it.phiMn_at_Pu_existing, 1) + '</td><td>'
-       + (it.utilisation_existing === null ? 'beyond capacity' : num(it.utilisation_existing, 3)) + '</td></tr>';
-    h += '<tr><td>Jacketed</td><td>' + num(it.phiMn_at_Pu_jacketed, 1) + '</td><td class="'
-       + (it.utilisation_jacketed !== null && it.utilisation_jacketed <= 1 ? 'status-pass' : 'status-fail')
-       + '" style="font-weight:700">'
-       + (it.utilisation_jacketed === null ? 'beyond capacity' : num(it.utilisation_jacketed, 3)) + '</td></tr>';
-    h += '</table></div>';
+    // ---- 4: interaction ----
+    h += heading('4 &mdash; P-M Interaction');
+    h += step(esc(it.clause),
+        esc(it.stress_block) + '; moments about the plastic centroid; preload ignored (monolithic-equivalent code check)',
+        '<div class="report-eq">\\[ \\phi M_{n}\\big|_{P_u} : \\text{existing } ' + num(it.phiMn_at_Pu_existing, 1)
+            + ' \\; \\rightarrow \\; \\text{jacketed } ' + num(it.phiMn_at_Pu_jacketed, 1) + ' \\text{ kN-m} \\]</div>',
+        (it.utilisation_jacketed === null
+            ? '<span class="bad">beyond capacity</span>'
+            : '<span class="' + (it.utilisation_jacketed <= 1 ? 'good' : 'bad') + '">D/C = '
+              + num(it.utilisation_jacketed, 3) + '</span>')
+        + '<br><span class="dim">existing: ' + (it.utilisation_existing === null ? 'beyond capacity'
+            : 'D/C ' + num(it.utilisation_existing, 3)) + '</span>');
 
+    // ---- 5: shear ----
     if (sh) {
-        h += '<div class="report-section"><h4>5. Shear</h4>';
-        h += '<p class="report-ref">' + esc(sh.clause) + ' &mdash; jacket ties only</p>';
-        h += '<div class="report-eq">\\[ V_n = V_c + V_s = ' + num(sh.Vc, 1) + ' + ' + num(sh.Vs, 1)
-           + '\\text{ kN} \\]</div>';
-        h += '<div class="report-eq">\\[ d = ' + num(sh.d_used, 1) + '\\text{ mm (extreme tension bar)} \\qquad '
-           + 'f\'_c = ' + num(sh.fc_used, 1) + '\\text{ MPa} \\]</div>';
-        h += '<div class="report-result">\\[ \\mathbf{\\phi V_n = ' + num(sh.phiVn, 1) + '\\text{ kN}} \\quad '
-           + '\\tfrac{V_u}{\\phi V_n} = ' + num(sh.utilisation, 3) + ' \\]</div>';
-        h += '<table class="report-table"><tr><th>Vp at hinging (kN)</th><th>&phi;Vn / Vp</th><th>Failure mode</th></tr>';
-        h += '<tr><td>' + num(sh.Vp_at_hinging, 1) + '</td><td>' + num(sh.phiVn_over_Vp, 3) + '</td><td class="'
-           + (sh.failure_mode === 'flexure-controlled' ? 'status-pass' : 'status-fail')
-           + '" style="font-weight:700">' + esc(sh.failure_mode) + '</td></tr></table></div>';
+        h += heading('5 &mdash; Shear');
+        h += step(esc(sh.clause),
+            'One-way shear of the jacketed section; jacket ties only, d from the actual extreme tension bar',
+            '<div class="report-eq">\\[ V_n = V_c + V_s = ' + num(sh.Vc, 1) + ' + ' + num(sh.Vs, 1)
+                + ' \\qquad d = ' + num(sh.d_used, 1) + ' \\text{ mm}, \\; f\'_c = ' + num(sh.fc_used, 1) + ' \\text{ MPa} \\]</div>'
+            + '<div class="report-eq">\\[ \\phi V_n = ' + num(sh.phiVn, 1) + ' \\text{ kN} \\qquad V_u / \\phi V_n = '
+                + num(sh.utilisation, 3) + ' \\]</div>',
+            '<span class="' + (sh.utilisation <= 1 ? 'good' : 'bad') + '">&phi;Vn = ' + num(sh.phiVn, 0) + ' kN</span>');
+        h += step('ASCE 41-17 Table 10-10a concept',
+            'Shear that arrives with flexural hinging at both ends &mdash; a jacket that raises Mn without Vn converts ductile to brittle',
+            '<div class="report-eq">\\[ V_p = (M_{n,top}+M_{n,bot})/L = ' + num(sh.Vp_at_hinging, 1)
+                + ' \\text{ kN} \\qquad \\phi V_n / V_p = ' + num(sh.phiVn_over_Vp, 2) + ' \\]</div>',
+            '<span class="' + (sh.failure_mode === 'flexure-controlled' ? 'good' : 'bad') + '">'
+                + esc(sh.failure_mode) + '</span>');
     }
 
+    // ---- 6: interface ----
     if (inf) {
-        h += '<div class="report-section"><h4>6. Interface Shear Transfer</h4>';
-        h += '<p class="report-ref">' + esc(inf.clause) + '</p>';
-        h += '<div class="report-eq">\\[ v_u = v_{flexural} + v_{axial} = ' + num(inf.v_flexural, 3)
-           + ' + ' + num(inf.v_axial, 3) + ' = ' + num(inf.v_u, 3) + '\\text{ MPa} \\]</div>';
-        h += '<p class="report-ref">Both capacity routes are reported and neither is chosen &mdash; crediting the '
-           + '1.8 MPa cohesion term is an Engineer-of-Record decision.</p>';
-        h += '<table class="report-table"><tr><th>Route</th><th>&phi;vn (MPa)</th><th>DCR</th></tr>';
-        h += '<tr><td>Dowels only (22.9)</td><td>' + num(inf.phi_vn_dowels_only, 3) + '</td><td class="'
-           + (inf.DCR_dowels_only <= 1 ? 'status-pass' : 'status-fail') + '">' + num(inf.DCR_dowels_only, 3) + '</td></tr>';
-        h += '<tr><td>With bond (Table 16.4.4.2)</td><td>' + num(inf.phi_vn_with_bond, 3) + '</td><td class="'
-           + (inf.DCR_with_bond <= 1 ? 'status-pass' : 'status-fail') + '">' + num(inf.DCR_with_bond, 3) + '</td></tr>';
-        h += '</table>';
-        h += '<dl class="report-grid">';
-        h += '<dt>Continuity</dt><dd>' + esc(inf.continuity) + '</dd>';
-        h += '<dt>&rho;v provided</dt><dd>' + num(inf.rho_v_provided_percent, 4) + ' %</dd>';
-        h += '<dt>Dowel spacing for dowels alone</dt><dd>'
-           + (inf.dowel_spacing_required_dowels_only === null ? '&mdash;'
-              : num(inf.dowel_spacing_required_dowels_only, 0) + ' mm') + '</dd>';
-        h += '<dt>ACI 562-16 bond testing</dt><dd>' + (inf.aci562_bond_testing_required ? 'REQUIRED' : 'not triggered') + '</dd>';
-        h += '<dt>ACI 562-16 interface reinforcement</dt><dd>'
-           + (inf.aci562_interface_reinforcement_required ? 'REQUIRED' : 'not triggered') + '</dd>';
-        h += '</dl></div>';
+        h += heading('6 &mdash; Interface Shear Transfer');
+        h += step(esc(inf.clause),
+            'Demand on the existing-to-jacket interface (' + esc(inf.continuity) + ' jacket)',
+            '<div class="report-eq">\\[ v_u = v_{flex} + v_{axial} = ' + num(inf.v_flexural, 3) + ' + '
+                + num(inf.v_axial, 3) + ' = ' + num(inf.v_u, 3) + ' \\text{ MPa} \\]</div>',
+            'vu = ' + num(inf.v_u, 3) + ' MPa');
+        h += step('Both routes reported; crediting the cohesion term is an EOR decision',
+            'Route A, shear friction (dowels only) vs route B, composite member with the bond term',
+            '<table class="report-table"><tr><th>Route</th><th>&phi;vn (MPa)</th><th>DCR</th></tr>'
+            + '<tr><td class="tl">A &mdash; dowels only (22.9)</td><td>' + num(inf.phi_vn_dowels_only, 3) + '</td><td>'
+                + num(inf.DCR_dowels_only, 3) + '</td></tr>'
+            + '<tr><td class="tl">B &mdash; with bond (16.4.4.2)</td><td>' + num(inf.phi_vn_with_bond, 3) + '</td><td>'
+                + num(inf.DCR_with_bond, 3) + '</td></tr></table>',
+            '<span class="' + (inf.DCR_with_bond <= 1 ? 'good' : 'bad') + '">B: DCR ' + num(inf.DCR_with_bond, 2) + '</span>'
+            + '<br><span class="' + (inf.DCR_dowels_only <= 1 ? 'good' : 'bad') + '">A: DCR ' + num(inf.DCR_dowels_only, 2) + '</span>');
+        h += step('ACI 562-16 Table 7.4.1.2',
+            'Mandatory testing thresholds on the interface demand',
+            '<div class="report-eq">\\[ \\text{bond testing: ' + (inf.aci562_bond_testing_required ? 'REQUIRED' : 'not triggered')
+                + '} \\qquad \\text{interface reinforcement: ' + (inf.aci562_interface_reinforcement_required ? 'REQUIRED' : 'not triggered') + '} \\]</div>',
+            '<span class="dim">&rho;v = ' + num(inf.rho_v_provided_percent, 4) + ' %</span>');
     }
 
+    // ---- 7: preload + stiffness ----
     if (pl && st) {
-        h += '<div class="report-section"><h4>7. Preload and Stiffness</h4>';
-        h += '<div class="report-eq">\\[ \\varepsilon_0 = ' + num(pl.eps_0, 6) + ' \\qquad '
-           + '\\sigma_{core} = ' + num(pl.sigma_core, 3) + '\\text{ MPa} \\]</div>';
-        h += '<table class="report-table"><tr><th></th><th>This jacket</th><th>Monolithic split</th></tr>';
-        h += '<tr><td>Jacket share of axial load</td><td>' + num(pl.jacket_share_percent, 1) + ' %</td><td>'
-           + num(pl.jacket_share_monolithic_percent, 1) + ' %</td></tr>';
-        h += '<tr><td>Core stress (MPa)</td><td>' + num(pl.sigma_core, 3) + '</td><td>'
-           + num(pl.sigma_core_monolithic, 3) + '</td></tr></table>';
-        h += '<div class="report-result">\\[ \\text{Core overstress} = \\times ' + num(pl.core_overstress, 3)
-           + ' \\qquad \\tfrac{EI_{jacketed}}{EI_{existing}} = ' + num(st.EI_ratio, 3) + ' \\]</div>';
-        h += '<p class="report-ref">' + esc(st.note) + '</p>';
-        h += '</div>';
+        h += heading('7 &mdash; Preload and Stiffness');
+        h += step('Mechanics, not a code equation; TN-RET-001',
+            'Only load applied after casting is shared; P&#8320; stays in the core',
+            '<div class="report-eq">\\[ \\varepsilon_0 = ' + num(pl.eps_0, 6) + ' \\qquad \\text{jacket share } '
+                + num(pl.jacket_share_percent, 1) + '\\% \\text{ vs monolithic } ' + num(pl.jacket_share_monolithic_percent, 1) + '\\% \\]</div>',
+            'core &times; ' + num(pl.core_overstress, 2) + '<br><span class="dim">&sigma; = ' + num(pl.sigma_core, 2) + ' MPa</span>');
+        h += step('Gross EI, transformed section',
+            esc(st.note),
+            '<div class="report-eq">\\[ EI_{jacketed}/EI_{existing} = ' + num(st.EI_ratio, 2)
+                + ' \\qquad A_g \\text{ ratio } ' + num(st.Ag_ratio, 2) + ' \\]</div>',
+            'EI &times; ' + num(st.EI_ratio, 2));
     }
 
+    // ---- 8: monolithic ----
     if (mo && mo.applicable) {
-        h += '<div class="report-section"><h4>8. Monolithic Coefficients &mdash; reported, NOT applied</h4>';
-        h += '<p class="report-ref">' + esc(mo.clause) + '</p>';
-        h += '<table class="report-table"><tr><th>K_F</th><th>K_k</th><th>K_dy</th><th>K_du</th><th>&nu;</th><th>r</th></tr>';
-        h += '<tr><td>' + num(mo.K_F, 3) + '</td><td>' + num(mo.K_k, 3) + '</td><td>' + num(mo.K_dy, 3)
-           + '</td><td>' + num(mo.K_du, 3) + '</td><td>' + num(mo.nu, 3) + '</td><td>' + num(mo.r, 3) + '</td></tr></table>';
-        h += '<table class="report-table"><tr><th></th><th>As computed</th><th>&times; K_F</th></tr>';
-        h += '<tr><td>&phi;Mn at Pu (kN-m)</td><td>' + num(mo.phiMn_monolithic, 1) + '</td><td>'
-           + num(mo.phiMn_x_KF, 1) + '</td></tr>';
-        h += '<tr><td>Utilisation</td><td>' + num(mo.utilisation_monolithic, 3) + '</td><td>'
-           + num(mo.utilisation_x_KF, 3) + '</td></tr></table>';
-        h += '<p class="report-ref">' + esc(mo.reason) + '</p>';
-        h += '</div>';
+        h += heading('8 &mdash; Monolithic Coefficients (reported, NOT applied)');
+        h += step(esc(mo.clause),
+            'A jacketed column does not reach monolithic strength; both results side by side, neither chosen',
+            '<table class="report-table"><tr><th>K_F</th><th>K_k</th><th>K_dy</th><th>K_du</th><th>&nu;</th><th>r</th></tr>'
+            + '<tr><td>' + num(mo.K_F, 3) + '</td><td>' + num(mo.K_k, 3) + '</td><td>' + num(mo.K_dy, 3)
+            + '</td><td>' + num(mo.K_du, 3) + '</td><td>' + num(mo.nu, 3) + '</td><td>' + num(mo.r, 3) + '</td></tr></table>'
+            + '<div class="report-eq">\\[ \\phi M_n : ' + num(mo.phiMn_monolithic, 1) + ' \\rightarrow \\times K_F = '
+                + num(mo.phiMn_x_KF, 1) + ' \\text{ kN-m} \\qquad DCR: ' + num(mo.utilisation_monolithic, 2)
+                + ' \\rightarrow ' + num(mo.utilisation_x_KF, 2) + ' \\]</div>',
+            'K_F = ' + num(mo.K_F, 3) + '<br><span class="dim">EOR decision</span>');
     } else if (mo) {
-        h += '<div class="report-section"><h4>8. Monolithic Coefficients</h4>';
-        h += '<p class="report-ref">' + esc(mo.reason) + '</p></div>';
+        h += heading('8 &mdash; Monolithic Coefficients');
+        h += step('TN-RET-002 TODO C10', esc(mo.reason), '', '<span class="bad">not available</span>');
     }
+
+    h += '</div></div>';
+    return h;
+}
+
+function buildQaqc(d) {
+    var q = d.qaqc;
+    var h = '<div class="report-section"><h4>QAQC &mdash; Independent Recomputation ('
+          + q.n_pass + ' of ' + q.checks.length + ' pass)</h4>';
+    h += '<p class="report-ref">' + esc(q.note) + ' All expected and computed values below were '
+       + 'derived on the server; this page compares nothing itself.</p>';
+    if (!q.all_pass) {
+        h += '<div class="qq-banner-fail">One or more QAQC checks FAILED. The report is not '
+           + 'internally consistent &mdash; do not use these numbers. Report this as a software defect.</div>';
+    }
+    h += '<table class="report-table"><tr><th>Check</th><th>Independent method</th>'
+       + '<th>Expected</th><th>Computed</th><th>Status</th></tr>';
+    q.checks.forEach(function(c) {
+        h += '<tr><td class="tl">' + esc(c.name) + '</td><td class="tl" style="font-family:inherit;font-size:.72rem">'
+           + esc(c.method) + '</td><td>' + num(c.expected, 4) + '</td><td>' + num(c.computed, 4) + '</td>'
+           + '<td><span class="' + (c.pass ? 'qq-pass' : 'qq-fail') + '">' + (c.pass ? 'PASS' : 'FAIL')
+           + '</span></td></tr>';
+    });
+    return h + '</table></div>';
+}
+
+function buildSummary(d) {
+    var it = d.interaction, sh = d.shear, inf = d.interface, cf = d.confinement, st = d.stiffness;
+    var rows = [
+        ['Design axial ceiling &phi;Pn,max', num(d.axial.phiPn_max_jacketed, 1) + ' kN', 'jacketed; existing ' + num(d.axial.phiPn_max_existing, 1) + ' kN'],
+        ['&phi;Mn at Pu', num(it.phiMn_at_Pu_jacketed, 1) + ' kN-m', 'existing ' + num(it.phiMn_at_Pu_existing, 1) + ' kN-m'],
+        ['Flexural D/C', it.utilisation_jacketed === null ? 'beyond capacity' : num(it.utilisation_jacketed, 3), 'at (Pu, Mu)'],
+    ];
+    if (sh) {
+        rows.push(['Design shear strength &phi;Vn', num(sh.phiVn, 1) + ' kN', 'D/C ' + num(sh.utilisation, 3)]);
+        rows.push(['Failure mode', esc(sh.failure_mode), '&phi;Vn / Vp = ' + num(sh.phiVn_over_Vp, 2)]);
+    }
+    if (inf) {
+        rows.push(['Interface demand vu', num(inf.v_u, 3) + ' MPa', 'DCR with bond ' + num(inf.DCR_with_bond, 2) + ', dowels only ' + num(inf.DCR_dowels_only, 2)]);
+    }
+    if (cf) {
+        rows.push(["Confined core f'cc", num(cf.fcc_core, 2) + ' MPa', 'k&#8337; = ' + num(cf.ke_computed, 3)]);
+    }
+    if (st) {
+        rows.push(['Stiffness ratio', '&times; ' + num(st.EI_ratio, 2), 're-run the demand model']);
+    }
+    rows.push(['QAQC', d.qaqc.all_pass ? 'all ' + d.qaqc.checks.length + ' checks pass' : 'FAILED', 'internal consistency only']);
+    rows.push(['Adequate (computed checks only)', d.adequate ? 'YES' : 'NO',
+               d.governing_checks.length ? esc(d.governing_checks.join(', ')) : 'no governing check']);
+
+    var h = '<div class="report-section"><h4>Results Summary</h4>';
+    h += '<table class="report-table"><tr><th>Result</th><th>Value</th><th>Note</th></tr>';
+    rows.forEach(function(r) {
+        h += '<tr><td class="tl">' + r[0] + '</td><td>' + r[1] + '</td><td class="tl" style="font-family:inherit">' + r[2] + '</td></tr>';
+    });
+    return h + '</table></div>';
+}
+
+// ------------------------------------------------------------------ report
+function buildReport(d) {
+    var h = '';
+    h += buildInputSummary(d);
+    h += buildSheet(d);
 
     if (d.detailing.length) {
         var passes = d.detailing.filter(function(c) { return c.passes; }).length;
-        h += '<div class="report-section"><h4>9. Detailing Checks &mdash; ' + passes + ' of '
+        h += '<div class="report-section"><h4>Detailing Checks &mdash; ' + passes + ' of '
            + d.detailing.length + ' pass</h4>';
         h += '<table class="report-table"><tr><th>Item</th><th>Value</th><th>Limit</th><th>Clause</th><th>Status</th></tr>';
         d.detailing.forEach(function(c) {
-            h += '<tr><td style="text-align:left">' + esc(c.item) + '</td><td>' + esc(c.value) + '</td>'
-               + '<td style="text-align:left">' + esc(c.limit) + '</td>'
-               + '<td style="text-align:left">' + esc(c.clause) + '</td>'
+            h += '<tr><td class="tl">' + esc(c.item) + '</td><td>' + esc(c.value) + '</td>'
+               + '<td class="tl">' + esc(c.limit) + '</td>'
+               + '<td class="tl">' + esc(c.clause) + '</td>'
                + '<td class="' + (c.passes ? 'status-pass' : 'status-fail') + '" style="font-weight:700">'
                + (c.passes ? 'OK' : 'NG') + '</td></tr>';
         });
         h += '</table><p class="report-ref">A failed detailing check is a governing check and flips '
            + '&ldquo;adequate&rdquo;.</p></div>';
     }
+
+    h += buildQaqc(d);
+    h += buildSummary(d);
 
     if (d.unavailable.length) {
         h += '<div class="report-section"><h4>Checks Not Available for This Section ('

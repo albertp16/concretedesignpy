@@ -88,6 +88,17 @@ def test_response_is_json_serialisable_over_the_wire(client):
     json.loads(raw)
 
 
+def test_response_carries_a_passing_qaqc_block(client):
+    """The report's QAQC section is server-computed. Its independent
+    recomputations must agree with the report on the reference case."""
+    r = client.post("/api/column-jacket/design", json=reference_payload())
+    q = r.get_json()["result"]["qaqc"]
+    assert q["all_pass"] is True
+    assert q["n_pass"] == len(q["checks"]) >= 14
+    for c in q["checks"]:
+        assert c["name"] and c["method"], "a QAQC row without its method is not auditable"
+
+
 def test_construction_block_is_optional(client):
     payload = reference_payload()
     del payload["construction"]
@@ -168,19 +179,39 @@ def test_the_page_carries_no_engine_constants(page_source):
 
 
 def test_the_page_does_no_arithmetic_on_returned_values(page_source):
-    """Layout arithmetic for the two figures is allowed and is confined to the
-    draw functions; anything else would be the page second-guessing the
-    engine."""
+    """Layout arithmetic for the two figures is allowed and is FENCED between
+    the [figure-layout] markers; outside that region the page may format and
+    compare server values but never derive one from another. Arithmetic in the
+    report builder would be the page second-guessing the engine."""
     script = page_source.split("<script>")[-1]
-    allowed = ["g.B / 2", "g.tie_cage_b / 2", "(g.H - g.tie_cage_h) / 2",
-               "(g.H + g.tie_cage_h) / 2", "b.dia / 2", "-halfB - PAD",
-               "halfB + PAD", "g.H + PAD", "b.z - r", "b.z + r",
-               "b.y - r", "b.y + r"]
-    for a in allowed:
-        script = script.replace(a, "")
-    for forbidden in (" * 1000", " / 1000", " * 0.85", " / 100 ", " * 1e"):
-        assert forbidden not in script, \
-            "unexpected arithmetic {!r} on a server value".format(forbidden)
+    assert "// [figure-layout:start]" in script, "the fence markers must exist"
+    assert "// [figure-layout:end]" in script
+    pre, rest = script.split("// [figure-layout:start]", 1)
+    _, post = rest.split("// [figure-layout:end]", 1)
+    remainder = pre + post
+    # displayed formulae are annotation, not computation
+    remainder = re.sub(r"\\\\\[.*?\\\\\]", "", remainder, flags=re.S)
+    for forbidden in (" * 1000", " / 1000", " * 0.85", " / 100 ", " * 1e",
+                      " / 2", " * 2", "Math.sqrt", "Math.pow"):
+        assert forbidden not in remainder, (
+            "arithmetic {!r} on a server value outside the "
+            "figure-layout fence".format(forbidden))
+
+
+def test_qaqc_table_renders_server_computed_pairs_only(page_source):
+    """Every expected/computed pair in the QAQC table comes from the server's
+    qaqc block. The page compares nothing itself -- c.pass is rendered, never
+    derived, so the QAQC verdicts stay inside the tested calculation layer."""
+    assert "q.checks.forEach" in page_source
+    body = page_source.split("function buildQaqc")[1].split("function buildSummary")[0]
+    assert "c.expected" in body and "c.computed" in body and "c.pass" in body
+    for forbidden in ("Math.abs", "toFixed(") :
+        # formatting via num() is fine; comparison or arithmetic is not
+        assert forbidden not in body.replace("num(c.expected", "").replace(
+            "num(c.computed", ""), \
+            "buildQaqc must not process the pair itself: {}".format(forbidden)
+    assert "qq-banner-fail" in body, \
+        "a failed QAQC run must produce a loud banner, not a quiet row"
 
 
 def test_plotly_strings_use_unicode_not_html_entities(page_source):

@@ -496,6 +496,8 @@ def column_jacket_design(existing, jacket, demand, construction=None,
     section = {
         "B": col.B, "H": col.H,
         "Ag_existing": col.Ag_e, "Ag_jacketed": col.Ag_tot,
+        # the annulus alone, so a client never has to derive Ag_tot - Ag_e
+        "Ag_jacket_annulus": col.Ag_j,
         "Ast_existing": col.Ast_e, "Ast_jacket": col.Ast_j,
         "rho_total_percent": col.Ast_tot / col.Ag_tot * 100.0,
         "n_bars_existing": len(col.bars_e), "n_bars_jacket": len(col.bars_j),
@@ -694,6 +696,9 @@ def column_jacket_design(existing, jacket, demand, construction=None,
     advisories = _advisories(req, it, st, confinement, preload, shear,
                              interface, monolithic)
 
+    qaqc = _qaqc_block(req, section, axial, interaction, shear, confinement,
+                       interface, d)
+
     return {
         "provenance": provenance(),
         "request_echo": req,
@@ -708,12 +713,180 @@ def column_jacket_design(existing, jacket, demand, construction=None,
         "interface": interface,
         "stiffness": stiffness,
         "detailing": detailing,
+        "qaqc": qaqc,
         "advisories": advisories,
         "governing_checks": governing,
         "unavailable": unavailable,
         # All COMPUTED checks satisfied. NOT the same as "the design is safe"
         # -- see advisories, and TN-RET-001 Limitations.
         "adequate": (not governing) and (not unavailable),
+    }
+
+
+def _qaqc_close(a, b, rel=1e-6, abs_=1e-6):
+    if a is None or b is None:
+        return a is None and b is None
+    # bool(), because a numpy operand (e.g. d_used, traced back to the
+    # engine's np.linspace bar layout) turns the comparison into numpy.bool_,
+    # which the JSON encoder refuses.
+    return bool(abs(a - b) <= max(abs_, rel * max(abs(a), abs(b))))
+
+
+def _qaqc_block(req, section, axial, interaction, shear, confinement,
+                interface, demand):
+    """Independent recomputation of the report's own numbers.
+
+    Every check re-derives a reported value from the RAW REQUEST INPUTS (or,
+    where noted, from other reported values) along a separate arithmetic path,
+    then compares. A pass means the numbers in this report agree with each
+    other; it is NOT a check of the design. These are computed on the server
+    so a client can render QAQC without holding a single equation.
+
+    The recomputations are written out longhand on purpose -- reusing the
+    engine's own helpers here would verify nothing.
+    """
+    e, j = req["existing"], req["jacket"]
+    checks = []
+
+    def add(name, method, expected, computed, rel=1e-6):
+        checks.append({
+            "name": name, "method": method,
+            "expected": _finite(expected), "computed": _finite(computed),
+            "pass": _qaqc_close(expected, computed, rel=rel),
+        })
+
+    # -- geometry, from the raw inputs and the sides mapping ---------------
+    t = j["thickness"]
+    t_top, t_bot, t_left, t_right = {
+        "four":  (t, t, t, t),
+        "three": (t, t, t, 0.0),
+        "two":   (t, t, 0.0, 0.0),
+        "one":   (t, 0.0, 0.0, 0.0),
+    }[j["sides"]]
+    B = e["width"] + t_left + t_right
+    H = e["depth"] + t_top + t_bot
+    add("Overall width B",
+        "b_e + t_left + t_right from the inputs and the faces mapping",
+        B, section["B"])
+    add("Overall depth H",
+        "h_e + t_top + t_bot from the inputs and the faces mapping",
+        H, section["H"])
+    add("Gross area of composite",
+        "B x H from the recomputed overall dimensions",
+        B * H, section["Ag_jacketed"])
+
+    # -- reinforcement, from bar counts and diameters ----------------------
+    n_e = 2 * e["bars_per_face_width"] + 2 * e["bars_per_face_depth"] - 4
+    Ast_e = n_e * math.pi / 4.0 * e["bar_dia"] ** 2
+    add("Existing bar count",
+        "perimeter cage: 2*n_width + 2*n_depth - 4 (corners once)",
+        n_e, section["n_bars_existing"])
+    add("Existing steel area",
+        "count x (pi/4) d_b^2 from the recomputed count",
+        Ast_e, section["Ast_existing"])
+
+    four_sided = j["sides"] == "four"
+    if four_sided:
+        n_j = 2 * j["bars_per_face_width"] + 2 * j["bars_per_face_depth"] - 4
+        Ast_j = n_j * math.pi / 4.0 * j["bar_dia"] ** 2
+        add("Jacket bar count",
+            "perimeter cage: 2*n_width + 2*n_depth - 4 (corners once)",
+            n_j, section["n_bars_jacket"])
+        add("Jacket steel area",
+            "count x (pi/4) d_b^2 from the recomputed count",
+            Ast_j, section["Ast_jacket"])
+
+        # -- axial, longhand from ACI 318-19 Eq. (22.4.2.2) ----------------
+        Ag_e = e["width"] * e["depth"]
+        Ag_j = B * H - Ag_e
+        fy_e = min(e["fy"], 550.0)
+        fy_j = min(j["fy"], 550.0)
+        Po = (0.85 * e["fc"] * (Ag_e - Ast_e) + fy_e * Ast_e
+              + 0.85 * j["fc"] * (Ag_j - Ast_j) + fy_j * Ast_j)
+        add("Nominal axial strength Po",
+            "0.85 f'c (Ag - Ast) + fy Ast per concrete region, fy capped at "
+            "550 MPa, every area re-derived from the raw inputs",
+            Po / N_PER_KN, axial["Po_jacketed"])
+        phi = 0.75 if j["spiral"] else 0.65
+        alpha = 0.85 if j["spiral"] else 0.80
+        add("Design axial ceiling phi*Pn,max",
+            "phi x alpha x Po with the recomputed Po "
+            "(ACI 318-19 22.4.2.1, Table 21.2.2)",
+            phi * alpha * Po / N_PER_KN, axial["phiPn_max_jacketed"])
+
+    add("Total steel ratio",
+        "(Ast_e + Ast_j) / (B x H), areas as reported",
+        (section["Ast_existing"] + section["Ast_jacket"])
+        / section["Ag_jacketed"] * 100.0,
+        section["rho_total_percent"])
+    add("Axial strength gain",
+        "Po_jacketed / Po_existing, both as reported",
+        axial["Po_jacketed"] / axial["Po_existing"], axial["strength_gain"])
+
+    # -- interaction: interpolate the returned curve ourselves -------------
+    pts = sorted(interaction["design_jacketed"], key=lambda p: p["P"])
+    Pu_kN = demand["Pu"]
+    phiMn = None
+    if pts and pts[0]["P"] <= Pu_kN <= pts[-1]["P"]:
+        for lo, hi in zip(pts, pts[1:]):
+            if lo["P"] <= Pu_kN <= hi["P"]:
+                f = (0.0 if hi["P"] == lo["P"]
+                     else (Pu_kN - lo["P"]) / (hi["P"] - lo["P"]))
+                phiMn = lo["M"] + f * (hi["M"] - lo["M"])
+                break
+    add("phi*Mn at Pu",
+        "piecewise-linear interpolation of the returned design_jacketed "
+        "points at Pu -- the same points the chart draws",
+        phiMn, interaction["phiMn_at_Pu_jacketed"], rel=1e-5)
+    util = (abs(demand["Mu"]) / phiMn if phiMn else None)
+    add("Utilisation at (Pu, Mu)",
+        "Mu / (phi*Mn at Pu) with the independently interpolated capacity",
+        util, interaction["utilisation_jacketed"], rel=1e-5)
+
+    # -- shear: full longhand recomputation --------------------------------
+    if shear is not None:
+        fc = shear["fc_used"]
+        d_ = shear["d_used"]
+        bw = section["B"]
+        Ag = section["Ag_jacketed"]
+        Nu = max(demand["Pu"] * N_PER_KN, 0.0)
+        ax_term = min(Nu / (6.0 * Ag), 0.05 * fc)
+        Vc = min((0.17 * math.sqrt(fc) + ax_term) * bw * d_,
+                 0.42 * math.sqrt(fc) * bw * d_)
+        Av = math.pi / 4.0 * j["tie_dia"] ** 2 * j["tie_legs_each_way"]
+        Vs = Av * j["tie_fy"] * d_ / j["tie_spacing"]
+        Vn = min(Vc + Vs, Vc + 0.66 * math.sqrt(fc) * bw * d_)
+        add("Design shear strength phi*Vn",
+            "Table 22.5.5.1(a) SI longhand: Vc with the axial term capped at "
+            "0.05 f'c and the 0.42 sqrt(f'c) ceiling, Vs = Av fyt d / s, "
+            "Vn capped per 22.5.1.2, phi = 0.75",
+            0.75 * Vn / N_PER_KN, shear["phiVn"])
+
+    # -- interface: the demand must be the sum of its parts ----------------
+    if interface is not None:
+        add("Interface demand v_u",
+            "v_flexural + v_axial, both as reported",
+            interface["v_flexural"] + interface["v_axial"], interface["v_u"])
+
+    # -- confinement: Mander closed form from the reported f_l -------------
+    if confinement is not None:
+        fco = e["fc"]
+        r = confinement["fl"] / fco
+        fcc = max(fco * (2.254 * math.sqrt(1.0 + 7.94 * r) - 2.0 * r - 1.254),
+                  fco)
+        add("Confined strength f'cc",
+            "fib B14 Eq. (6-5) evaluated from the reported f_l and the "
+            "existing f'co, with the f'cc >= f'co clamp",
+            fcc, confinement["fcc_core"])
+
+    return {
+        "checks": checks,
+        "n_pass": sum(1 for c in checks if c["pass"]),
+        "all_pass": all(c["pass"] for c in checks),
+        "note": ("Each row re-derives a reported value along an independent "
+                 "arithmetic path and compares. A pass means this report is "
+                 "internally consistent; it is not a statement about the "
+                 "design."),
     }
 
 

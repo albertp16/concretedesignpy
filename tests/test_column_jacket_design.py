@@ -459,6 +459,75 @@ def test_large_jacket_caution_fires_past_r_of_two():
     assert "LARGE_JACKET_COEFFICIENTS_NON_MONOTONIC" in codes(big)
 
 
+# --------------------------------------------------------------------- QAQC
+
+
+def test_qaqc_all_checks_pass_on_the_reference_case(result):
+    """The QAQC block re-derives reported values along independent arithmetic
+    paths. On the reference case every one must agree."""
+    q = result["qaqc"]
+    assert q["all_pass"] is True
+    assert q["n_pass"] == len(q["checks"])
+    names = {c["name"] for c in q["checks"]}
+    for expected in ("Nominal axial strength Po", "phi*Mn at Pu",
+                     "Design shear strength phi*Vn", "Interface demand v_u",
+                     "Confined strength f'cc"):
+        assert expected in names, "missing QAQC check {}".format(expected)
+
+
+@pytest.mark.parametrize("patch", [
+    {},                                           # reference
+    {"jacket": {"spiral": True}},                 # phi/alpha switch
+    {"jacket": {"tie_spacing": 400, "tie_dia": 10}},  # shear-critical
+    {"existing": {"fc": 90, "fy": 600}},          # fy above the 550 cap
+    {"demand": {"Pu": 9000, "Mu": 520, "Vu": 300,
+                "clear_height": 2800}},           # beyond axial capacity
+])
+def test_qaqc_survives_the_variants(patch):
+    """Independent recomputation must track the report across the parameter
+    space -- including the fy > 550 cap and a Pu with no capacity (both the
+    reported value and the recomputation must be None there, and None == None
+    is a pass, not a crash)."""
+    r = column_jacket_design(**reference_inputs(**patch))
+    assert r["qaqc"]["all_pass"] is True, [
+        c["name"] for c in r["qaqc"]["checks"] if not c["pass"]]
+
+
+def test_qaqc_adapts_to_a_partial_jacket():
+    """Checks whose subject was refused (shear, interface, confinement, and
+    the four-sided cage arithmetic) must be absent, not failed."""
+    r = column_jacket_design(**reference_inputs(jacket={"sides": "three"}))
+    q = r["qaqc"]
+    assert q["all_pass"] is True
+    names = {c["name"] for c in q["checks"]}
+    assert "Design shear strength phi*Vn" not in names
+    assert "Interface demand v_u" not in names
+    assert "Nominal axial strength Po" not in names, \
+        "the four-sided bar-cage recomputation does not apply to a partial cage"
+    assert "Overall width B" in names and "phi*Mn at Pu" in names
+
+
+def test_qaqc_catches_a_corrupted_report():
+    """The block must actually be able to fail: perturb a reported value the
+    way a units bug would and the matching check must flip to FAIL."""
+    import importlib
+
+    m = importlib.import_module(
+        "concretedesignpy.calculators.column_jacket_design")
+    r = column_jacket_design(**reference_inputs())
+    # simulate the classic silent failure: a value scaled by 10 (the same
+    # class of defect as N-mm -> kN-m dividing by 1e7 instead of 1e6)
+    sec = dict(r["section"])
+    ax = dict(r["axial"])
+    ax["Po_jacketed"] = ax["Po_jacketed"] / 10.0
+    q = m._qaqc_block(r["request_echo"], sec, ax, r["interaction"],
+                      r["shear"], r["confinement"], r["interface"],
+                      r["request_echo"]["demand"])
+    assert q["all_pass"] is False
+    failed = {c["name"] for c in q["checks"] if not c["pass"]}
+    assert "Nominal axial strength Po" in failed
+
+
 # ---------------------------------------------------------------- regression
 
 

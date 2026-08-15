@@ -1,5 +1,33 @@
 # Changelog - concretedesignpy
 
+## Version 0.7.1 | August 15, 2026
+
+### Added
+- **Calculation-sheet report for Column Jacketing** — the page report now
+  follows the APEC three-column REFERENCES | CALCULATIONS | RESULTS format:
+  a 31-row Input Summary (Symbol | Input | Description | Value, every field
+  echoed so the report is self-contained), eight numbered calculation
+  sections with symbolic and substituted equations, a Results Summary table,
+  and the detailing/advisories/provenance blocks
+- **Server-side QAQC block** — `column_jacket_design()` results now carry a
+  `qaqc` section: 16 independent recomputations (9 for a partial jacket)
+  that re-derive reported values from the raw inputs along separate
+  arithmetic paths — geometry, bar counts and areas, Po and phi*Pn,max
+  longhand, phi*Mn at Pu by re-interpolating the returned curve, the full
+  shear stack, v_u summation, and Mander f'cc from the reported f_l. The
+  page renders the table; it compares nothing itself. A deliberate-corruption
+  test proves the block can actually fail
+- **Professional figures** — the section drawing gains true dimension lines
+  with witness ticks (B, H), a leader for t, centrelines and a labelled core;
+  the P-M chart gains the demand annotation and drops the raw nominal
+  envelope, which reached Po and pure tension and crushed the design curves
+  into a corner of the axes
+
+### Improved
+- QAQC comparisons coerce numpy booleans so results stay JSON-serialisable
+
+---
+
 ## Version 0.7.0 | August 15, 2026
 
 ### Added
