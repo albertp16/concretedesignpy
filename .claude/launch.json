@@ -2,11 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "concretedesignpy-web",
+      "name": "concretedesignpy",
+      "autoPort": true,
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-c", "from concretedesignpy.webapp.app import main; main()"],
-      "autoPort": true,
-      "port": 5000
+      "port": 5055
     }
   ]
 }

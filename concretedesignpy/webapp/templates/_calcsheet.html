@@ -1,0 +1,55 @@
+{#
+  Shared calculation-sheet panel.
+
+  One include, three calculators, so the A4 document is identical across all
+  of them and there is exactly one place to change it.
+
+  Usage in a calculator template:
+
+      {% include "_calcsheet.html" %}
+
+  and in {% block head %}:
+
+      {% include "_calcsheet_head.html" %}
+
+  The page is responsible for one function, `buildSheetPayload()`, returning
+  the request body for `sheetEndpoint`, and for setting `sheetEndpoint`
+  before the listener below runs.
+#}
+<div class="cs-actions no-print" style="display:flex;gap:.5rem;margin:1.5rem 0 .75rem;align-items:center;flex-wrap:wrap;">
+    <button type="button" id="btn-sheet" class="btn-primary">Build Calculation Sheet</button>
+    <button type="button" id="btn-print-sheet" class="btn-print" disabled>Print / Save as PDF (A4)</button>
+    <span style="font-size:.78rem;color:var(--gray-500);">
+        The sheet below is A4 width on screen, so what you read is what prints.
+    </span>
+</div>
+
+<div id="calc-sheet"></div>
+
+<script>
+(function () {
+    var built = false;
+
+    document.getElementById('btn-sheet').addEventListener('click', function () {
+        var payload;
+        try {
+            payload = buildSheetPayload();
+        } catch (err) {
+            document.getElementById('calc-sheet').innerHTML =
+                '<div class="error-msg">' + escapeHtml(err.message) + '</div>';
+            return;
+        }
+        mountSheet(sheetEndpoint, payload, 'calc-sheet', sheetMeta(), function () {
+            built = true;
+            document.getElementById('btn-print-sheet').disabled = false;
+            document.getElementById('calc-sheet')
+                .scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    document.getElementById('btn-print-sheet').addEventListener('click', function () {
+        if (!built) { return; }
+        window.print();
+    });
+}());
+</script>

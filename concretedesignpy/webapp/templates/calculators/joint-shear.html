@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Joint Shear - ConcreteDesignPy{% endblock %}
 
+{% block head %}
+{% include "_calcsheet_head.html" %}
+{% endblock %}
+
 {% block content %}
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
@@ -95,4 +99,27 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     });
 });
 </script>
+
+<script>
+var sheetEndpoint = "/api/joint/shear-report";
+function buildSheetPayload() {
+    var f = document.getElementById('calc-form');
+    return {
+        ve: parseFloat(f.ve.value),
+        as1: parseFloat(f.as1.value), n_bars1: parseInt(f.n_bars1.value),
+        as2: parseFloat(f.as2.value), n_bars2: parseInt(f.n_bars2.value),
+        fy: parseFloat(f.fy.value), fc: parseFloat(f.fc.value),
+        beam_width: parseFloat(f.beam_width.value),
+        joint_depth: parseFloat(f.joint_depth.value),
+        column_width: parseFloat(f.column_width.value),
+        perpendicular_dist: parseFloat(f.perpendicular_dist.value || 0),
+        joint_config: parseInt(f.joint_config.value),
+        lamda: parseFloat(f.lamda.value)
+    };
+}
+function sheetMeta() {
+    return { project: 'ConcreteDesignPy', member: 'Beam-column joint' };
+}
+</script>
+{% include "_calcsheet.html" %}
 {% endblock %}

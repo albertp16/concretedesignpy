@@ -1,4 +1,4 @@
-__version__ = '0.8.0'
+__version__ = '0.9.0'
 
 from .general import area_diam, steel_area, area_ratio
 from .mgt import generateFIBERMGT

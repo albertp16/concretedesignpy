@@ -11,6 +11,7 @@ calculator route blueprints.
 
 from flask import Flask
 
+import concretedesignpy
 from concretedesignpy.webapp.routes import (
     main_bp,
     beam_bp,
@@ -38,6 +39,24 @@ def create_app():
     app.register_blueprint(joint_bp, url_prefix="/api/joint")
     app.register_blueprint(mander_bp, url_prefix="/api/mander")
     app.register_blueprint(section_bp, url_prefix="/api/section")
+
+    # The navbar badge used to be the literal string "v0.7 | NSCP 2015 /
+    # ACI 318-19" in base.html. It went stale, and it was wrong on both
+    # halves: the beam and joint modules are NSCP 2015 (= ACI 318M-14), not
+    # 318-19. Injecting it means the version can no longer drift from
+    # __init__, and the edition label lives in exactly one place.
+    @app.context_processor
+    def inject_version():
+        return {
+            "app_version": concretedesignpy.__version__,
+            "code_basis_short": "NSCP 2015",
+            "code_basis_long": (
+                "NSCP 2015 (= ACI 318M-14) for beam flexure, shear, torsion "
+                "and joint shear. The column jacketing and FRP modules "
+                "target ACI 318-19 / ACI 562-16 / ACI 440.2R-17. The edition "
+                "is per module -- see CLAUSES.md."
+            ),
+        }
 
     return app
 

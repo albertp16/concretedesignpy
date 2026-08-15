@@ -94,6 +94,7 @@
     .st-section h4 .aci { color: #3b82f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
+{% include "_calcsheet_head.html" %}
 {% endblock %}
 
 {% block content %}
@@ -634,4 +635,24 @@ document.getElementById('btn-print').addEventListener('click', function() {
 
 
 </script>
+
+<script>
+var sheetEndpoint = "/api/beam/shear-report";
+function buildSheetPayload() {
+    var p = getPayload();
+    return {
+        fc: p.fc, fyv: p.fyv, bw: p.bw, h: p.h, d: p.d, vu: p.vu,
+        s_chosen: p.s_chosen, n_legs: p.n_legs, db_stirrup: p.db_stirrup,
+        cc: p.cc, c: p.c, nu: p.nu, phi: p.phi
+    };
+}
+function sheetMeta() {
+    var f = document.getElementById('calc-form');
+    return {
+        project: f.project.value || f.company.value || 'ConcreteDesignPy',
+        member: f.job_no.value ? ('Job ' + f.job_no.value) : 'Beam shear'
+    };
+}
+</script>
+{% include "_calcsheet.html" %}
 {% endblock %}

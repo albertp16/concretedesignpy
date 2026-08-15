@@ -1,0 +1,33 @@
+{
+  "name": "concretedesignpy-web",
+  "version": "0.9.0",
+  "private": true,
+  "description": "Front-end tests for the ConcreteDesignPy A4 calculation sheet renderer",
+  "license": "MIT",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": [
+      "<rootDir>/tests/js/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "concretedesignpy/webapp/static/js/calcsheet.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 90,
+        "branches": 85,
+        "functions": 95,
+        "lines": 90
+      }
+    }
+  }
+}

@@ -1,0 +1,279 @@
+/* MIT License — Copyright (c) Albert Pamonag Engineering Consultancy
+ *
+ * A4 calculation sheet.
+ * ---------------------
+ * One stylesheet, three calculators. The screen view and the printed view
+ * are the SAME document at two widths, not two layouts — a sheet that only
+ * looks right in print preview is a sheet nobody checks before printing.
+ *
+ * The A4 content width is 210mm − 2 × 14mm margin = 182mm. `--sheet-w` is
+ * that number, and the on-screen sheet is clamped to it so what you read is
+ * what comes off the printer, line break for line break.
+ */
+
+:root {
+    --sheet-w: 182mm;          /* A4 210mm less the 14mm side margins */
+    --sheet-ref: 40mm;         /* REFERENCES column */
+    --sheet-res: 40mm;         /* RESULT column */
+    --sheet-ink: #1e293b;
+    --sheet-rule: #cbd5e1;
+    --sheet-rule-soft: #e2e8f0;
+    --sheet-head: #1e3a5f;
+    --sheet-zebra: #f8fafc;
+}
+
+/* ── the page ─────────────────────────────────────────────────────── */
+
+.cs-doc {
+    max-width: var(--sheet-w);
+    margin: 0 auto;
+    background: #fff;
+    color: var(--sheet-ink);
+    font-size: 9.5pt;
+    line-height: 1.45;
+}
+
+.cs-doc * { box-sizing: border-box; }
+
+/* Masthead. Repeats at the top of every printed page via the running
+   header below, so page 4 of a filed sheet still says what it is. */
+.cs-masthead {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 1rem; padding: 0 0 .5rem; border-bottom: 2.5px solid var(--sheet-head);
+    margin-bottom: .85rem;
+}
+.cs-masthead h2 {
+    margin: 0; font-size: 13pt; font-weight: 700; color: var(--sheet-head);
+    letter-spacing: -.01em;
+}
+.cs-masthead .cs-basis {
+    margin: .2rem 0 0; font-size: 8pt; color: #64748b; font-style: italic;
+}
+.cs-meta {
+    text-align: right; font-size: 7.5pt; color: #64748b;
+    line-height: 1.5; white-space: nowrap;
+}
+.cs-meta b { color: var(--sheet-ink); font-weight: 600; }
+
+/* ── verdict banner ───────────────────────────────────────────────── */
+
+.cs-verdict {
+    border-left: 4px solid; border-radius: 3px;
+    padding: .5rem .75rem; margin-bottom: .85rem; font-size: 9pt;
+    line-height: 1.5;
+}
+.cs-verdict strong { display: block; font-size: 10pt; margin-bottom: .15rem; }
+.cs-verdict.pass { background: #f0fdf4; border-color: #16a34a; }
+.cs-verdict.fail { background: #fef2f2; border-color: #dc2626; }
+.cs-verdict.none { background: #f8fafc; border-color: #94a3b8; }
+.cs-verdict .cs-caveat {
+    display: block; margin-top: .3rem; font-size: 8pt; color: #475569;
+}
+
+/* ── the sheet grid: REFERENCES | CALCULATIONS | RESULT ───────────── */
+
+.cs-sheet {
+    display: grid;
+    grid-template-columns: var(--sheet-ref) minmax(0, 1fr) var(--sheet-res);
+    border: 1px solid var(--sheet-rule);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: .85rem;
+}
+.cs-sheet .cs-hd {
+    background: var(--sheet-head); color: #fff;
+    font-size: 6.5pt; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; padding: .32rem .45rem;
+}
+.cs-sheet .cs-shead {
+    grid-column: 1 / -1; background: #eef2f7; color: var(--sheet-head);
+    font-weight: 700; font-size: 9pt; padding: .35rem .5rem;
+    border-top: 1px solid var(--sheet-rule);
+}
+.cs-sheet .cs-ref,
+.cs-sheet .cs-calc,
+.cs-sheet .cs-res { border-top: 1px solid var(--sheet-rule-soft); }
+.cs-sheet .cs-ref {
+    padding: .4rem .45rem; font-size: 6.8pt; color: #64748b; line-height: 1.4;
+    hyphens: auto; overflow-wrap: anywhere;
+}
+.cs-sheet .cs-calc {
+    padding: .4rem .55rem; min-width: 0;
+    border-left: 1px solid var(--sheet-rule-soft);
+    border-right: 1px solid var(--sheet-rule-soft);
+}
+.cs-sheet .cs-desc { margin: 0 0 .2rem; font-size: 8pt; color: #475569; }
+.cs-sheet .cs-eq {
+    font-size: 8.5pt; overflow-x: auto; overflow-y: hidden; max-width: 100%;
+}
+.cs-sheet .cs-res {
+    padding: .4rem .45rem; font-size: 7.6pt; font-weight: 700;
+    font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+    line-height: 1.45; overflow-wrap: anywhere;
+}
+.cs-sheet .cs-row-alt .cs-ref,
+.cs-sheet .cs-row-alt .cs-calc,
+.cs-sheet .cs-row-alt .cs-res { background: var(--sheet-zebra); }
+.cs-res .ok   { color: #15803d; }
+.cs-res .fail { color: #b91c1c; }
+.cs-res .dim  { color: #64748b; font-weight: 400; font-size: 7pt;
+                display: block; font-family: inherit; }
+
+/* ── generic report blocks ────────────────────────────────────────── */
+
+.cs-block {
+    border: 1px solid var(--sheet-rule); border-radius: 3px;
+    padding: .6rem .75rem; margin-bottom: .85rem;
+}
+.cs-block h3 {
+    margin: 0 0 .4rem; font-size: 9.5pt; color: var(--sheet-head);
+    padding-bottom: .2rem; border-bottom: 1.5px solid #dbeafe;
+}
+.cs-note { font-size: 7.5pt; color: #64748b; font-style: italic; margin: 0 0 .4rem; }
+
+.cs-table { width: 100%; border-collapse: collapse; font-size: 7.8pt; }
+.cs-table th {
+    background: var(--sheet-head); color: #fff; padding: .28rem .4rem;
+    text-align: left; font-weight: 600; font-size: 7pt;
+    text-transform: uppercase; letter-spacing: .04em;
+}
+.cs-table td {
+    padding: .26rem .4rem; border-bottom: 1px solid var(--sheet-rule-soft);
+    vertical-align: top;
+}
+.cs-table tr:nth-child(even) td { background: var(--sheet-zebra); }
+.cs-table td.num {
+    text-align: right;
+    font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+    white-space: nowrap;
+}
+.cs-table td.mid { text-align: center; }
+
+/* summary: two columns of label/value that stay legible at A4 width */
+.cs-summary { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem .9rem; }
+.cs-summary .cs-item {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: .5rem; padding: .22rem 0; border-bottom: 1px dotted var(--sheet-rule-soft);
+    font-size: 8.2pt;
+}
+.cs-summary .cs-lab { color: #475569; }
+.cs-summary .cs-val {
+    font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+    font-weight: 700; white-space: nowrap;
+}
+.cs-summary .cs-sub { display: block; font-size: 6.8pt; color: #94a3b8;
+                      font-family: inherit; font-weight: 400; text-align: right; }
+
+/* QAQC chips */
+.cs-chip {
+    display: inline-block; padding: .02rem .4rem; border-radius: 999px;
+    font-size: 6.5pt; font-weight: 700; letter-spacing: .05em;
+}
+.cs-chip.pass { background: #dcfce7; color: #15803d; }
+.cs-chip.fail { background: #fee2e2; color: #b91c1c; }
+.cs-qaqc-fail {
+    background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 3px;
+    padding: .45rem .7rem; margin-bottom: .45rem; font-size: 8pt; font-weight: 600;
+}
+
+/* advisories */
+.cs-adv {
+    border-left: 3px solid; border-radius: 3px; padding: .4rem .6rem;
+    margin-bottom: .35rem; font-size: 8pt; line-height: 1.45;
+}
+.cs-adv.critical { background: #fef2f2; border-color: #dc2626; }
+.cs-adv.warning  { background: #fffbeb; border-color: #d97706; }
+.cs-adv.info     { background: #eff6ff; border-color: #3b82f6; }
+.cs-adv .cs-code {
+    font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+    font-size: 6.8pt; font-weight: 700; margin-right: .35rem;
+}
+.cs-adv.critical .cs-code { color: #b91c1c; }
+.cs-adv.warning  .cs-code { color: #b45309; }
+.cs-adv.info     .cs-code { color: #1d4ed8; }
+.cs-adv .cs-clause {
+    display: block; margin-top: .2rem; font-size: 6.8pt;
+    color: #64748b; font-style: italic;
+}
+
+/* ── narrow screens ───────────────────────────────────────────────── */
+/* The two side columns are fixed at 40mm each, which is right on A4 and
+   wrong on a phone: 80mm of fixed width leaves the calculations column
+   nothing, and `minmax(0, 1fr)` lets it collapse to zero rather than
+   overflow. Below the A4 content width the three columns become one
+   stacked block, labelled, so the sheet stays readable. Print is
+   unaffected — the page is always 182mm wide there. */
+@media screen and (max-width: 760px) {
+    .cs-sheet { grid-template-columns: 1fr; }
+    .cs-sheet .cs-hd { display: none; }
+    .cs-sheet .cs-ref,
+    .cs-sheet .cs-calc,
+    .cs-sheet .cs-res { border-left: none; border-right: none; }
+    .cs-sheet .cs-ref { border-top: 1px solid var(--sheet-rule); }
+    .cs-sheet .cs-calc, .cs-sheet .cs-res { border-top: none; }
+    .cs-sheet .cs-ref:before { content: "Ref. "; font-weight: 700; }
+    .cs-sheet .cs-res:before {
+        content: "Result "; font-family: inherit; font-weight: 400;
+        color: #64748b; font-size: 6.8pt;
+    }
+    .cs-summary { grid-template-columns: 1fr; }
+    .cs-table { font-size: 7pt; }
+    .cs-doc { font-size: 10pt; }
+}
+
+/* Wide tables must scroll inside their own box rather than pushing the
+   page sideways. */
+.cs-block .cs-table { display: table; }
+.cs-block > .cs-tablewrap { overflow-x: auto; }
+
+.cs-prov { font-size: 6.8pt; color: #64748b; line-height: 1.6; }
+.cs-prov dt { font-weight: 600; color: #475569; }
+.cs-prov dd { margin: 0 0 .3rem; }
+
+.cs-empty { font-size: 8pt; color: #64748b; font-style: italic; margin: 0; }
+
+/* ── print: real A4 ───────────────────────────────────────────────── */
+
+@page {
+    size: A4 portrait;
+    margin: 14mm 14mm 16mm;
+}
+
+@media print {
+    /* Chrome will not print a background unless asked, and a calculation
+       sheet whose PASS chips come out white is worse than one with none. */
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    html, body { background: #fff !important; }
+
+    /* Everything that is chrome, not document. */
+    .navbar, .disclaimer-bar, .footer, .calc-form, .back-link,
+    .cs-actions, .btn-primary, .btn-print, .ref, .results-diagram,
+    .no-print { display: none !important; }
+
+    .calc-page, .container, main { padding: 0 !important; margin: 0 !important;
+                                   max-width: none !important; }
+    .results-panel { border: none !important; padding: 0 !important;
+                     box-shadow: none !important; background: none !important; }
+
+    .cs-doc { max-width: none; width: 100%; font-size: 9pt; }
+
+    /* Break control. A heading orphaned at the foot of a page, or a single
+       calculation row split across a fold, is what makes a printed sheet
+       feel cheap. */
+    .cs-block, .cs-adv, .cs-verdict { break-inside: avoid; }
+    .cs-sheet { break-inside: auto; }
+    .cs-sheet .cs-shead { break-after: avoid; break-inside: avoid; }
+    .cs-table thead { display: table-header-group; }
+    .cs-table tr { break-inside: avoid; }
+    .cs-masthead { break-after: avoid; }
+    .cs-pagebreak { break-before: page; }
+
+    /* The three-column grid must survive the fold, so the row parts are
+       kept together by their shared class rather than by the grid. */
+    .cs-sheet .cs-ref, .cs-sheet .cs-calc, .cs-sheet .cs-res {
+        break-inside: avoid;
+    }
+
+    a[href]:after { content: ""; }   /* no URL spam in a calc sheet */
+}

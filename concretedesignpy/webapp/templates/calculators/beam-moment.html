@@ -38,6 +38,7 @@
 .report-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .iter-table-wrap { max-height: 400px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 4px; }
 </style>
+{% include "_calcsheet_head.html" %}
 {% endblock %}
 
 {% block content %}
@@ -55,6 +56,17 @@
                         <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="20.68" step="any" required></div>
                         <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="414" step="any" required></div>
                         <div class="form-group"><label>Es (MPa)</label><input type="number" name="es" value="200000" step="1"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1 1 100%;">
+                            <label>Mu demand (kN&middot;m) &mdash; optional</label>
+                            <input type="number" name="mu_demand" value="" step="any"
+                                   placeholder="leave blank to report capacity only">
+                            <small style="display:block;font-size:.72rem;color:var(--gray-500);margin-top:.2rem;">
+                                Used by the calculation sheet. Left blank, the sheet reports
+                                capacity and draws no verdict rather than inventing one.
+                            </small>
+                        </div>
                     </div>
                 </div>
 
@@ -418,4 +430,25 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     });
 });
 </script>
+
+<script>
+var sheetEndpoint = "/api/beam/flexure-report";
+function buildSheetPayload() {
+    var f = document.getElementById('calc-form');
+    var rebar_list = getRebarList();
+    if (!rebar_list.length) { throw new Error('Add at least one rebar layer first.'); }
+    var mu = f.mu_demand ? f.mu_demand.value : '';
+    return {
+        rebar_list: rebar_list,
+        fc: parseFloat(f.fc.value), fy: parseFloat(f.fy.value),
+        b: parseFloat(f.b.value), h: parseFloat(f.h.value),
+        es: parseFloat(f.es.value),
+        mu_demand: (mu === '' || mu === null) ? null : parseFloat(mu)
+    };
+}
+function sheetMeta() {
+    return { project: 'ConcreteDesignPy', member: 'Beam flexure' };
+}
+</script>
+{% include "_calcsheet.html" %}
 {% endblock %}

@@ -1,5 +1,106 @@
 # Changelog - concretedesignpy
 
+## Version 0.9.0 | August 15, 2026
+
+Printable A4 calculation sheets for beam flexure, beam shear and joint
+shear, with server-side QAQC, a Jest suite on the renderer, and
+end-to-end tests across the page/payload boundary.
+
+### Fixed
+- **The navbar badge read `v0.7 | NSCP 2015 / ACI 318-19`.** It was a
+  literal string in `base.html`, it had gone stale, and it was wrong on
+  both halves — the beam and joint modules are NSCP 2015 (= ACI 318M-14),
+  not 318-19. The version is now injected from `concretedesignpy.__version__`
+  by a context processor, so it cannot drift again, and the edition label
+  lives in exactly one place. The long form, on hover, says the edition is
+  per module.
+- **The flexure report shipped the solver's entire iteration log.** Several
+  hundred neutral-axis trial rows, roughly 40 kB per response, none of it
+  used by the sheet, and carrying the string `"Infinity"` in the ratio
+  column of every pre-convergence row. Dropped from the report; the
+  calculator endpoint that wants it still returns it.
+- **`calcsheet.js` left an orphaned `</span>` behind a rejected tag.**
+  `<span class="evil">x</span>` rendered as `x</span>`. No attribute ever
+  survived so it was never an injection, but stray markup on a printed
+  sheet is a defect in its own right. Close tags are now balanced against
+  open tags.
+- **The sheet's two 40 mm side columns did not shrink.** Below roughly
+  760 px the calculations column collapsed to nothing. It now stacks to a
+  single labelled column on narrow screens; print is unaffected, being
+  always 182 mm.
+- **Wide tables pushed the page sideways.** Each data table now scrolls
+  inside its own block.
+
+### Added
+- **`calculators/beam_report.py`** — three calculation sheets in the
+  `column_jacket_design` idiom: `beam_flexure_report`,
+  `beam_shear_report`, `joint_shear_report`. Each returns `provenance`,
+  `request_echo`, REFERENCES | CALCULATIONS | RESULT `sections`,
+  `summary`, `qaqc`, `advisories`, `governing_checks`, `unavailable`,
+  `adequate` and `complete`.
+
+  Four properties are load-bearing:
+
+  1. **QAQC is computed on the server.** Every report re-derives its own
+     reported values along a separate arithmetic path written longhand
+     from the printed clause. The client renders a table and holds no
+     equation. 10 checks on flexure, 11 on shear, 11 on the joint; 753/753
+     across a 69-case sweep.
+  2. **Advisories are part of the answer**, not a footnote. Nothing
+     truncates, filters or hides one.
+  3. **A check with no model is recorded, not faked.** `As,min`, joint
+     transverse reinforcement and the rest land in `unavailable`.
+  4. **A demand is optional; a verdict is not invented without one.**
+     `mu_demand` omitted gives `adequate: null` and a neutral banner
+     rather than a D/C of zero.
+
+  `adequate` and `complete` are **two fields on purpose**. `adequate`
+  means every check the sheet actually computed is satisfied; `complete`
+  means every check the provision requires was actually performed, and is
+  false while anything sits in `unavailable`. Collapsing them into one
+  boolean is what lets a report say "adequate" about a section whose
+  `As,min` was never looked at.
+
+- **Three endpoints**: `POST /api/beam/flexure-report`,
+  `POST /api/beam/shear-report`, `POST /api/joint/shear-report`. The joint
+  route does not read `phi` from the payload — Section 21.2.4.4 fixes it
+  at 0.85.
+- **`static/css/calcsheet.css`** — one stylesheet, three calculators. Real
+  `@page { size: A4 portrait; margin: 14mm 14mm 16mm }`, and the on-screen
+  sheet is clamped to **182 mm**, which is A4 less those margins, so the
+  screen view and the printed view are the same document rather than two
+  layouts. Break control keeps headings with their sections, repeats table
+  headers across a fold, and `print-color-adjust: exact` stops Chrome
+  printing the PASS chips white.
+- **`static/js/calcsheet.js`** — UMD renderer, browser and Jest. It holds
+  no engineering: it compares nothing and derives nothing, because a
+  renderer that recomputes is a second implementation and this repository
+  has already shipped one of those by accident.
+- **`tests/js/calcsheet.test.js`** — 69 Jest cases, 98% statements, 94%
+  branches, 100% functions. What they assert is what makes a printed sheet
+  trustworthy: nothing the server sends is silently dropped, a null is
+  never rendered as a zero, the three verdict states stay three, and
+  untrusted text cannot inject markup.
+- **`tests/test_e2e_reports.py`** — 54 end-to-end cases through a real
+  Flask app over real JSON. Including **a contract test between the page
+  and the payload**: every top-level key the renderer reads must exist in
+  every report the server sends. That is the test that would have caught
+  `result.t_threshold` and `result.vu_joint` — two shipped UI defects that
+  no Python test and no Jest test could see, because each lived on the
+  other side of the boundary.
+- `npm test` runs the front-end suite; `pytest` runs 296 Python tests.
+
+### Known gaps
+The sheets report; they do not certify. Every one of them carries a
+non-empty `unavailable` list, so `complete` is false on all three by
+construction: flexure does not check `As,min`, `rho <= 0.025` or the SMF
+relations; shear does not cover torsion, deep beams or shear friction;
+the joint does not check transverse reinforcement, bar development or the
+column-to-beam strength ratio. The joint sheet also **always sums both bar
+groups**, so an exterior joint needs the caller to pass zeros — it is the
+first advisory on every joint sheet, and nothing in the inputs can detect
+it. Full list in `CLAUSES.md` Part C.
+
 ## Version 0.8.0 | August 15, 2026
 
 Rectification of `Software/14 - concretedesignpy Review — Beam Flexure, Shear,

@@ -176,3 +176,51 @@ function showToast(msg, type) {
         setTimeout(function() { t.remove(); }, 300);
     }, 4000);
 }
+
+/**
+ * Fetch a calculation-sheet report and render it with CalcSheet.
+ *
+ * This is glue, deliberately thin: it does the network and hands the payload
+ * straight to the renderer. Every number, verdict and QAQC comparison in the
+ * result was decided on the server. Nothing here recomputes anything, and
+ * nothing here should start to -- that is how a codebase ends up with two
+ * implementations that disagree.
+ *
+ * @param {string} url        report endpoint
+ * @param {object} payload    request body
+ * @param {string} targetId   element id to render into
+ * @param {object} opts       masthead fields: project, member, date
+ * @param {function} done     optional callback(result)
+ */
+function mountSheet(url, payload, targetId, opts, done) {
+    var target = document.getElementById(targetId);
+    if (!target) { return; }
+    target.innerHTML = '<div class="loading">Building calculation sheet...</div>';
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.status === 'error') {
+            target.innerHTML = '<div class="error-msg">Error: '
+                             + escapeHtml(data.message) + '</div>';
+            return;
+        }
+        var o = opts || {};
+        if (!o.date) { o.date = new Date().toISOString().slice(0, 10); }
+        target.innerHTML = CalcSheet.render(data.result, o);
+        if (window.MathJax && MathJax.typesetPromise) {
+            MathJax.typesetPromise([target]);
+        } else if (window.MathJax && MathJax.typeset) {
+            MathJax.typeset([target]);
+        }
+        if (done) { done(data.result); }
+    })
+    .catch(function(err) {
+        target.innerHTML = '<div class="error-msg">Request failed: '
+                         + escapeHtml(err.message) + '</div>';
+    });
+}

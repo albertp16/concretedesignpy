@@ -20,6 +20,10 @@ from concretedesignpy.calculators.beam_shear import (
     shear_torsion_design,
     shear_design,
 )
+from concretedesignpy.calculators.beam_report import (
+    beam_flexure_report,
+    beam_shear_report,
+)
 from concretedesignpy.calculators.beam_deflection import deflection_computation
 from concretedesignpy.calculators.diagrams import (
     svg_beam_cross_section,
@@ -165,6 +169,66 @@ def _shear_torsion_from_payload(data):
         db_stirrup=float(data.get("db_stirrup", 10)),
         db_long=float(data.get("db_long", 12)),
     )
+
+
+@beam_bp.route("/flexure-report", methods=["POST"])
+def beam_flexure_report_route():
+    """Printable calculation sheet for beam flexural capacity.
+
+    ``mu_demand`` is optional. Omit it and the sheet reports capacity with
+    ``adequate: null`` rather than inventing a verdict.
+    """
+    data = request.get_json()
+    try:
+        mu = data.get("mu_demand")
+        result = beam_flexure_report(
+            rebar_list=data["rebar_list"],
+            fc=float(data["fc"]),
+            fy=float(data["fy"]),
+            b=float(data["b"]),
+            h=float(data["h"]),
+            es=float(data.get("es", 200000)),
+            mu_demand=None if mu in (None, "") else float(mu),
+        )
+        result["svg"] = svg_beam_cross_section(
+            b=float(data["b"]),
+            h=float(data["h"]),
+            rebar_forces=result["raw"]["rebar_forces"],
+            c=result["raw"]["neutral_axis"],
+            a=result["raw"]["a"],
+        )
+        return jsonify({"status": "success", "result": result})
+    except (KeyError, ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@beam_bp.route("/shear-report", methods=["POST"])
+def beam_shear_report_route():
+    """Printable calculation sheet for beam shear design."""
+    data = request.get_json()
+    try:
+        result = beam_shear_report(
+            fc=float(data["fc"]),
+            fyv=float(data["fyv"]),
+            bw=float(data["bw"]),
+            h=float(data["h"]),
+            d=float(data["d"]),
+            vu=float(data["vu"]),
+            s_chosen=float(data["s_chosen"]),
+            n_legs=int(data["n_legs"]),
+            db_stirrup=float(data["db_stirrup"]),
+            cc=float(data.get("cc", 40)),
+            c=float(data.get("c", 65)),
+            nu=float(data.get("nu", 0)),
+            phi=float(data.get("phi", 0.75)),
+        )
+        result["svg"] = svg_shear_diagram(
+            result["raw"]["vc"], result["raw"]["vs"],
+            float(data["vu"]), float(data.get("phi", 0.75)),
+        )
+        return jsonify({"status": "success", "result": result})
+    except (KeyError, ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 
 @beam_bp.route("/shear-torsion", methods=["POST"])

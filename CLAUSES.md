@@ -231,6 +231,63 @@ Reported, not silently worked around. The audit note's §8.1 now carries them.
 
 ---
 
+## Part D — Calculation sheets (v0.9.0)
+
+Three printable A4 sheets expose Parts A and B to a reader:
+`beam_flexure_report`, `beam_shear_report`, `joint_shear_report` in
+`calculators/beam_report.py`, behind `POST /api/beam/flexure-report`,
+`POST /api/beam/shear-report` and `POST /api/joint/shear-report`.
+
+Every provision in Part A that a sheet applies appears on that sheet as a
+REFERENCES | CALCULATIONS | RESULT row carrying its clause and printed
+page, so the register and the output cannot drift apart silently.
+
+### D.1 Two verdict fields, and why
+
+| Field | Means | On these three sheets |
+|---|---|---|
+| `adequate` | every check the sheet **actually computed** is satisfied | varies with the demand; `null` when no demand was supplied |
+| `complete` | every check the **provision requires** was actually performed | **always `false`** — see Part C |
+
+Collapsing these into one boolean is what lets a report say *adequate*
+about a section whose `As,min` was never looked at. The printed verdict
+banner shows both: the headline is `adequate`, and the caveat beneath it
+names how many required checks were not performed.
+
+### D.2 QAQC on every sheet
+
+Each report carries a `qaqc` block that re-derives its own reported values
+along a separate arithmetic path written longhand from the printed clause.
+**10 checks on flexure, 11 on shear, 11 on the joint.** A 69-case sweep
+across all three returns **753/753**.
+
+The joint sheet's `Aj within the column cross-section` row asserts
+R15.5.2.2 as an invariant on the reported `Aj` rather than recomputing the
+same `min()` that produced it — it is the check that would have caught
+F-10 from the output side.
+
+⚠ A QAQC pass means the sheet is internally consistent with the provision
+**as printed**. It is not a statement about any design, and it does not
+replace the textbook pins — an implementation and a re-derivation can
+agree and both be wrong about the Code.
+
+### D.3 What the sheets are tested by
+
+| Layer | Suite | Cases |
+|---|---|---|
+| calculators | `tests/test_beam_*.py`, `tests/test_joint_shear.py` | 84 |
+| server QAQC | `tests/test_qaqc_independent_recomputation.py` | 29 |
+| report + HTTP | `tests/test_e2e_reports.py` | 54 |
+| renderer | `tests/js/calcsheet.test.js` (Jest, jsdom) | 69 |
+
+`test_e2e_reports.py::test_renderer_reads_only_keys_the_server_sends` is a
+**contract test across the page/payload boundary**. Both UI defects this
+repo has shipped — `result.t_threshold` and `result.vu_joint` — were a
+template reading a key its module never returned. Neither a Python test
+nor a JS test can see that; only a test spanning the two can.
+
+---
+
 ## Verification status
 
 | # | Check | Status |
