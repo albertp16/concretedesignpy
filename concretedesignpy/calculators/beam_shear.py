@@ -150,35 +150,64 @@ def compute_shear_spacing(fc, b, d, fyt, vu_required, phi, av,
     Returns
     -------
     dict
-        Keys: spacing (mm), vs_required (N), smax (mm)
+        Keys: spacing (mm, None when the section is UNSAFE), status,
+        vs_required (N), vs_max (N), smax (mm), s_avmin (mm), av_min_per_s,
+        vc_kn.
+
+    Notes
+    -----
+    ``spacing`` is None, and ``status`` is an explicit UNSAFE string, when
+    Vs exceeds the Section 22.5.1.2 limit. A section the Code forbids must
+    not come back carrying a spacing that looks usable.
     """
     vc_result = compute_concrete_shear_strength(fc, b, d, lamda, vc_type, **kwargs)
     vc = vc_result["vc"]
     vs_required = (vu_required / phi) - vc
+    # Section 9.7.6.2.2: the s_max halving trigger.
     vs_limit = (1.0 / 3.0) * math.sqrt(fc) * b * d
+    # Section 22.5.1.2: Vu <= phi (Vc + 0.66 sqrt(fc') bw d). The section
+    # itself is inadequate above this; no stirrup spacing rescues it.
+    vs_max = (2.0 / 3.0) * math.sqrt(fc) * b * d
 
-    if vu_required > phi * vc:
-        use_s = av * fyt * d / vs_required if vs_required > 0 else 600.0
-    else:
-        avmin1 = 0.062 * math.sqrt(fc) * b / fyt
-        avmin2 = 0.35 * b / fyt
-        avmin_per_s = max(avmin1, avmin2)
-        use_s = av / avmin_per_s
+    # Table 9.6.3.4(a) and (b). Applies on BOTH branches: the strength
+    # requirement can be satisfied by a spacing wider than Av,min allows,
+    # and used to be returned unchecked whenever Vu > phi*Vc.
+    avmin_per_s = max(0.062 * math.sqrt(fc) * b / fyt, 0.35 * b / fyt)
+    s_avmin = av / avmin_per_s
 
     if vs_required <= vs_limit:
         smax = min(d / 2.0, 600.0)
     else:
         smax = min(d / 4.0, 300.0)
 
-    spacing = min(use_s, smax)
-
-    return {
-        "spacing": round(spacing, 2),
+    result = {
         "vs_required": round(vs_required, 2),
         "vs_required_kn": round(vs_required / 1000, 2),
+        "vs_max": round(vs_max, 2),
+        "vs_max_kn": round(vs_max / 1000, 2),
         "smax": round(smax, 2),
+        "s_avmin": round(s_avmin, 2),
+        "av_min_per_s": round(avmin_per_s, 4),
         "vc_kn": vc_result["vc_kn"],
     }
+
+    if vs_required > vs_max:
+        result["spacing"] = None
+        result["status"] = (
+            "UNSAFE - Vs required ({:.1f} kN) exceeds the 22.5.1.2 limit "
+            "(2/3)sqrt(f'c)bw*d = {:.1f} kN. Enlarge the section.".format(
+                vs_required / 1000, vs_max / 1000)
+        )
+        return result
+
+    if vu_required > phi * vc:
+        strength_s = av * fyt * d / vs_required if vs_required > 0 else 600.0
+    else:
+        strength_s = 600.0
+
+    result["spacing"] = round(min(strength_s, s_avmin, smax), 2)
+    result["status"] = "OK"
+    return result
 
 
 def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
