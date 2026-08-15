@@ -40,6 +40,11 @@ Modules:
 
 Standards:
     NSCP 2015, ACI 318-19, ASCE 41-17, ACI 440.2R-17, ACI 562-16
+
+    The edition is per module, not per package. beam_moment, beam_shear
+    and joint_shear implement NSCP 2015 (= ACI 318M-14) and say so in
+    their own docstrings; they are not ACI 318-19. The column_jacket
+    modules are the ones written to ACI 318-19.
 """
 
 from concretedesignpy.calculators.beam_moment import calculate_beam_moment

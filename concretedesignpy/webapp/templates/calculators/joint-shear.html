@@ -5,7 +5,7 @@
 <div class="calc-page">
     <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Joint Shear Verification</h1>
-    <p class="ref">NSCP 2015 Section 422.7 &mdash; Special Moment Frames</p>
+    <p class="ref">NSCP 2015 Section 418.8.4 &mdash; Special Moment Frames (&equiv; ACI 318M-14)</p>
 
     <form id="calc-form" class="calc-form">
         <div class="form-section">
@@ -81,7 +81,7 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     submitCalc('/api/joint/shear', payload, function(result) {
         var r = result;
         var tex = '<h3>Calculation Report</h3><div class="mathjax-report">';
-        tex += '<p><b>Reference:</b> NSCP 2015 Section 422.7</p>';
+        tex += '<p><b>Reference:</b> NSCP 2015 Table 418.8.4.1 (\u2261 ACI 318M-14)</p>';
         if (r.t1 !== undefined) tex += '<p>\\[ T_1 = A_{s1} \\cdot 1.25 f_y = ' + r.t1 + ' \\text{ kN} \\]</p>';
         if (r.t2 !== undefined) tex += '<p>\\[ T_2 = A_{s2} \\cdot 1.25 f_y = ' + r.t2 + ' \\text{ kN} \\]</p>';
         if (r.v_joint !== undefined) tex += '<p>\\[ V_{u,joint} = T_1 + T_2 - V_e = ' + r.v_joint + ' \\text{ kN} \\]</p>';

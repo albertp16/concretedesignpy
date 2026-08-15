@@ -2,12 +2,36 @@
 # Copyright (c) Albert Pamonag Engineering Consultancy
 
 """
-Beam Shear Capacity Calculator
-================================
+Beam Shear and Torsion Calculator
+==================================
 
-Computes concrete and steel shear strength, and required stirrup spacing.
+Computes concrete and steel shear strength, required stirrup spacing, and
+combined shear + torsion design. ``shear_torsion_design`` is the package's
+single implementation of Section 22.7.
 
-Reference: NSCP 2015 Section 422.5 / ACI 318-19
+Governing edition
+-----------------
+**NSCP 2015 Sections 422.5 and 422.7** (equivalent to **ACI 318M-14**),
+the governing Philippine code. These modules previously claimed
+ACI 318-19; they never implemented it.
+
+The Vc law here is the 318-14 one, ``Vc = lam sqrt(f'c) bw d / 6``.
+ACI 318-19/-25 Table 22.5.5.1 restructured it: for ``Av >= Av,min`` the
+coefficient is numerically the same 0.17, but for ``Av < Av,min`` it adds
+a ``rho_w^(1/3)`` term and the size-effect factor
+``lam_s = sqrt(2/(1 + d/250)) <= 1`` (Section 22.5.5.1.3). For a 900 mm
+beam without minimum stirrups that is ``lam_s = 0.66``. There is no
+``lam_s`` here, and there should not be under NSCP 2015.
+
+What these functions do NOT check
+---------------------------------
+Deep-beam provisions (Section 9.9), shear friction, shear at
+discontinuities, torsional compatibility redistribution (Section
+22.7.3), and hollow-section torsion -- ``shear_torsion_design`` uses the
+solid-section rows of Tables 22.7.4.1 and 22.7.5.1 only. Longitudinal
+torsion steel is returned as a required area, not distributed; Section
+9.7.5.1 caps its spacing at 300 mm, so a deep beam needs more than the
+four corner bars.
 """
 
 import math
@@ -213,9 +237,11 @@ def compute_shear_spacing(fc, b, d, fyt, vu_required, phi, av,
 def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
                          vu, tu, nu, s_chosen, n_legs, db_stirrup, db_long):
     """
-    Combined shear and torsion design per ACI 318M-14.
+    Combined shear and torsion design per NSCP 2015 Sections 422.5 and
+    422.7 (equivalent to ACI 318M-14).
 
-    Follows the computation flow from EA Spreadsheet Suite.
+    Follows the computation flow from EA Spreadsheet Suite. This is the
+    package's only implementation of Section 22.7.
 
     Parameters
     ----------
@@ -545,7 +571,8 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
 def shear_design(fc, fyv, phi, bw, h, cc, c, d, vu, nu,
                  s_chosen, n_legs, db_stirrup):
     """
-    Beam shear design per ACI 318M-14 (shear only, no torsion).
+    Beam shear design per NSCP 2015 Section 422.5 (= ACI 318M-14),
+    shear only, no torsion.
 
     Parameters
     ----------

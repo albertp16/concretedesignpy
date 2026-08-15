@@ -6,9 +6,33 @@ Beam Flexural Capacity Calculator
 ==================================
 
 Computes nominal and ultimate moment capacity of RC beams
-using iterative neutral axis solver with strain compatibility.
+using an iterative neutral-axis solver with strain compatibility.
 
-Reference: NSCP 2015 / ACI 318-19
+Governing edition
+-----------------
+**NSCP 2015** (equivalent to **ACI 318M-14**), the governing Philippine
+code. This module previously claimed ACI 318-19; it never implemented it.
+The difference that matters is the strength reduction factor: this module
+uses the pre-2019 rule, tension-controlled at ``eps_t >= 0.005``, which is
+NSCP 2015 / ACI 318-14. ACI 318-19 and 318-25 Table 21.2.2 replaced it
+with ``eps_t >= eps_ty + 0.003``; for Grade 550 and 690 bars the two
+differ by +7.5% and +15.5% on phi. Moving to that rule is an edition
+change, deliberately not made here.
+
+``beta1`` follows Table 22.2.2.4.3, including the ``f'c >= 55 -> 0.65``
+floor, and is unchanged between the editions.
+
+What this module does NOT check
+-------------------------------
+``calculate_beam_moment`` computes capacity. It does not certify a
+section. It does not check:
+
+* ``As,min``  -- Section 9.6.1.2 (ACI 318-25M printed 149)
+* ``rho <= 0.025`` for special moment frames -- Section 18.6.3.1
+* ``Mn+ >= 0.5 Mn-`` at a joint face -- Section 18.6.3.2
+* bar spacing, cover, or development
+
+Non-convergence raises ValueError rather than reporting a zero capacity.
 """
 
 import math
