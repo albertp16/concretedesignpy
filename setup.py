@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='concretedesignpy',
-    version='0.7.4',
+    version='0.8.0',
     description='Open-source reinforced concrete design library with web interface (ACI 318-19, NSCP 2015, ASCE 41-17, ACI 562-16)',
     long_description=open('README.md', encoding='utf-8').read(),
     long_description_content_type='text/markdown',

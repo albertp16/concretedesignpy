@@ -20,7 +20,6 @@ from concretedesignpy.calculators.beam_shear import (
     shear_torsion_design,
     shear_design,
 )
-from concretedesignpy.calculators.beam_torsion import torsion_design
 from concretedesignpy.calculators.beam_deflection import deflection_computation
 from concretedesignpy.calculators.diagrams import (
     svg_beam_cross_section,
@@ -142,30 +141,39 @@ def beam_shear():
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
+def _shear_torsion_from_payload(data):
+    """Build the shear_torsion_design() kwargs from a JSON payload.
+
+    Shared by ``/shear-torsion`` and ``/torsion`` so that the package has a
+    single torsion implementation behind both endpoints.
+    """
+    return shear_torsion_design(
+        fc=float(data["fc"]),
+        fyv=float(data["fyv"]),
+        fy=float(data["fy"]),
+        phi=float(data.get("phi", 0.75)),
+        bw=float(data["bw"]),
+        h=float(data["h"]),
+        cc=float(data["cc"]),
+        c=float(data["c"]),
+        d=float(data["d"]),
+        vu=float(data["vu"]),
+        tu=float(data.get("tu", 0)),
+        nu=float(data.get("nu", 0)),
+        s_chosen=float(data.get("s_chosen", 150)),
+        n_legs=int(data.get("n_legs", 4)),
+        db_stirrup=float(data.get("db_stirrup", 10)),
+        db_long=float(data.get("db_long", 12)),
+    )
+
+
 @beam_bp.route("/shear-torsion", methods=["POST"])
 def beam_shear_torsion():
-    """Combined shear and torsion design per ACI 318M-14."""
+    """Combined shear and torsion design per NSCP 2015 / ACI 318M-14."""
     data = request.get_json()
     try:
-        result = shear_torsion_design(
-            fc=float(data["fc"]),
-            fyv=float(data["fyv"]),
-            fy=float(data["fy"]),
-            phi=float(data.get("phi", 0.75)),
-            bw=float(data["bw"]),
-            h=float(data["h"]),
-            cc=float(data["cc"]),
-            c=float(data["c"]),
-            d=float(data["d"]),
-            vu=float(data["vu"]),
-            tu=float(data.get("tu", 0)),
-            nu=float(data.get("nu", 0)),
-            s_chosen=float(data.get("s_chosen", 150)),
-            n_legs=int(data.get("n_legs", 4)),
-            db_stirrup=float(data.get("db_stirrup", 10)),
-            db_long=float(data.get("db_long", 12)),
-        )
-        return jsonify({"status": "success", "result": result})
+        return jsonify({"status": "success",
+                        "result": _shear_torsion_from_payload(data)})
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
@@ -398,32 +406,24 @@ def beam_shear_export():
 
 @beam_bp.route("/torsion", methods=["POST"])
 def beam_torsion():
-    """Perform torsion design checks."""
+    """Torsion design checks.
+
+    Backed by ``beam_shear.shear_torsion_design()``. The separate
+    ``beam_torsion.torsion_design()`` implementation this route used to call
+    was deleted: it returned phi*Tth in N.m while the form supplied Tu in
+    kN.m, so it answered "MAY NEGLECT" for a beam 4.8x over the threshold.
+    """
     data = request.get_json()
     try:
-        result = torsion_design(
-            width=float(data["width"]),
-            height=float(data["height"]),
-            cover=float(data["cover"]),
-            db=float(data["db"]),
-            tf=float(data.get("tf", 0)),
-            beff=float(data.get("beff", data["width"])),
-            phi_torsion=float(data.get("phi_torsion", 0.75)),
-            fc=float(data["fc"]),
-            fy=float(data["fy"]),
-            tu=float(data["tu"]),
-            vc=float(data["vc"]),
-            ds=float(data["ds"]),
-            smax_shear=float(data["smax_shear"]),
-            s_actual=float(data["s_actual"]),
-            av=float(data["av"]),
-            s=float(data["s"]),
-        )
-        g = result["geometry"]
+        result = _shear_torsion_from_payload(data)
+        bw = float(data["bw"])
+        h = float(data["h"])
+        cc = float(data["cc"])
+        ds = float(data.get("db_stirrup", 10))
         result["svg"] = svg_torsion_section(
-            float(data["width"]), float(data["height"]),
-            g["x1"], g["y1"], g["aoh"], g["ph"],
-            float(data["cover"]), float(data["db"]),
+            bw, h,
+            bw - 2 * cc - ds, h - 2 * cc - ds,
+            result["aoh"], result["ph"], cc, ds,
         )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:

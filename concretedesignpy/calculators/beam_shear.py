@@ -2,12 +2,36 @@
 # Copyright (c) Albert Pamonag Engineering Consultancy
 
 """
-Beam Shear Capacity Calculator
-================================
+Beam Shear and Torsion Calculator
+==================================
 
-Computes concrete and steel shear strength, and required stirrup spacing.
+Computes concrete and steel shear strength, required stirrup spacing, and
+combined shear + torsion design. ``shear_torsion_design`` is the package's
+single implementation of Section 22.7.
 
-Reference: NSCP 2015 Section 422.5 / ACI 318-19
+Governing edition
+-----------------
+**NSCP 2015 Sections 422.5 and 422.7** (equivalent to **ACI 318M-14**),
+the governing Philippine code. These modules previously claimed
+ACI 318-19; they never implemented it.
+
+The Vc law here is the 318-14 one, ``Vc = lam sqrt(f'c) bw d / 6``.
+ACI 318-19/-25 Table 22.5.5.1 restructured it: for ``Av >= Av,min`` the
+coefficient is numerically the same 0.17, but for ``Av < Av,min`` it adds
+a ``rho_w^(1/3)`` term and the size-effect factor
+``lam_s = sqrt(2/(1 + d/250)) <= 1`` (Section 22.5.5.1.3). For a 900 mm
+beam without minimum stirrups that is ``lam_s = 0.66``. There is no
+``lam_s`` here, and there should not be under NSCP 2015.
+
+What these functions do NOT check
+---------------------------------
+Deep-beam provisions (Section 9.9), shear friction, shear at
+discontinuities, torsional compatibility redistribution (Section
+22.7.3), and hollow-section torsion -- ``shear_torsion_design`` uses the
+solid-section rows of Tables 22.7.4.1 and 22.7.5.1 only. Longitudinal
+torsion steel is returned as a required area, not distributed; Section
+9.7.5.1 caps its spacing at 300 mm, so a deep beam needs more than the
+four corner bars.
 """
 
 import math
@@ -150,43 +174,74 @@ def compute_shear_spacing(fc, b, d, fyt, vu_required, phi, av,
     Returns
     -------
     dict
-        Keys: spacing (mm), vs_required (N), smax (mm)
+        Keys: spacing (mm, None when the section is UNSAFE), status,
+        vs_required (N), vs_max (N), smax (mm), s_avmin (mm), av_min_per_s,
+        vc_kn.
+
+    Notes
+    -----
+    ``spacing`` is None, and ``status`` is an explicit UNSAFE string, when
+    Vs exceeds the Section 22.5.1.2 limit. A section the Code forbids must
+    not come back carrying a spacing that looks usable.
     """
     vc_result = compute_concrete_shear_strength(fc, b, d, lamda, vc_type, **kwargs)
     vc = vc_result["vc"]
     vs_required = (vu_required / phi) - vc
+    # Section 9.7.6.2.2: the s_max halving trigger.
     vs_limit = (1.0 / 3.0) * math.sqrt(fc) * b * d
+    # Section 22.5.1.2: Vu <= phi (Vc + 0.66 sqrt(fc') bw d). The section
+    # itself is inadequate above this; no stirrup spacing rescues it.
+    vs_max = (2.0 / 3.0) * math.sqrt(fc) * b * d
 
-    if vu_required > phi * vc:
-        use_s = av * fyt * d / vs_required if vs_required > 0 else 600.0
-    else:
-        avmin1 = 0.062 * math.sqrt(fc) * b / fyt
-        avmin2 = 0.35 * b / fyt
-        avmin_per_s = max(avmin1, avmin2)
-        use_s = av / avmin_per_s
+    # Table 9.6.3.4(a) and (b). Applies on BOTH branches: the strength
+    # requirement can be satisfied by a spacing wider than Av,min allows,
+    # and used to be returned unchecked whenever Vu > phi*Vc.
+    avmin_per_s = max(0.062 * math.sqrt(fc) * b / fyt, 0.35 * b / fyt)
+    s_avmin = av / avmin_per_s
 
     if vs_required <= vs_limit:
         smax = min(d / 2.0, 600.0)
     else:
         smax = min(d / 4.0, 300.0)
 
-    spacing = min(use_s, smax)
-
-    return {
-        "spacing": round(spacing, 2),
+    result = {
         "vs_required": round(vs_required, 2),
         "vs_required_kn": round(vs_required / 1000, 2),
+        "vs_max": round(vs_max, 2),
+        "vs_max_kn": round(vs_max / 1000, 2),
         "smax": round(smax, 2),
+        "s_avmin": round(s_avmin, 2),
+        "av_min_per_s": round(avmin_per_s, 4),
         "vc_kn": vc_result["vc_kn"],
     }
+
+    if vs_required > vs_max:
+        result["spacing"] = None
+        result["status"] = (
+            "UNSAFE - Vs required ({:.1f} kN) exceeds the 22.5.1.2 limit "
+            "(2/3)sqrt(f'c)bw*d = {:.1f} kN. Enlarge the section.".format(
+                vs_required / 1000, vs_max / 1000)
+        )
+        return result
+
+    if vu_required > phi * vc:
+        strength_s = av * fyt * d / vs_required if vs_required > 0 else 600.0
+    else:
+        strength_s = 600.0
+
+    result["spacing"] = round(min(strength_s, s_avmin, smax), 2)
+    result["status"] = "OK"
+    return result
 
 
 def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
                          vu, tu, nu, s_chosen, n_legs, db_stirrup, db_long):
     """
-    Combined shear and torsion design per ACI 318M-14.
+    Combined shear and torsion design per NSCP 2015 Sections 422.5 and
+    422.7 (equivalent to ACI 318M-14).
 
-    Follows the computation flow from EA Spreadsheet Suite.
+    Follows the computation flow from EA Spreadsheet Suite. This is the
+    package's only implementation of Section 22.7.
 
     Parameters
     ----------
@@ -245,10 +300,16 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
     # ── 3. Concrete shear strength Vc ──
     # ACI 318M-14 Cl. 22.5.5.1 with axial load modification
     if nu > 0:
-        # Compression: Cl. 22.5.6.1
-        vc_1 = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
-        vc_2 = 0.3 * math.sqrt(fc) * bw * d * (1 + 0.3 * nu * 1000 / ag) / 1000
-        vc = min(vc_1, vc_2)
+        # Compression: Cl. 22.5.6.1, W&M Eq. (6-13aM) printed 282.
+        # There used to be a second branch here,
+        #     0.3 sqrt(fc) bw d (1 + 0.3 Nu/Ag),
+        # taken as an upper bound and selected with min(). It is not an
+        # expression `reference/` supports, and it was provably inert:
+        # its ratio to the branch below is 1.8 (1 + 0.3q)/(1 + q/14) with
+        # q = Nu/Ag, which equals 1.8 at Nu = 0 and only grows, because
+        # 0.3 > 1/14. min() therefore always returned the first branch,
+        # for every Nu >= 0. Deleted rather than replaced.
+        vc = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
         vc_note = "with axial compression"
     elif nu < 0:
         # Tension: Cl. 22.5.7.1
@@ -281,7 +342,13 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         vs = vs_req_raw
         shear_status = "SAFE"
 
-    # Check: Vu <= phi*(Vc + 0.66*sqrt(fc')*bw*d)
+    # Check: Vu <= phi*(Vc + 0.66*sqrt(fc')*bw*d), Cl. 22.5.1.2.
+    # Note this is the SAME condition as vs_req_raw > vs_max above:
+    #   vs_req_raw > vs_max  <=>  vu/phi - vc > vs_max  <=>  vu > vu_max.
+    # shear_status was computed and then thrown away, overall_check being
+    # returned under that key, so "UNSAFE - Vs exceeds limit" could never
+    # reach a caller. It is now returned as vs_status. No verdict changes:
+    # the two agree by construction.
     vu_max = phi * (vc + (2.0 / 3.0) * math.sqrt(fc) * bw * d / 1000)
     overall_check = "SAFE" if vu <= vu_max else "UNSAFE"
 
@@ -322,10 +389,31 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
     })
 
     # ── 6. Torsional thresholds ──
-    # fTcr = phi * sqrt(fc') * (bw*h)^2 / (2*(bw+h)) / 3  (in kN.m)
-    tcr = phi * math.sqrt(fc) * (bw * h) ** 2 / (2 * (bw + h)) / 3 / 1e6
-    # fTth = fTcr / 4
-    tth = tcr / 4
+    # Table 22.7.4.1(a), printed 463, and Table 22.7.5.1, printed 464, both
+    # read at the page. Solid cross section, nonprestressed:
+    #   Tth = 0.083 lam sqrt(fc') (Acp^2/pcp)
+    #   Tcr = 0.33  lam sqrt(fc') (Acp^2/pcp)
+    # and rows (c) of both tables multiply by
+    #   sqrt(1 + Nu/(0.33 Ag lam sqrt(fc')))
+    # for a member subject to axial force, Nu positive for compression and
+    # negative for tension. That factor was omitted entirely -- Nu is an
+    # argument of this function and was never used for torsion. Omitting it
+    # is conservative under compression and UNCONSERVATIVE under net
+    # tension, which is the case that matters.
+    #
+    # The coefficients were also 1/12 and 1/3 (0.0833, 0.3333) against the
+    # printed 0.083 and 0.33, i.e. +0.4% on Tth and +1.0% on Tcr, both in
+    # the direction of neglecting torsion. Now the printed values.
+    lam = 1.0
+    acp = bw * h
+    pcp = 2 * (bw + h)
+    axial_ratio = 1.0 + nu * 1000.0 / (0.33 * ag * lam * math.sqrt(fc))
+    # Net tension beyond 0.33 Ag lam sqrt(fc') drives the radicand negative;
+    # clamp at zero so the thresholds vanish and torsion is always designed
+    # for, rather than taking the square root of a negative number.
+    axial_factor = math.sqrt(max(0.0, axial_ratio))
+    tcr = phi * 0.33 * lam * math.sqrt(fc) * acp ** 2 / pcp * axial_factor / 1e6
+    tth = phi * 0.083 * lam * math.sqrt(fc) * acp ** 2 / pcp * axial_factor / 1e6
 
     if tu < tth:
         torsion_action = "Neglect Torsion"
@@ -364,12 +452,25 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         al = 0
         al_min = 0
     else:
-        # At/s = Tu / (phi * 2 * 1.0 * 0.85 * Aoh * fyv)  per leg
+        # Eq. (22.7.6.1a): Tn = 2 Ao At fyt cot(theta) / s, with
+        # Ao = 0.85 Aoh (22.7.6.1.1) and theta = 45 deg (22.7.6.1.2a),
+        # so At/s = Tu / (phi * 1.7 * Aoh * fyt), per leg.
         at_s = tu * 1e6 / (phi * 2 * 0.85 * aoh * fyv)
-        # Al = Tu * Ph / (2 * phi * Aoh * fy)
-        al = tu * 1e6 * ph / (2 * phi * aoh * fy)
+        # Eq. (22.7.6.1b): Tn = 2 Ao Al fy tan(theta) / ph, same Ao and
+        # theta, so Al = (Tu/phi) ph / (1.7 Aoh fy) cot(theta).
+        # The divisor is 1.7 Aoh, NOT 2 Aoh: 2 Ao = 2 (0.85 Aoh) = 1.7 Aoh.
+        # Using 2 Aoh made every Al exactly 1.7/2 = 0.85 of the required
+        # area, i.e. 15.00% short, unconservatively, on every section.
+        al = tu * 1e6 * ph / (1.7 * phi * aoh * fy)
         # Al,min
-        al_min = (5 * math.sqrt(fc) * bw * h / (12 * fy)
+        # Section 9.6.4.3(a), printed 152:
+        #   Al,min = 0.42 sqrt(f'c) Acp / fy - (At/s) ph (fyt/fy)
+        # This read 5/12 = 0.4167, which is not a printed value. Note the
+        # SI 0.42 is itself 1.16% above the exact conversion of the
+        # inch-pound 5 sqrt(f'c) Acp / fy that Wight & MacGregor works in,
+        # so a ~1% gap against a W&M worked example here is code rounding,
+        # not a defect.
+        al_min = (0.42 * math.sqrt(fc) * bw * h / fy
                   - max(at_s, 0.175 * bw / fyv) * ph * fyv / fy)
 
     steps.append({
@@ -385,7 +486,11 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
     })
 
     # ── 8. Minimum shear reinforcement ──
-    av_min_1 = (1.0 / 16.0) * math.sqrt(fc) * bw / fyv
+    # Table 9.6.3.4(a)/(b), printed 151: 0.062 sqrt(f'c) bw/fyt and
+    # 0.35 bw/fyt. This used to read 1/16 = 0.0625 -- W&M Eq. (6-20M)'s
+    # rounding -- while compute_shear_spacing() used 0.062. Two constants
+    # 0.8% apart for one provision, inside one package. Now one constant.
+    av_min_1 = 0.062 * math.sqrt(fc) * bw / fyv
     av_min_2 = 0.35 * bw / fyv
     av_min = max(av_min_1, av_min_2)
 
@@ -463,6 +568,7 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         "tth": round(tth, 4),
         "torsion_action": torsion_action,
         "shear_status": overall_check,
+        "vs_status": shear_status,
         "dim_check": dim_check,
         "smax": round(smax, 0),
         "spacing_check": spacing_check,
@@ -472,7 +578,8 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
 def shear_design(fc, fyv, phi, bw, h, cc, c, d, vu, nu,
                  s_chosen, n_legs, db_stirrup):
     """
-    Beam shear design per ACI 318M-14 (shear only, no torsion).
+    Beam shear design per NSCP 2015 Section 422.5 (= ACI 318M-14),
+    shear only, no torsion.
 
     Parameters
     ----------
@@ -498,9 +605,10 @@ def shear_design(fc, fyv, phi, bw, h, cc, c, d, vu, nu,
 
     # ── 1. Concrete shear strength Vc ──
     if nu > 0:
-        vc_1 = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
-        vc_2 = 0.3 * math.sqrt(fc) * bw * d * (1 + 0.3 * nu * 1000 / ag) / 1000
-        vc = min(vc_1, vc_2)
+        # Cl. 22.5.6.1 / W&M Eq. (6-13aM), printed 282. See the note in
+        # shear_torsion_design(): the deleted min() second branch had no
+        # basis in reference/ and never governed for any Nu >= 0.
+        vc = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
         vc_note = "with axial compression"
     elif nu < 0:
         vc = max(0, (1 + 0.29 * nu * 1000 / ag) * (math.sqrt(fc) / 6) * bw * d / 1000)
@@ -527,7 +635,11 @@ def shear_design(fc, fyv, phi, bw, h, cc, c, d, vu, nu,
     av_s_req = (vu * 1000 - phi * vc * 1000) / (phi * fyv * d) if vs > 0 else 0
 
     # ── 3. Minimum shear reinforcement ──
-    av_min_1 = (1.0 / 16.0) * math.sqrt(fc) * bw / fyv
+    # Table 9.6.3.4(a)/(b), printed 151: 0.062 sqrt(f'c) bw/fyt and
+    # 0.35 bw/fyt. This used to read 1/16 = 0.0625 -- W&M Eq. (6-20M)'s
+    # rounding -- while compute_shear_spacing() used 0.062. Two constants
+    # 0.8% apart for one provision, inside one package. Now one constant.
+    av_min_1 = 0.062 * math.sqrt(fc) * bw / fyv
     av_min_2 = 0.35 * bw / fyv
     av_min = max(av_min_1, av_min_2)
 

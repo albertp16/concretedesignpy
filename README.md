@@ -72,7 +72,6 @@ concretedesignpy/
 ├── calculators/          # Backend calculation modules
 │   ├── beam_moment.py    # Flexural capacity (neutral axis solver)
 │   ├── beam_shear.py     # Concrete & steel shear strength
-│   ├── beam_torsion.py   # Torsion design checks
 │   ├── beam_deflection.py
 │   ├── column_interaction.py  # P-M interaction diagram
 │   ├── column_flexural.py     # Min flexural strength ratio
