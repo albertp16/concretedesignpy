@@ -50,7 +50,14 @@
                         <option value="3">Other (1.0)</option>
                     </select>
                 </div>
-                <div class="form-group"><label>&phi;</label><input type="number" name="phi" value="0.85" step="any"></div>
+                <div class="form-group">
+                    <label>&lambda; (concrete)</label>
+                    <select name="lamda">
+                        <option value="1.0">Normalweight (1.0)</option>
+                        <option value="0.75">Lightweight (0.75)</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>&phi;</label><input type="number" value="0.85" disabled title="Fixed at 0.85 for SMF joints (Section 21.2.4.4)"></div>
             </div>
         </div>
 

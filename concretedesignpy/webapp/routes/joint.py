@@ -29,7 +29,8 @@ def joint_shear():
             perpendicular_dist=float(data.get("perpendicular_dist", 0)),
             joint_config=int(data.get("joint_config", 1)),
             lamda=float(data.get("lamda", 1.0)),
-            phi=float(data.get("phi", 0.85)),
+            # phi is not taken from the payload: Section 21.2.4.4 fixes it
+            # at 0.85 for special-moment-frame joints.
         )
         return jsonify({"status": "success", "result": result})
     except (KeyError, ValueError, TypeError) as e:
