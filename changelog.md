@@ -1,5 +1,143 @@
 # Changelog - concretedesignpy
 
+## Version 0.8.0 | August 15, 2026
+
+Rectification of `Software/14 - concretedesignpy Review — Beam Flexure, Shear,
+Torsion & Joint Shear`. All nine items closed. Clause register in
+[`CLAUSES.md`](CLAUSES.md).
+
+### Governing edition — decided, and recorded
+
+**These modules target NSCP 2015 (= ACI 318M-14), the governing Philippine
+code.** Every docstring previously claimed ACI 318-19 and none implemented it.
+Because Option A was adopted, the pre-2019 φ law, the ACI 318-14 `Vc` with no
+size-effect `λs`, and the three-row joint γ table are all **correct as written
+and were left alone** — only the labels and the genuine defects were touched.
+Migrating to ACI 318-19/-25 is an edition change that moves φ, `Vc` and the
+joint table together and changes every existing result; it is recorded as open,
+not done.
+
+The edition is **per module**. `column_jacket*` and the other out-of-scope
+modules legitimately do target ACI 318-19 and were not reviewed or touched.
+
+### Removed
+- **`calculators/beam_torsion.py` is deleted.** It computed `φTth` in N·m and
+  compared it against a `Tu` the web form supplied in kN·m, so it returned
+  `"MAY NEGLECT"` and `"status": "PASS"` for a beam 4.8× over the threshold.
+  `At/s` was 1000× low by the same error, and the §22.7.7.1 crushing terms were
+  mis-scaled by two further, different factors (shear ~100× low, torsion ~10⁵×
+  low) so `combined_stress` could never reach the limit. The five scale factors
+  were individually plausible, which is how they survived; the root cause was
+  two implementations of §22.7 in one package, so the duplicate was deleted
+  rather than patched. `POST /api/beam/torsion` now calls
+  `beam_shear.shear_torsion_design()`.
+- **The unsupported `Vc` axial cap `0.3√f'c bw d (1 + 0.3 Nu/Ag)`** is removed
+  from `shear_torsion_design()` and `shear_design()`. Nothing in the reference
+  folder supports it, ACI 318-25M §22.5.6.1 is about prestressed members, and
+  W&M Eq. (6-13a)/(6-13aM) — the provision actually implemented — carries no
+  upper bound. It was also provably inert: the ratio of the two branches is
+  `1.8(1 + 0.3q)/(1 + q/14)` with `q = Nu/Ag ≥ 0`, minimum 1.8 at `Nu = 0` and
+  rising, so `min()` never selected it. **No number changed.**
+
+### Fixed
+- **`Aℓ` was 15.00 % short on every section, unconservatively.** The divisor is
+  `1.7 Aoh`, not `2 Aoh`: Eq. (22.7.6.1b) is `Tn = (2 Ao Aℓ fy / ph) tan θ` and
+  §22.7.6.1.1 permits `Ao = 0.85 Aoh`. W&M Ex 7-2: **694 → 816.2 mm²** against
+  the book's 816.
+- **The effective joint width had no column cap.** `joint_shear_check` now
+  takes a **required, keyword-only** `column_width` and computes
+  `bj = min(column_width, b + h, b + 2x)`. A 500 mm spandrel on a 400 × 600
+  column: **Aj 300 000 → 240 000 mm²**, φVn −20 %. A 700 mm beam was +75 %.
+  Omitting the argument raises `TypeError` rather than silently reproducing the
+  old answer.
+- **`compute_shear_spacing()` skipped `Av,min` whenever `Vu > φVc`** and had no
+  `Vs ≤ ⅔√f'c bw d` test at all — two guards its two sibling functions both
+  have. `Av,min` now enters the `min()` on both branches, and an over-stressed
+  section returns **`spacing = None`** with an explicit `UNSAFE` status naming
+  both numbers. A section the Code forbids must not come back carrying a
+  spacing that looks usable.
+- **The `Nu` term of the torsion thresholds was omitted entirely.** `Nu` was an
+  argument of `shear_torsion_design()` and was never used for torsion. Tables
+  22.7.4.1(a) and 22.7.5.1 row (c) multiply by
+  `√(1 + Nu/(0.33 Ag λ√f'c))`, `Nu` positive for compression. Omitting it is
+  conservative under compression and **unconservative under net tension**. The
+  radicand is clamped at zero, so heavy tension drives the thresholds to zero
+  and torsion is always designed for.
+- **Three coefficients were rounded away from the printed value, all in the
+  direction of neglect:** `Tth` used `1/12` against the printed **0.083**
+  (+0.4 %), `Tcr` used `1/3` against **0.33** (+1.0 %), and `Aℓ,min` used
+  `5/12` against **0.42** (§9.6.4.3(a)). All three now carry the printed value.
+  W&M Ex 7-2 `φTth` lands at **7.958** against the book's 7.959.
+- **Compression bars did not displace the concrete the Whitney block already
+  counted.** `Cs = A's(f's − 0.85 f'c)` per W&M Ex 4-4 step 5, applied **only to
+  bars inside depth `a`** — a bar in compression but below `a` sits in cracked
+  concrete and displaces nothing. **This is cosmetic on `Mn` and is reported as
+  such:** over 4 000 sections `Mn` was overstated by a median +0.05 %, max
+  +1.05 %, because a smaller `c` gave back what the overstated `Cs` took. What
+  was actually wrong was `c` — W&M Ex 4-4 goes from 5.99 in. (−3.35 %) to
+  **6.184 in.** (−0.26 %) against the book's 6.2.
+- **Two `Av,min` constants existed in one package** — 0.062 (ACI 318M) in
+  `compute_shear_spacing()` and `1/16 = 0.0625` (W&M Eq. 6-20M's rounding) in
+  the two design functions. Now one constant, **0.062**, per Table 9.6.3.4.
+- **An unrecognised `joint_config` silently scored 1.0** via
+  `dict.get(cfg, 1.0)`. It now raises.
+- **`shear_status` was computed and discarded**, `overall_check` being returned
+  under that key, so `"UNSAFE - Vs exceeds limit"` could never reach a caller.
+  Returned as `vs_status`. **No verdict changes** — `vs_req_raw > vs_max` and
+  `vu > vu_max` are the same inequality, so the "lost" string always agreed
+  with the one that was returned. A dead local, not a recovered check.
+- **Dead template keys in two calculators.** `beam-torsion.html` read
+  `result.t_threshold` and `result.torsion_status`, and `joint-shear.html` read
+  `result.vu_joint` and `result.vn_joint`. None of the four is a key its module
+  returns, so those lines had never rendered.
+
+### Changed
+- `λ` for joint shear is constrained to **0.75 or 1.0**; anything else raises.
+- **`φ` for special-moment-frame joint shear is fixed at 0.85** and is no longer
+  read from the request payload. §21.2.4.4 gives no caller discretion. The form
+  field is disabled and annotated.
+- The joint γ map is now the module-level constant
+  `NSCP_2015_TABLE_418_8_4_1`, documented as a three-row table, with the ACI
+  318-25M Table 18.8.4.3 eight-row successor recorded beside it.
+- Every in-scope docstring now states its governing edition **and what the
+  function does not check** — `As,min`, `ρ ≤ 0.025`, §18.6.3.1/.2 for flexure;
+  deep beams, shear friction, torsional redistribution and hollow sections for
+  shear/torsion; joint transverse reinforcement, bar development and the
+  strength ratio for joints.
+- `calculators/__init__` now exports `shear_design` and `shear_torsion_design`.
+
+### Added
+- **`CLAUSES.md`** — clause register, rectification record, before/after table,
+  and what is still open.
+- **113 tests across five files**, on four modules that had **none**:
+  `test_beam_flexure.py`, `test_beam_shear.py`, `test_beam_torsion.py`,
+  `test_joint_shear.py`, and `test_qaqc_independent_recomputation.py`. Full
+  suite **242 passed**. Each file carries textbook pins with the printed page in
+  the docstring, regression pins at each fix's acceptance number,
+  **order-of-magnitude unit-sanity tests** — the class of bug the deleted module
+  was — and no-silent-acceptance tests.
+- The QAQC file re-derives **27 reported values along an independent arithmetic
+  path** written straight from the printed clause, in the same idiom as
+  `column_jacket_design._selfcheck`. Run it standalone for a tabular sheet:
+
+      python tests/test_qaqc_independent_recomputation.py
+
+  27/27 pass, worst deviation +0.08 %.
+
+### Known gaps
+Two test pins are deliberately looser than 1 %, and say so in their own
+docstrings. **W&M Ex 19-3 φVn at 3 %:** the book works in psi with γ = 20 while
+NSCP 2015 and ACI 318M print 1.7, and 20/12 = 1.667. **W&M Ex 7-3 `Aℓ,min` at
+2 %:** ACI's SI 0.42 is 1.16 % above the exact conversion of the inch-pound
+`5√f'c Acp/fy`, so that example cannot be reproduced inside 1 % by a *correct*
+SI implementation. A ~2 % gap against this textbook is not automatically a bug.
+
+**NSCP 2015 Table 418.8.4.1 is carried, not re-read** — the reference copy is
+image-only. `Aℓ,min` still uses one `fy` for both `fy` and `fyt`, so
+§9.6.4.3's `(fyt/fy)` ratio is silently 1.0. `joint_shear_check` always sums
+both bar groups, so an exterior joint needs the caller to pass zeros. Hollow-
+section torsion is not implemented. Full list in `CLAUSES.md` Part C.
+
 ## Version 0.7.4 | August 15, 2026
 
 ### Changed
