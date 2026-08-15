@@ -631,10 +631,18 @@ def column_jacket_design(existing, jacket, demand, construction=None,
     # wraps the column.
     _cage = _try(unavailable, "tie cage geometry", lambda: col.core_dims)
     b_c, h_c = _cage if _cage is not None else (None, None)
+    y0_core, y1_core = col.y_core
+    z0_core, z1_core = col.z_core
     geometry = {
         "B": col.B, "H": col.H,
         "existing_b": col.b_e, "existing_h": col.h_e,
         "jacket_thickness": col.t,
+        # Where the existing core actually sits inside the composite, taken
+        # from the engine rather than assumed centred. For a partial jacket it
+        # is NOT centred, and a drawing that centred it would misrepresent the
+        # section the capacities were integrated over.
+        "existing_y0": y0_core, "existing_y1": y1_core,
+        "existing_z0": z0_core, "existing_z1": z1_core,
         "tie_cage_b": b_c, "tie_cage_h": h_c,
         "interface_perimeter": p_int,
         "bars": [

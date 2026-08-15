@@ -15,6 +15,7 @@ from concretedesignpy.webapp.routes import (
     main_bp,
     beam_bp,
     column_bp,
+    column_jacket_bp,
     joint_bp,
     mander_bp,
     section_bp,
@@ -33,6 +34,7 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(beam_bp, url_prefix="/api/beam")
     app.register_blueprint(column_bp, url_prefix="/api/column")
+    app.register_blueprint(column_jacket_bp, url_prefix="/api/column-jacket")
     app.register_blueprint(joint_bp, url_prefix="/api/joint")
     app.register_blueprint(mander_bp, url_prefix="/api/mander")
     app.register_blueprint(section_bp, url_prefix="/api/section")

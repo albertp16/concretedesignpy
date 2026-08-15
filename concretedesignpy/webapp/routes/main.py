@@ -30,6 +30,10 @@ def index():
         {"id": "column-flexural", "name": "Column Flexural Check",
          "desc": "Minimum flexural strength ratio",
          "category": "Column"},
+        {"id": "column-jacket", "name": "Column Concrete Jacketing",
+         "desc": "RC jacket on an existing column — P-M, confinement, "
+                 "shear, interface transfer",
+         "category": "Retrofit"},
         {"id": "joint-shear", "name": "Joint Shear",
          "desc": "Joint shear for special moment frames",
          "category": "Joint"},

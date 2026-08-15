@@ -27,13 +27,24 @@
     refused outright — that section's capacity is a biaxial surface
   - Every result carries `provenance` (including a SHA-256 of the engine
     source) and an `advisories` list of traps the arithmetic cannot rule out
-- **Test suite** — first `tests/` directory in the repo, 86 tests covering the
-  jacketing engine and its design boundary. Independent recomputations are
-  separated from labelled regression pins
+- **Column Jacketing calculator page** — `/calculator/column-jacket`, backed by
+  `POST /api/column-jacket/design`. All 35 inputs, P-M interaction chart
+  (existing vs jacketed with the demand point), a dimensioned section figure
+  drawn from the engine's own bar coordinates, a MathJax calculation report,
+  detailing table, and the full advisories panel. Ported from the APEC
+  jacketing service's browser calculator, keeping its two load-bearing
+  properties: the page holds no equations or engine constants — every number
+  and both figures come from the server — and advisories render in full,
+  never filtered, capped or truncated (the hover reveal only unpaints the
+  remainder, and print reveals everything)
+- **Test suite** — first `tests/` directory in the repo, 109 tests covering the
+  jacketing engine, its design boundary, and the web layer. Independent
+  recomputations are separated from labelled regression pins
 
 ### Changed
 - `setup.py` version synced to `__init__.__version__` (it had been left at
   0.5.0 while the package reported 0.6.0)
+- Navbar version badge was hardcoded `v0.3`; now `v0.7`
 - README: retrofitting/strengthening features, library usage, testing section,
   and the ACI 562-16 / fib B14 / Lampropoulos references
 

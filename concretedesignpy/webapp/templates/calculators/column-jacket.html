@@ -1,0 +1,679 @@
+{% extends "base.html" %}
+{% block title %}Column Concrete Jacketing - ConcreteDesignPy{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<style>
+/* ---- report blocks (not global in style.css -- must be redeclared) ---- */
+.report-section {
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.report-section h4 {
+    font-size: .95rem; color: var(--primary-dark); margin: 0 0 .75rem;
+    padding-bottom: .35rem; border-bottom: 2px solid var(--primary-light);
+}
+.report-eq { padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0; font-size: .9rem; }
+.report-table { width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0; }
+.report-table th {
+    background: var(--primary-dark); color: #fff; padding: .35rem .5rem;
+    text-align: center; font-weight: 600; font-size: .75rem;
+}
+.report-table td {
+    padding: .3rem .5rem; text-align: center; border-bottom: 1px solid var(--gray-200);
+    font-family: "SF Mono","Fira Code",monospace; font-size: .78rem;
+}
+.report-table tr:nth-child(even) { background: var(--gray-50); }
+.report-result {
+    background: #dcfce7; padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0;
+    font-size: .95rem; font-weight: 700;
+}
+.report-ref { font-size: .78rem; color: #3b82f6; font-style: italic; margin: 0; }
+.report-grid { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1rem; font-size: .82rem; }
+.report-grid dt { color: var(--gray-500); }
+.report-grid dd { margin: 0; font-family: "SF Mono","Fira Code",monospace; }
+
+/* ---- page layout ---- */
+.cj-layout { display: flex; gap: 2rem; align-items: flex-start; }
+.cj-left { flex: 0 0 460px; }
+.cj-right { flex: 1; min-width: 0; }
+.cj-right .results-panel { position: sticky; top: 1rem; }
+@media (max-width: 1080px) {
+    .cj-layout { display: block; }
+    .cj-left { width: 100%; }
+    .cj-right .results-panel { position: static; margin-top: 1.5rem; }
+}
+
+/* ---- verdict banner ---- */
+.cj-verdict {
+    border-radius: var(--radius); padding: .9rem 1.1rem; margin-bottom: 1rem;
+    font-size: .88rem; line-height: 1.5; border-left: 5px solid;
+}
+.cj-verdict.pass { background: #dcfce7; border-color: var(--success); }
+.cj-verdict.fail { background: #fee2e2; border-color: var(--danger); }
+.cj-verdict strong { display: block; font-size: 1rem; margin-bottom: .25rem; }
+.cj-verdict .cj-caveat { display: block; margin-top: .4rem; font-size: .8rem; color: var(--gray-700); }
+
+/* ---- advisories: the remainder is HIDDEN, never removed ---- */
+.cj-adv {
+    border-left: 4px solid; border-radius: 4px; padding: .55rem .75rem;
+    margin-bottom: .5rem; font-size: .82rem; line-height: 1.45; cursor: default;
+}
+.cj-adv.critical { background: #fef2f2; border-color: var(--danger); }
+.cj-adv.warning  { background: #fef3c7; border-color: var(--warning); }
+.cj-adv.info     { background: #eff6ff; border-color: var(--primary-light); }
+.cj-adv .cj-code {
+    font-family: "SF Mono","Fira Code",monospace; font-size: .72rem;
+    font-weight: 700; letter-spacing: .02em; margin-right: .4rem;
+}
+.cj-adv.critical .cj-code { color: var(--danger); }
+.cj-adv.warning  .cj-code { color: #b45309; }
+.cj-adv.info     .cj-code { color: var(--primary); }
+.cj-adv .cj-more { float: right; font-size: .7rem; color: var(--gray-500); }
+/* The remainder of every advisory is present in the DOM at all times and is
+   merely not painted until hover/focus. It is never sliced away, filtered or
+   truncated -- an advisory is part of the answer. */
+.cj-adv .cj-rest { display: none; margin-top: .35rem; }
+.cj-adv:hover .cj-rest, .cj-adv:focus-within .cj-rest { display: block; }
+.cj-adv:hover .cj-more, .cj-adv:focus-within .cj-more { visibility: hidden; }
+.cj-adv .cj-clause {
+    display: block; margin-top: .35rem; font-size: .72rem;
+    color: var(--gray-500); font-style: italic;
+}
+
+.cj-figcaption { font-size: .75rem; color: var(--gray-500); text-align: center; margin: .25rem 0 1rem; }
+.cj-prov { font-size: .72rem; color: var(--gray-500); line-height: 1.6; word-break: break-all; }
+.report-full { margin-top: 1.5rem; }
+.cj-hint { font-size: .74rem; color: var(--gray-500); margin: .15rem 0 0; line-height: 1.4; }
+.btn-print {
+    background: #6d28d9; color: #fff; border: none; padding: .6rem 1.1rem;
+    border-radius: var(--radius); font-size: .85rem; font-weight: 600; cursor: pointer;
+}
+.btn-print:disabled { background: var(--gray-300); cursor: not-allowed; }
+.btn-actions { display: flex; gap: .5rem; }
+
+@media print {
+    body { background: #fff !important; }
+    .navbar, .disclaimer-bar, .footer, .calc-form, .back-link,
+    .btn-actions, .btn-primary, .btn-print, .ref { display: none !important; }
+    .calc-page { padding: 0 !important; }
+    .cj-layout { display: block !important; }
+    .cj-right .results-panel { position: static !important; }
+    .report-section, .cj-adv, .results-panel { page-break-inside: avoid; }
+    .report-result, .cj-verdict.pass { background: #dcfce7 !important;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cj-verdict.fail { background: #fee2e2 !important;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Advisories print IN FULL. The screen hides the remainder behind hover
+       purely to keep the panel scannable; paper has no hover, so nothing may
+       stay hidden there. */
+    .cj-adv .cj-rest { display: block !important; }
+    .cj-adv .cj-more { display: none !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="calc-page">
+    <a href="/" class="back-link">&larr; All Calculators</a>
+    <h1>RC Column Concrete Jacketing</h1>
+    <p class="ref">TN-RET-001 &mdash; ACI 318-19, ACI 562-16, ASCE 41-17, Mander et al. (1988) via fib Bulletin 14</p>
+
+    <div class="cj-layout">
+        <div class="cj-left">
+            <form id="calc-form" class="calc-form">
+
+                <div class="form-section">
+                    <h3>Existing Column (as measured, not as drawn)</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Width, b&#8337; (mm)</label>
+                            <input type="number" data-group="existing" data-key="width" value="400" step="any" required></div>
+                        <div class="form-group"><label>Depth, h&#8337; (mm)</label>
+                            <input type="number" data-group="existing" data-key="depth" value="400" step="any" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>f'c existing (MPa)</label>
+                            <input type="number" data-group="existing" data-key="fc" value="21" step="any" required></div>
+                        <div class="form-group"><label>fy existing bars (MPa)</label>
+                            <input type="number" data-group="existing" data-key="fy" value="275" step="any" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Bar diameter (mm)</label>
+                            <input type="number" data-group="existing" data-key="bar_dia" value="20" step="any" required></div>
+                        <div class="form-group"><label>Bars per face (width)</label>
+                            <input type="number" data-group="existing" data-key="bars_per_face_width" data-int="1" value="3" required></div>
+                        <div class="form-group"><label>Bars per face (depth)</label>
+                            <input type="number" data-group="existing" data-key="bars_per_face_depth" data-int="1" value="3" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Cover to bar centre (mm)</label>
+                            <input type="number" data-group="existing" data-key="cover_to_bar_centre" value="50" step="any" required></div>
+                    </div>
+                    <p class="cj-hint">Feed this from a condition assessment. ASCE 41-17 Table 10-1 multiplies
+                        lower-bound f'c by 1.50 and fy by 1.25 for expected values &mdash; decide which you are
+                        passing and stay consistent across the whole form.</p>
+                </div>
+
+                <div class="form-section">
+                    <h3>Jacket</h3>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1 1 100%"><label>Faces enlarged</label>
+                            <select data-group="jacket" data-key="sides">
+                                <option value="four" selected>Four sides</option>
+                                <option value="three">Three sides</option>
+                                <option value="two">Two opposite sides</option>
+                                <option value="one">One side</option>
+                                <option value="two_adjacent">Two adjacent sides (refused)</option>
+                            </select></div>
+                    </div>
+                    <p class="cj-hint">A partial jacket computes its geometry, axial strength and P-M interaction
+                        only. Confinement, shear, interface, stiffness and detailing have no model for it and are
+                        reported unavailable rather than estimated, and P&middot;e is not added to Mu. Two
+                        <em>adjacent</em> faces are refused outright &mdash; that section's capacity is a biaxial
+                        surface, not a curve.</p>
+                    <div class="form-row">
+                        <div class="form-group"><label>Thickness, t (mm)</label>
+                            <input type="number" data-group="jacket" data-key="thickness" value="100" step="any" required></div>
+                        <div class="form-group"><label>f'c jacket (MPa)</label>
+                            <input type="number" data-group="jacket" data-key="fc" value="28" step="any" required></div>
+                        <div class="form-group"><label>fy jacket bars (MPa)</label>
+                            <input type="number" data-group="jacket" data-key="fy" value="415" step="any" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Bar diameter (mm)</label>
+                            <input type="number" data-group="jacket" data-key="bar_dia" value="20" step="any" required></div>
+                        <div class="form-group"><label>Bars per face (width)</label>
+                            <input type="number" data-group="jacket" data-key="bars_per_face_width" data-int="1" value="4" required></div>
+                        <div class="form-group"><label>Bars per face (depth)</label>
+                            <input type="number" data-group="jacket" data-key="bars_per_face_depth" data-int="1" value="4" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Clear cover to tie (mm)</label>
+                            <input type="number" data-group="jacket" data-key="clear_cover_to_tie" value="40" step="any" required></div>
+                        <div class="form-group"><label>Tie diameter (mm)</label>
+                            <input type="number" data-group="jacket" data-key="tie_dia" value="12" step="any" required></div>
+                        <div class="form-group"><label>Tie spacing, s (mm)</label>
+                            <input type="number" data-group="jacket" data-key="tie_spacing" value="100" step="any" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Tie fyt (MPa)</label>
+                            <input type="number" data-group="jacket" data-key="tie_fy" value="275" step="any" required></div>
+                        <div class="form-group"><label>Tie legs each way</label>
+                            <input type="number" data-group="jacket" data-key="tie_legs_each_way" data-int="1" value="2" required></div>
+                        <div class="form-group"><label>Bars restrained per face</label>
+                            <input type="number" data-group="jacket" data-key="bars_restrained_per_face" data-int="1" value="2" required></div>
+                    </div>
+                    <p class="cj-hint">Bars restrained per face drives the Mander k&#8337; and is the input most often
+                        set wrong. A plain perimeter hoop restrains only the four corner bars &mdash; that is 2.
+                        Restraining every bar requires crossties (ACI 318-19 25.7.2.3); assuming full restraint
+                        when the detail is a plain hoop overstates f'cc by roughly 12%.</p>
+                    <div class="form-row">
+                        <div class="form-group"><label>Transverse steel</label>
+                            <select data-group="jacket" data-key="spiral" data-bool="1">
+                                <option value="false" selected>Ties</option>
+                                <option value="true">Spiral (ACI 318-19 25.7.3)</option>
+                            </select></div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Factored Demand on the Jacketed Column</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Pu (kN, compression +)</label>
+                            <input type="number" data-group="demand" data-key="Pu" value="3200" step="any" required></div>
+                        <div class="form-group"><label>Mu (kN-m)</label>
+                            <input type="number" data-group="demand" data-key="Mu" value="520" step="any" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Vu (kN)</label>
+                            <input type="number" data-group="demand" data-key="Vu" value="300" step="any" required></div>
+                        <div class="form-group"><label>Clear height, L (mm)</label>
+                            <input type="number" data-group="demand" data-key="clear_height" value="2800" step="any" required></div>
+                    </div>
+                    <p class="cj-hint">After jacketing the column is several times stiffer and attracts more force.
+                        If these came from a model of the <em>un</em>-jacketed structure, every result below is
+                        optimistic.</p>
+                </div>
+
+                <div class="form-section">
+                    <h3>Construction</h3>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1 1 100%"><label>Jacket continuity</label>
+                            <select data-group="construction" data-key="continuity">
+                                <option value="discontinuous" selected>Discontinuous &mdash; stops at slab soffit</option>
+                                <option value="continuous">Continuous &mdash; cored through slab, bears on foundation</option>
+                            </select></div>
+                    </div>
+                    <p class="cj-hint">The single most consequential field. A jacket stopping at the slab soffit must
+                        push its entire axial share across the interface; one bearing on the foundation transfers it
+                        by direct bearing and the axial term vanishes.</p>
+                    <div class="form-row">
+                        <div class="form-group"><label>P&#8320; at casting (kN)</label>
+                            <input type="number" data-group="construction" data-key="P0_at_casting" value="900" step="any" required></div>
+                        <div class="form-group"><label>P service (kN)</label>
+                            <input type="number" data-group="construction" data-key="P_service" value="2240" step="any" required></div>
+                        <div class="form-group"><label>Creep coefficient</label>
+                            <input type="number" data-group="construction" data-key="creep_coefficient" value="2.0" step="any" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1 1 100%"><label>Interface surface</label>
+                            <select data-group="construction" data-key="interface_surface">
+                                <option value="roughened_6mm" selected>Roughened to 6 mm amplitude</option>
+                                <option value="not_roughened">Not intentionally roughened</option>
+                                <option value="monolithic">Monolithic</option>
+                                <option value="steel">Steel</option>
+                            </select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Dowel diameter (mm)</label>
+                            <input type="number" data-group="construction" data-key="dowel_dia" value="16" step="any" required></div>
+                        <div class="form-group"><label>Dowels per row</label>
+                            <input type="number" data-group="construction" data-key="dowels_per_row" data-int="1" value="2" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Dowel row spacing (mm)</label>
+                            <input type="number" data-group="construction" data-key="dowel_row_spacing" value="250" step="any" required></div>
+                        <div class="form-group"><label>Dowel fy (MPa)</label>
+                            <input type="number" data-group="construction" data-key="dowel_fy" value="415" step="any" required></div>
+                    </div>
+                </div>
+
+                <div class="btn-actions">
+                    <button type="submit" class="btn-primary" style="flex:1">Calculate</button>
+                    <button type="button" id="btn-print" class="btn-print" disabled>Print Report</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="cj-right">
+            <div id="results" class="results-panel" style="display:none;">
+                <div id="cj-verdict"></div>
+                <h2>Figure 1 &mdash; P-M Interaction</h2>
+                <div id="chart-pm"></div>
+                <p class="cj-figcaption" id="cap-pm"></p>
+                <h2>Figure 2 &mdash; Jacketed Section</h2>
+                <div id="chart-section"></div>
+                <p class="cj-figcaption" id="cap-section"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="results-report" class="report-full" style="display:none;"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// This page holds NO engineering equations and performs NO arithmetic on the
+// values it is given. Every number below is printed exactly as the server
+// returned it; the LaTeX is annotation with server values substituted in.
+// Arithmetic appears only where a figure has to be laid out (rectangle corners
+// and axis padding), and is confined to the two draw functions.
+// ---------------------------------------------------------------------------
+var LAST = null;
+
+function num(x, dp) {
+    if (x === null || x === undefined || (typeof x === 'number' && !isFinite(x))) return '&mdash;';
+    return typeof x === 'number' ? x.toFixed(dp === undefined ? 2 : dp) : String(x);
+}
+function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function lockPrint() {
+    var b = document.getElementById('btn-print');
+    b.disabled = true;
+    LAST = null;
+}
+
+// ---------------------------------------------------------------- payload
+function collect() {
+    var payload = { existing: {}, jacket: {}, demand: {}, construction: {} };
+    var nodes = document.querySelectorAll('#calc-form input[data-group], #calc-form select[data-group]');
+    Array.prototype.forEach.call(nodes, function(el) {
+        var g = el.getAttribute('data-group'), k = el.getAttribute('data-key');
+        var v = el.value;
+        if (el.getAttribute('data-bool')) payload[g][k] = (v === 'true');
+        else if (el.tagName === 'SELECT') payload[g][k] = v;
+        else if (el.getAttribute('data-int')) payload[g][k] = parseInt(v, 10);
+        else payload[g][k] = parseFloat(v);
+    });
+    return payload;
+}
+
+// ---------------------------------------------------------------- verdict
+function renderVerdict(d) {
+    var cls = d.adequate ? 'pass' : 'fail';
+    var head = d.adequate ? 'All computed checks satisfied'
+                          : 'One or more checks did not pass';
+    var h = '<div class="cj-verdict ' + cls + '"><strong>' + head + '</strong>';
+    if (d.governing_checks.length) {
+        h += 'Governing: ' + esc(d.governing_checks.join(', ')) + '.';
+    }
+    h += '<span class="cj-caveat">&ldquo;Adequate&rdquo; is a statement about the computed checks '
+       + 'only &mdash; it is deliberately not called &ldquo;safe&rdquo;. Read every advisory below '
+       + 'before relying on it.</span></div>';
+    document.getElementById('cj-verdict').innerHTML = h;
+}
+
+// ------------------------------------------------------------- P-M chart
+function drawPM(d) {
+    var it = d.interaction;
+    var traces = [
+        // Plotly does not decode HTML entities -- these strings use literal
+        // Unicode. It DOES honour <sub>/<sup>, so those stay as tags.
+        { x: it.design_jacketed.map(function(p) { return p.M; }),
+          y: it.design_jacketed.map(function(p) { return p.P; }),
+          mode: 'lines', name: 'φ jacketed', line: { color: '#1e40af', width: 2.5 } },
+        { x: it.design_existing.map(function(p) { return p.M; }),
+          y: it.design_existing.map(function(p) { return p.P; }),
+          mode: 'lines', name: 'φ existing', line: { color: '#93c5fd', width: 2, dash: 'dash' } },
+        { x: [d.request_echo.demand.Mu], y: [d.request_echo.demand.Pu],
+          mode: 'markers', name: 'demand', marker: { color: '#dc2626', size: 11,
+          line: { color: '#fff', width: 1.5 } } },
+    ];
+    var cap = d.axial.phiPn_max_jacketed;
+    var layout = {
+        title: { text: 'P–M Interaction — existing vs jacketed', font: { size: 14 } },
+        // Plotly 3 removed the `title: 'string'` shorthand -- a bare string is
+        // silently dropped and the axis renders unlabelled.
+        xaxis: { title: { text: 'φM<sub>n</sub> (kN·m)' }, gridcolor: '#e5e7eb',
+                 zeroline: true, rangemode: 'tozero' },
+        yaxis: { title: { text: 'φP<sub>n</sub> (kN)' }, gridcolor: '#e5e7eb', zeroline: true },
+        shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: cap, y1: cap,
+                   line: { color: '#6b7280', width: 1, dash: 'dot' } }],
+        annotations: [{ xref: 'paper', x: 0.02, y: cap, text: 'φP<sub>n,max</sub> = ' + num(cap, 0) + ' kN',
+                        showarrow: false, yanchor: 'bottom', font: { size: 10, color: '#6b7280' } }],
+        showlegend: true,
+        legend: { orientation: 'h', x: 0, y: 1.12, bgcolor: 'rgba(255,255,255,0.85)',
+                  bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
+        height: 520, margin: { t: 70, r: 20, b: 60, l: 70 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'closest',
+    };
+    Plotly.newPlot('chart-pm', traces, layout,
+        { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false });
+
+    var u = d.interaction.utilisation_jacketed;
+    document.getElementById('cap-pm').innerHTML =
+        'Demand Pu = ' + num(d.request_echo.demand.Pu, 0) + ' kN, Mu = ' + num(d.request_echo.demand.Mu, 0)
+        + ' kN-m. &phi;Mn at Pu = ' + num(it.phiMn_at_Pu_jacketed, 1) + ' kN-m, D/C = '
+        + (u === null ? 'beyond capacity' : num(u, 3)) + '.';
+}
+
+// ---------------------------------------------------------- section figure
+function drawSection(g) {
+    // Layout arithmetic only. Engine axes: y runs down from the jacket outer
+    // face, z across from the centreline, so z is horizontal and the y axis is
+    // reversed to read upright. Every coordinate comes from the response.
+    var PAD = 40;
+    var halfB = g.B / 2;
+    var shapes = [
+        { type: 'rect', x0: -halfB, x1: halfB, y0: 0, y1: g.H,
+          line: { color: '#1e40af', width: 2 }, fillcolor: 'rgba(30,64,175,0.10)' },
+        { type: 'rect', x0: g.existing_z0, x1: g.existing_z1, y0: g.existing_y0, y1: g.existing_y1,
+          line: { color: '#6b7280', width: 1.5, dash: 'dash' }, fillcolor: 'rgba(107,114,128,0.14)' },
+    ];
+    if (g.tie_cage_b && g.tie_cage_h) {
+        var cx = g.tie_cage_b / 2;
+        var cy0 = (g.H - g.tie_cage_h) / 2;
+        var cy1 = (g.H + g.tie_cage_h) / 2;
+        shapes.push({ type: 'rect', x0: -cx, x1: cx, y0: cy0, y1: cy1,
+                      line: { color: '#dc2626', width: 1.2 }, fillcolor: 'rgba(0,0,0,0)' });
+    }
+    g.bars.forEach(function(b) {
+        var r = b.dia / 2;
+        shapes.push({ type: 'circle', x0: b.z - r, x1: b.z + r, y0: b.y - r, y1: b.y + r,
+                      line: { color: '#111827', width: 1 },
+                      fillcolor: b.zone === 'jacket' ? '#1e40af' : '#111827' });
+    });
+
+    // Shapes carry no hover or legend, so a transparent marker trace per zone
+    // supplies both.
+    function zoneTrace(zone, color, label) {
+        var pts = g.bars.filter(function(b) { return b.zone === zone; });
+        return { x: pts.map(function(b) { return b.z; }), y: pts.map(function(b) { return b.y; }),
+                 mode: 'markers', name: label,
+                 marker: { color: color, size: 8, opacity: 0 },
+                 hovertemplate: label + '<br>z %{x:.0f}, y %{y:.0f} mm<extra></extra>' };
+    }
+    var traces = [zoneTrace('existing', '#111827', 'existing bars'),
+                  zoneTrace('jacket', '#1e40af', 'jacket bars')];
+
+    var layout = {
+        title: { text: 'Jacketed section — ' + num(g.B, 0) + ' × ' + num(g.H, 0) + ' mm',
+                 font: { size: 14 } },
+        xaxis: { visible: false, range: [-halfB - PAD, halfB + PAD], scaleanchor: 'y', scaleratio: 1 },
+        yaxis: { visible: false, range: [g.H + PAD, -PAD] },
+        showlegend: true,
+        legend: { orientation: 'h', x: 0, y: 1.08, font: { size: 10 } },
+        height: 470, margin: { t: 60, r: 20, b: 20, l: 20 },
+        plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+    };
+    Plotly.newPlot('chart-section', traces, layout, { responsive: true, displayModeBar: false });
+
+    document.getElementById('cap-section').innerHTML =
+        'Existing ' + num(g.existing_b, 0) + ' &times; ' + num(g.existing_h, 0) + ' mm, jacket t = '
+        + num(g.jacket_thickness, 0) + ' mm. Tie cage '
+        + (g.tie_cage_b ? num(g.tie_cage_b, 0) + ' &times; ' + num(g.tie_cage_h, 0) + ' mm c/c'
+                        : 'not applicable to a partial jacket')
+        + '. Interface perimeter p = ' + num(g.interface_perimeter, 0) + ' mm.';
+}
+
+// -------------------------------------------------------------- advisories
+function advisory(a) {
+    // Split at the first sentence boundary purely to decide what is painted
+    // before hover. Both halves are always emitted, so lede + rest reproduces
+    // the server's message exactly.
+    var cut = a.message.search(/\.\s+/);
+    var lede = cut === -1 ? a.message : a.message.slice(0, cut + 1);
+    var rest = cut === -1 ? '' : a.message.slice(cut + 1).trim();
+    var h = '<div class="cj-adv ' + esc(a.severity) + '" tabindex="0">';
+    if (rest) h += '<span class="cj-more">&#9432; more</span>';
+    h += '<span class="cj-code">' + esc(a.severity.toUpperCase()) + ' &middot; ' + esc(a.code) + '</span>';
+    h += '<span class="cj-lede">' + esc(lede) + '</span>';
+    if (rest) h += '<span class="cj-rest">' + esc(rest) + '</span>';
+    if (a.clause) h += '<span class="cj-clause">' + esc(a.clause) + '</span>';
+    return h + '</div>';
+}
+
+// ------------------------------------------------------------------ report
+function buildReport(d) {
+    var sec = d.section, ax = d.axial, it = d.interaction, cf = d.confinement;
+    var sh = d.shear, pl = d.preload, inf = d.interface, st = d.stiffness, mo = d.monolithic;
+    var h = '';
+
+    h += '<div class="report-section"><h4>1. Jacketed Section</h4>';
+    h += '<p class="report-ref">Existing column enlarged on ' + esc(d.request_echo.jacket.sides) + ' face(s)</p>';
+    h += '<dl class="report-grid">';
+    h += '<dt>Overall B &times; H</dt><dd>' + num(sec.B, 0) + ' &times; ' + num(sec.H, 0) + ' mm</dd>';
+    h += '<dt>Ag existing / jacketed</dt><dd>' + num(sec.Ag_existing, 0) + ' / ' + num(sec.Ag_jacketed, 0) + ' mm&sup2;</dd>';
+    h += '<dt>Ast existing / jacket</dt><dd>' + num(sec.Ast_existing, 0) + ' / ' + num(sec.Ast_jacket, 0) + ' mm&sup2;</dd>';
+    h += '<dt>Total steel ratio</dt><dd>' + num(sec.rho_total_percent, 2) + ' %</dd>';
+    h += '<dt>&beta;&#8321; existing / jacket</dt><dd>' + num(sec.beta1_existing, 3) + ' / ' + num(sec.beta1_jacket, 3) + '</dd>';
+    h += '</dl></div>';
+
+    h += '<div class="report-section"><h4>2. Axial Strength</h4>';
+    h += '<p class="report-ref">' + esc(ax.clause) + '</p>';
+    h += '<div class="report-eq">\\[ P_o = 0.85 f\'_c (A_g - A_{st}) + f_y A_{st} \\]</div>';
+    h += '<div class="report-eq">\\[ P_{o,existing} = ' + num(ax.Po_existing, 1) + '\\text{ kN} \\qquad '
+       + 'P_{o,jacketed} = ' + num(ax.Po_jacketed, 1) + '\\text{ kN} \\]</div>';
+    h += '<div class="report-result">\\[ \\mathbf{\\phi P_{n,max} = ' + num(ax.phiPn_max_jacketed, 1)
+       + '\\text{ kN}} \\quad \\text{(gain } \\times ' + num(ax.strength_gain, 3) + ')\\]</div>';
+    h += '</div>';
+
+    if (cf) {
+        h += '<div class="report-section"><h4>3. Confinement of the Existing Core</h4>';
+        h += '<p class="report-ref">' + esc(cf.clause) + '</p>';
+        h += '<div class="report-eq">\\[ f_l = \\tfrac{1}{2} k_e \\rho_{st} f_{yh} = ' + num(cf.fl, 3) + '\\text{ MPa} \\]</div>';
+        h += '<div class="report-eq">\\[ k_e = ' + num(cf.ke_computed, 3) + ' \\quad \\rho_s = '
+           + num(cf.rho_s_percent, 3) + '\\% \\]</div>';
+        h += '<div class="report-result">\\[ \\mathbf{f\'_{cc} = ' + num(cf.fcc_core, 2) + '\\text{ MPa}} '
+           + '\\quad (\\times ' + num(cf.strength_gain, 3) + ') \\quad \\varepsilon_{cu} = '
+           + num(cf.eps_cu_core, 5) + ' \\]</div>';
+        h += '<p class="report-ref">k&#8337; is computed from the actual tie and bar geometry, never assumed. '
+           + 'Unconfined &epsilon;cu for comparison: ' + num(cf.eps_cu_unconfined, 4) + '</p>';
+        h += '</div>';
+    }
+
+    h += '<div class="report-section"><h4>4. P-M Interaction</h4>';
+    h += '<p class="report-ref">' + esc(it.clause) + ' &mdash; ' + esc(it.stress_block) + '</p>';
+    h += '<table class="report-table"><tr><th></th><th>&phi;Mn at Pu (kN-m)</th><th>D/C</th></tr>';
+    h += '<tr><td>Existing</td><td>' + num(it.phiMn_at_Pu_existing, 1) + '</td><td>'
+       + (it.utilisation_existing === null ? 'beyond capacity' : num(it.utilisation_existing, 3)) + '</td></tr>';
+    h += '<tr><td>Jacketed</td><td>' + num(it.phiMn_at_Pu_jacketed, 1) + '</td><td class="'
+       + (it.utilisation_jacketed !== null && it.utilisation_jacketed <= 1 ? 'status-pass' : 'status-fail')
+       + '" style="font-weight:700">'
+       + (it.utilisation_jacketed === null ? 'beyond capacity' : num(it.utilisation_jacketed, 3)) + '</td></tr>';
+    h += '</table></div>';
+
+    if (sh) {
+        h += '<div class="report-section"><h4>5. Shear</h4>';
+        h += '<p class="report-ref">' + esc(sh.clause) + ' &mdash; jacket ties only</p>';
+        h += '<div class="report-eq">\\[ V_n = V_c + V_s = ' + num(sh.Vc, 1) + ' + ' + num(sh.Vs, 1)
+           + '\\text{ kN} \\]</div>';
+        h += '<div class="report-eq">\\[ d = ' + num(sh.d_used, 1) + '\\text{ mm (extreme tension bar)} \\qquad '
+           + 'f\'_c = ' + num(sh.fc_used, 1) + '\\text{ MPa} \\]</div>';
+        h += '<div class="report-result">\\[ \\mathbf{\\phi V_n = ' + num(sh.phiVn, 1) + '\\text{ kN}} \\quad '
+           + '\\tfrac{V_u}{\\phi V_n} = ' + num(sh.utilisation, 3) + ' \\]</div>';
+        h += '<table class="report-table"><tr><th>Vp at hinging (kN)</th><th>&phi;Vn / Vp</th><th>Failure mode</th></tr>';
+        h += '<tr><td>' + num(sh.Vp_at_hinging, 1) + '</td><td>' + num(sh.phiVn_over_Vp, 3) + '</td><td class="'
+           + (sh.failure_mode === 'flexure-controlled' ? 'status-pass' : 'status-fail')
+           + '" style="font-weight:700">' + esc(sh.failure_mode) + '</td></tr></table></div>';
+    }
+
+    if (inf) {
+        h += '<div class="report-section"><h4>6. Interface Shear Transfer</h4>';
+        h += '<p class="report-ref">' + esc(inf.clause) + '</p>';
+        h += '<div class="report-eq">\\[ v_u = v_{flexural} + v_{axial} = ' + num(inf.v_flexural, 3)
+           + ' + ' + num(inf.v_axial, 3) + ' = ' + num(inf.v_u, 3) + '\\text{ MPa} \\]</div>';
+        h += '<p class="report-ref">Both capacity routes are reported and neither is chosen &mdash; crediting the '
+           + '1.8 MPa cohesion term is an Engineer-of-Record decision.</p>';
+        h += '<table class="report-table"><tr><th>Route</th><th>&phi;vn (MPa)</th><th>DCR</th></tr>';
+        h += '<tr><td>Dowels only (22.9)</td><td>' + num(inf.phi_vn_dowels_only, 3) + '</td><td class="'
+           + (inf.DCR_dowels_only <= 1 ? 'status-pass' : 'status-fail') + '">' + num(inf.DCR_dowels_only, 3) + '</td></tr>';
+        h += '<tr><td>With bond (Table 16.4.4.2)</td><td>' + num(inf.phi_vn_with_bond, 3) + '</td><td class="'
+           + (inf.DCR_with_bond <= 1 ? 'status-pass' : 'status-fail') + '">' + num(inf.DCR_with_bond, 3) + '</td></tr>';
+        h += '</table>';
+        h += '<dl class="report-grid">';
+        h += '<dt>Continuity</dt><dd>' + esc(inf.continuity) + '</dd>';
+        h += '<dt>&rho;v provided</dt><dd>' + num(inf.rho_v_provided_percent, 4) + ' %</dd>';
+        h += '<dt>Dowel spacing for dowels alone</dt><dd>'
+           + (inf.dowel_spacing_required_dowels_only === null ? '&mdash;'
+              : num(inf.dowel_spacing_required_dowels_only, 0) + ' mm') + '</dd>';
+        h += '<dt>ACI 562-16 bond testing</dt><dd>' + (inf.aci562_bond_testing_required ? 'REQUIRED' : 'not triggered') + '</dd>';
+        h += '<dt>ACI 562-16 interface reinforcement</dt><dd>'
+           + (inf.aci562_interface_reinforcement_required ? 'REQUIRED' : 'not triggered') + '</dd>';
+        h += '</dl></div>';
+    }
+
+    if (pl && st) {
+        h += '<div class="report-section"><h4>7. Preload and Stiffness</h4>';
+        h += '<div class="report-eq">\\[ \\varepsilon_0 = ' + num(pl.eps_0, 6) + ' \\qquad '
+           + '\\sigma_{core} = ' + num(pl.sigma_core, 3) + '\\text{ MPa} \\]</div>';
+        h += '<table class="report-table"><tr><th></th><th>This jacket</th><th>Monolithic split</th></tr>';
+        h += '<tr><td>Jacket share of axial load</td><td>' + num(pl.jacket_share_percent, 1) + ' %</td><td>'
+           + num(pl.jacket_share_monolithic_percent, 1) + ' %</td></tr>';
+        h += '<tr><td>Core stress (MPa)</td><td>' + num(pl.sigma_core, 3) + '</td><td>'
+           + num(pl.sigma_core_monolithic, 3) + '</td></tr></table>';
+        h += '<div class="report-result">\\[ \\text{Core overstress} = \\times ' + num(pl.core_overstress, 3)
+           + ' \\qquad \\tfrac{EI_{jacketed}}{EI_{existing}} = ' + num(st.EI_ratio, 3) + ' \\]</div>';
+        h += '<p class="report-ref">' + esc(st.note) + '</p>';
+        h += '</div>';
+    }
+
+    if (mo && mo.applicable) {
+        h += '<div class="report-section"><h4>8. Monolithic Coefficients &mdash; reported, NOT applied</h4>';
+        h += '<p class="report-ref">' + esc(mo.clause) + '</p>';
+        h += '<table class="report-table"><tr><th>K_F</th><th>K_k</th><th>K_dy</th><th>K_du</th><th>&nu;</th><th>r</th></tr>';
+        h += '<tr><td>' + num(mo.K_F, 3) + '</td><td>' + num(mo.K_k, 3) + '</td><td>' + num(mo.K_dy, 3)
+           + '</td><td>' + num(mo.K_du, 3) + '</td><td>' + num(mo.nu, 3) + '</td><td>' + num(mo.r, 3) + '</td></tr></table>';
+        h += '<table class="report-table"><tr><th></th><th>As computed</th><th>&times; K_F</th></tr>';
+        h += '<tr><td>&phi;Mn at Pu (kN-m)</td><td>' + num(mo.phiMn_monolithic, 1) + '</td><td>'
+           + num(mo.phiMn_x_KF, 1) + '</td></tr>';
+        h += '<tr><td>Utilisation</td><td>' + num(mo.utilisation_monolithic, 3) + '</td><td>'
+           + num(mo.utilisation_x_KF, 3) + '</td></tr></table>';
+        h += '<p class="report-ref">' + esc(mo.reason) + '</p>';
+        h += '</div>';
+    } else if (mo) {
+        h += '<div class="report-section"><h4>8. Monolithic Coefficients</h4>';
+        h += '<p class="report-ref">' + esc(mo.reason) + '</p></div>';
+    }
+
+    if (d.detailing.length) {
+        var passes = d.detailing.filter(function(c) { return c.passes; }).length;
+        h += '<div class="report-section"><h4>9. Detailing Checks &mdash; ' + passes + ' of '
+           + d.detailing.length + ' pass</h4>';
+        h += '<table class="report-table"><tr><th>Item</th><th>Value</th><th>Limit</th><th>Clause</th><th>Status</th></tr>';
+        d.detailing.forEach(function(c) {
+            h += '<tr><td style="text-align:left">' + esc(c.item) + '</td><td>' + esc(c.value) + '</td>'
+               + '<td style="text-align:left">' + esc(c.limit) + '</td>'
+               + '<td style="text-align:left">' + esc(c.clause) + '</td>'
+               + '<td class="' + (c.passes ? 'status-pass' : 'status-fail') + '" style="font-weight:700">'
+               + (c.passes ? 'OK' : 'NG') + '</td></tr>';
+        });
+        h += '</table><p class="report-ref">A failed detailing check is a governing check and flips '
+           + '&ldquo;adequate&rdquo;.</p></div>';
+    }
+
+    if (d.unavailable.length) {
+        h += '<div class="report-section"><h4>Checks Not Available for This Section ('
+           + d.unavailable.length + ')</h4>';
+        h += '<p class="report-ref">Refused rather than answered with four-sided behaviour. A section whose '
+           + 'shear was never checked has not been shown adequate.</p>';
+        d.unavailable.forEach(function(u) {
+            h += '<div class="cj-adv critical" tabindex="0"><span class="cj-lede">' + esc(u) + '</span></div>';
+        });
+        h += '</div>';
+    }
+
+    // Advisories are rendered one-for-one. Never filtered, truncated, sorted
+    // by severity or capped -- they are part of the answer.
+    h += '<div class="report-section"><h4>Advisories (' + d.advisories.length
+       + ') &mdash; part of the answer, not decoration</h4>';
+    h += '<p class="report-ref">Hover or focus an advisory to reveal the rest of its text.</p>';
+    h += d.advisories.map(advisory).join('');
+    h += '</div>';
+
+    var pv = d.provenance;
+    h += '<div class="report-section"><h4>Provenance</h4><div class="cj-prov">';
+    h += 'Engine: ' + esc(pv.engine_version) + '<br>SHA-256: ' + esc(pv.engine_sha256) + '<br>';
+    h += 'Source: ' + esc(pv.engine_source) + '<br>Units: ' + esc(pv.units) + '<br>';
+    h += 'Code basis: ' + esc(pv.code_basis) + '<br><br><em>' + esc(pv.disclaimer) + '</em>';
+    h += '</div></div>';
+
+    return h;
+}
+
+// ------------------------------------------------------------------ submit
+document.getElementById('calc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    lockPrint();
+    submitCalc('/api/column-jacket/design', collect(), function(result) {
+        LAST = result;
+        renderVerdict(result);
+        drawPM(result);
+        drawSection(result.geometry);
+        var rep = document.getElementById('results-report');
+        rep.innerHTML = buildReport(result);
+        rep.style.display = '';
+        if (window.MathJax) MathJax.typeset();
+        document.getElementById('btn-print').disabled = false;
+    }, function(msg) {
+        // Surface the validation layer's exact refusal -- it names the field
+        // and why the bound exists. Never "invalid input".
+        document.getElementById('results').style.display = '';
+        document.getElementById('cj-verdict').innerHTML =
+            '<div class="error-msg">Refused: ' + esc(msg) + '</div>';
+        var rep = document.getElementById('results-report');
+        rep.innerHTML = '';
+        rep.style.display = 'none';
+        Plotly.purge('chart-pm');
+        Plotly.purge('chart-section');
+        document.getElementById('cap-pm').innerHTML = '';
+        document.getElementById('cap-section').innerHTML = '';
+    });
+});
+
+// Any edit invalidates the shown report, so the print button must relock.
+document.getElementById('calc-form').addEventListener('input', lockPrint);
+document.getElementById('btn-print').addEventListener('click', function() { window.print(); });
+</script>
+{% endblock %}

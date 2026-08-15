@@ -8,3 +8,6 @@ build/
 .eggs/
 *.whl
 .ipynb_checkpoints/
+
+# Claude Code background-task worktrees (local only)
+.claude/worktrees/
