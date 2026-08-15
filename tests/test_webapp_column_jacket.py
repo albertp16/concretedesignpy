@@ -232,14 +232,102 @@ def test_plotly_strings_use_unicode_not_html_entities(page_source):
 
 
 def test_advisories_cannot_be_hidden(page_source):
-    """The panel renders one entry per advisory, with no filtering, capping or
-    severity gate. `adequate` covers the computed checks only, and a page that
-    showed the DCRs alone would be quietly downgrading the answer."""
-    panel = page_source.split("Advisories (")[1].split("</div>")[0]
-    assert "d.advisories.map(advisory)" in page_source
+    """The Internal Review panel renders one entry per advisory, with no
+    filtering, capping or severity gate. They are separated from the client
+    report by direction -- separation is not permission to lose any."""
+    body = page_source.split("function buildInternalReview")[1] \
+                      .split("function buildReport")[0]
+    assert "d.advisories.map(advisory)" in body
     for forbidden in (".filter(", ".slice(", "severity ===", "> 3", "[0]"):
-        assert forbidden not in panel, \
-            "the advisories panel must not {!r}".format(forbidden)
+        assert forbidden not in body, \
+            "the internal review panel must not {!r}".format(forbidden)
+
+
+# ----------------------------------- client report / internal review split
+
+
+def test_the_client_report_does_not_carry_advisory_text(page_source):
+    """User direction, 2026-08-15: the report is submitted to the client and
+    must not reproduce the engineering advisories.
+
+    buildReport must not render them -- only buildInternalReview may.
+    """
+    report = page_source.split("function buildReport")[1] \
+                        .split("// ------------------------------------------------------------------ submit")[0]
+    assert "d.advisories.map(advisory)" not in report, \
+        "the client report must not render advisory text"
+    assert "buildDisclosure(d)" in report, \
+        "the client report must still disclose that advisories exist"
+
+
+def test_the_client_report_discloses_what_it_omits(page_source):
+    """The other half, and the one that makes the omission legitimate.
+
+    A directed omission that leaves no trace is indistinguishable from an
+    answer that never had the finding. The report carries the count, the
+    critical count and EVERY advisory code with its severity -- built from
+    the response, never hand-written, so it cannot drift when an advisory is
+    added.
+    """
+    body = page_source.split("function buildDisclosure")[1] \
+                      .split("function buildInternalReview")[0]
+    assert "d.advisories.map(" in body, "the code list must be built from the response"
+    assert "a.code" in body and "a.severity" in body
+    assert "d.advisories.length" in body, "the count must be reported"
+    for forbidden in (".filter(", ".slice("):
+        assert forbidden not in body, \
+            "the disclosure must list every advisory, not a subset ({})".format(forbidden)
+    # and it must say the omission was DIRECTED, not merely be silent.
+    # (the phrase spans a JS string concatenation, so match its halves)
+    assert "NOT reproduced in this report" in body
+    assert "at the direction of the" in body and "Engineer of Record" in body
+
+
+def test_the_internal_review_is_outside_the_client_report(page_source):
+    """The client report is printed by hiding the internal review, so the
+    review must not be a descendant of the document being submitted."""
+    report_div = page_source.index('id="results-report"')
+    review_div = page_source.index('id="internal-review"')
+    assert review_div > report_div
+    # the report container is self-closing before the review begins
+    between = page_source[report_div:review_div]
+    assert between.count("<div") - between.count("</div>") <= 1, \
+        "internal-review appears to be nested inside results-report"
+
+
+def test_print_keys_the_two_documents_off_a_body_class(page_source):
+    """Default print is the CLIENT report; the internal review prints only
+    under body.print-internal. Anything else risks advisories reaching a
+    client submission through a stray selector."""
+    print_block = page_source.split("@media print {")[1]
+    assert ".internal-review { display: none; }" in print_block, \
+        "the client print must hide the internal review"
+    assert "body.print-internal .internal-review { display: block !important; }" in print_block
+    # the advisory remainder is revealed on paper only in the internal document
+    assert "body.print-internal .cj-adv .cj-rest { display: block !important; }" in print_block
+
+
+def test_the_client_verdict_does_not_point_at_missing_advisories(page_source):
+    """The screen verdict says "read every advisory below"; the client copy
+    cannot, because they are not there. Both wordings must exist and the print
+    rules must swap them."""
+    verdict = page_source.split("function renderVerdict")[1].split("function drawPM")[0]
+    assert 'class="screen-only"' in verdict and 'class="client-only"' in verdict
+    assert "issued separately" in verdict
+    print_block = page_source.split("@media print {")[1]
+    assert ".screen-only { display: none !important; }" in print_block
+    assert ".client-only { display: inline !important; }" in print_block
+
+
+def test_the_internal_print_mode_cannot_leak_into_the_next_client_report(page_source):
+    """A cancelled print dialog must not leave the page armed to print
+    advisories into the following client report."""
+    handler = page_source.split("btn-print-internal').addEventListener")[1]
+    assert "finally" in handler and "classList.remove('print-internal')" in handler
+    client = page_source.split("getElementById('btn-print').addEventListener")[1] \
+                        .split("btn-print-internal")[0]
+    assert "classList.remove('print-internal')" in client, \
+        "the client print must clear the internal flag before printing"
 
 
 def test_the_hover_reveal_hides_nothing(page_source):

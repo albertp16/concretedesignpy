@@ -1,5 +1,31 @@
 # Changelog - concretedesignpy
 
+## Version 0.7.2 | August 15, 2026
+
+### Changed
+- **Advisories separated from the client report** (user direction, 2026-08-15;
+  the report is submitted to a client). The report no longer reproduces the
+  advisory text. It carries a **disclosure block** instead — the count, the
+  critical count, and every advisory code with its severity, built from the
+  response and never hand-written — stating that the omission was directed.
+  Both halves are pinned by tests: reverting the omission needs a new
+  decision, and losing the disclosure would turn a directed omission into a
+  silent one, which is indistinguishable from an answer that never had the
+  finding.
+- Advisories now render in a separate **Internal Review** panel, marked as
+  excluded from the client submission and deliberately placed outside the
+  report container so no selector can sweep it into the client print.
+- **Two print modes** — *Print Client Report* (default) and *Print Internal
+  Review*, keyed off a `body.print-internal` class. The internal handler
+  clears the class in a `finally`, so a cancelled dialog cannot leave the page
+  armed to print advisories into the next client report.
+- The verdict's closing sentence is now doubled: on screen it points at the
+  Internal Review panel; on the client copy it states that advisories are
+  issued separately. A verdict that pointed at advisories the document does
+  not contain would be a dangling reference on the sheet that gets signed.
+
+---
+
 ## Version 0.7.1 | August 15, 2026
 
 ### Added

@@ -128,6 +128,34 @@
     color: var(--gray-500); font-style: italic;
 }
 
+/* ---- advisory disclosure (client report) ---- */
+.cj-disclosure {
+    background: #fef3c7; border-left: 5px solid var(--warning);
+    border-radius: 4px; padding: .8rem 1rem; font-size: .82rem; line-height: 1.55;
+}
+.cj-codes {
+    margin-top: .55rem; padding-top: .5rem; border-top: 1px solid #fcd34d;
+    font-family: "SF Mono","Fira Code",monospace; font-size: .72rem;
+    color: var(--gray-700); word-break: break-word;
+}
+.cj-codes-label { font-family: inherit; font-weight: 700; color: #92400e; }
+
+/* ---- internal review (NOT the client submission) ---- */
+.internal-review {
+    margin-top: 2rem; border: 2px dashed var(--danger);
+    border-radius: var(--radius); padding: 0 1rem 1rem;
+}
+.ir-banner {
+    background: var(--danger); color: #fff; font-size: .78rem; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    margin: 0 -1rem 1rem; padding: .5rem 1rem;
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+.internal-review .ir-section { border: none; padding: 0; margin: 0; }
+.btn-print-ir { background: #b45309; }
+/* screen-only / client-only verdict wording */
+.client-only { display: none; }
+
 .cj-figcaption { font-size: .75rem; color: var(--gray-500); text-align: center; margin: .25rem 0 1rem; }
 .cj-prov { font-size: .72rem; color: var(--gray-500); line-height: 1.6; word-break: break-all; }
 .report-full { margin-top: 1.5rem; }
@@ -155,11 +183,26 @@
         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .sheet .hd, .report-table th { background: var(--primary-dark) !important; color: #fff !important;
         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    /* Advisories print IN FULL. The screen hides the remainder behind hover
-       purely to keep the panel scannable; paper has no hover, so nothing may
-       stay hidden there. */
-    .cj-adv .cj-rest { display: block !important; }
-    .cj-adv .cj-more { display: none !important; }
+    .cj-disclosure { background: #fef3c7 !important;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* Two documents come off this page.
+       CLIENT REPORT (default): the internal review is hidden, and the verdict
+       swaps to wording that does not point at advisories the document does not
+       contain. The disclosure block still names every advisory code, so the
+       omission is visible on the filed sheet rather than silent.
+       INTERNAL REVIEW (body.print-internal): the advisories print IN FULL --
+       the screen hides the remainder behind hover only because hover exists
+       there, and paper has none. */
+    .internal-review { display: none; }
+    .screen-only { display: none !important; }
+    .client-only { display: inline !important; }
+
+    body.print-internal .internal-review { display: block !important; }
+    body.print-internal .cj-adv .cj-rest { display: block !important; }
+    body.print-internal .cj-adv .cj-more { display: none !important; }
+    body.print-internal .ir-banner { background: var(--danger) !important; color: #fff !important;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
 {% endblock %}
@@ -331,7 +374,10 @@
 
                 <div class="btn-actions">
                     <button type="submit" class="btn-primary" style="flex:1">Calculate</button>
-                    <button type="button" id="btn-print" class="btn-print" disabled>Print Report</button>
+                </div>
+                <div class="btn-actions" style="margin-top:.5rem">
+                    <button type="button" id="btn-print" class="btn-print" style="flex:1" disabled>Print Client Report</button>
+                    <button type="button" id="btn-print-internal" class="btn-print btn-print-ir" style="flex:1" disabled>Print Internal Review</button>
                 </div>
             </form>
         </div>
@@ -350,6 +396,14 @@
     </div>
 
     <div id="results-report" class="report-full" style="display:none;"></div>
+
+    <!-- Deliberately OUTSIDE #results-report: the client report is printed by
+         hiding this element, so it must not be a descendant of the document
+         being submitted. -->
+    <div id="internal-review" class="internal-review" style="display:none;">
+        <div class="ir-banner">Internal Review &mdash; not part of the client submission</div>
+        <div id="internal-review-body"></div>
+    </div>
 </div>
 
 <script>
@@ -374,6 +428,7 @@ function esc(s) {
 }
 function lockPrint() {
     document.getElementById('btn-print').disabled = true;
+    document.getElementById('btn-print-internal').disabled = true;
     LAST = null;
 }
 
@@ -401,9 +456,16 @@ function renderVerdict(d) {
     if (d.governing_checks.length) {
         h += 'Governing: ' + esc(d.governing_checks.join(', ')) + '.';
     }
+    // The closing sentence is DOUBLED. The client report does not carry the
+    // advisory text, so its verdict must not send the reader to something the
+    // document does not contain -- a dangling pointer is worse than silence.
     h += '<span class="cj-caveat">&ldquo;Adequate&rdquo; is a statement about the computed checks '
-       + 'only &mdash; it is deliberately not called &ldquo;safe&rdquo;. Read every advisory below '
-       + 'before relying on it.</span></div>';
+       + 'only &mdash; it is deliberately not called &ldquo;safe&rdquo;.'
+       + '<span class="screen-only"> Read every advisory in the Internal Review panel '
+       + 'before relying on it.</span>'
+       + '<span class="client-only"> This report covers the computed checks only. '
+       + 'Engineering advisories are issued separately.</span>'
+       + '</span></div>';
     document.getElementById('cj-verdict').innerHTML = h;
 }
 
@@ -836,6 +898,50 @@ function buildSummary(d) {
     return h + '</table></div>';
 }
 
+// ---------------------------------------------- advisory disclosure block
+function buildDisclosure(d) {
+    // The client report does NOT carry the advisory text (user direction,
+    // 2026-08-15). It carries this instead, so the omission is DISCLOSED
+    // rather than silent: the count, the critical count, and every code with
+    // its severity. Built from d.advisories, never hand-written -- a
+    // hand-maintained list would drift the moment an advisory is added, and
+    // an omission nobody can see is indistinguishable from an answer that
+    // never had the finding.
+    var codes = d.advisories.map(function(a) {
+        return esc(a.code) + ' (' + esc(a.severity) + ')';
+    }).join(', ');
+    var crit = 0;
+    d.advisories.forEach(function(a) { if (a.severity === 'critical') crit += 1; });
+
+    var h = '<div class="report-section"><h4>Engineering Advisories &mdash; Issued Separately</h4>';
+    h += '<div class="cj-disclosure">';
+    h += '<strong>' + d.advisories.length + ' advisories (' + crit + ' critical) apply to this '
+       + 'calculation and are NOT reproduced in this report,</strong> at the direction of the '
+       + 'Engineer of Record. They are issued as a separate Internal Review document. '
+       + 'Each one is an engineering trap the arithmetic cannot rule out, and the verdict above '
+       + 'is a statement about the computed checks only.';
+    h += '<div class="cj-codes"><span class="cj-codes-label">Advisory codes raised:</span> '
+       + codes + '</div>';
+    h += '</div></div>';
+    return h;
+}
+
+// ------------------------------------------------- internal review (separate)
+function buildInternalReview(d) {
+    // NOT part of the client submission. Rendered outside #results-report so
+    // it cannot be swept into the client print by a stray selector.
+    // Advisories here are rendered one-for-one: never filtered, truncated,
+    // sorted by severity or capped.
+    var h = '<div class="report-section ir-section">';
+    h += '<h4>Internal Review &mdash; Advisories (' + d.advisories.length + ')</h4>';
+    h += '<p class="report-ref">Engineer-of-Record review copy. Excluded from the client report '
+       + 'by direction; the client report discloses that these exist and lists their codes. '
+       + 'Hover or focus an advisory to reveal the rest of its text.</p>';
+    h += d.advisories.map(advisory).join('');
+    h += '</div>';
+    return h;
+}
+
 // ------------------------------------------------------------------ report
 function buildReport(d) {
     var h = '';
@@ -872,13 +978,7 @@ function buildReport(d) {
         h += '</div>';
     }
 
-    // Advisories are rendered one-for-one. Never filtered, truncated, sorted
-    // by severity or capped -- they are part of the answer.
-    h += '<div class="report-section"><h4>Advisories (' + d.advisories.length
-       + ') &mdash; part of the answer, not decoration</h4>';
-    h += '<p class="report-ref">Hover or focus an advisory to reveal the rest of its text.</p>';
-    h += d.advisories.map(advisory).join('');
-    h += '</div>';
+    h += buildDisclosure(d);
 
     var pv = d.provenance;
     h += '<div class="report-section"><h4>Provenance</h4><div class="cj-prov">';
@@ -902,8 +1002,12 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         var rep = document.getElementById('results-report');
         rep.innerHTML = buildReport(result);
         rep.style.display = '';
+        var ir = document.getElementById('internal-review');
+        document.getElementById('internal-review-body').innerHTML = buildInternalReview(result);
+        ir.style.display = '';
         if (window.MathJax) MathJax.typeset();
         document.getElementById('btn-print').disabled = false;
+        document.getElementById('btn-print-internal').disabled = false;
     }, function(msg) {
         // Surface the validation layer's exact refusal -- it names the field
         // and why the bound exists. Never "invalid input".
@@ -913,6 +1017,9 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
         var rep = document.getElementById('results-report');
         rep.innerHTML = '';
         rep.style.display = 'none';
+        var ir = document.getElementById('internal-review');
+        document.getElementById('internal-review-body').innerHTML = '';
+        ir.style.display = 'none';
         Plotly.purge('chart-pm');
         Plotly.purge('chart-section');
         document.getElementById('cap-pm').innerHTML = '';
@@ -920,8 +1027,19 @@ document.getElementById('calc-form').addEventListener('submit', function(e) {
     });
 });
 
-// Any edit invalidates the shown report, so the print button must relock.
+// Any edit invalidates the shown report, so the print buttons must relock.
 document.getElementById('calc-form').addEventListener('input', lockPrint);
-document.getElementById('btn-print').addEventListener('click', function() { window.print(); });
+
+// Two documents, one page. The body class is what @media print keys off, and
+// it is cleared in a finally so a cancelled dialog cannot leave the page armed
+// to print advisories into the next client report.
+document.getElementById('btn-print').addEventListener('click', function() {
+    document.body.classList.remove('print-internal');
+    window.print();
+});
+document.getElementById('btn-print-internal').addEventListener('click', function() {
+    document.body.classList.add('print-internal');
+    try { window.print(); } finally { document.body.classList.remove('print-internal'); }
+});
 </script>
 {% endblock %}
