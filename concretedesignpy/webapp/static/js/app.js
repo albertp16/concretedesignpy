@@ -32,7 +32,8 @@ function submitCalc(url, payload, chartCallback, errorCallback) {
         if (chartCallback) {
             chartCallback(data.result);
         }
-        showToast('Analysis completed successfully.');
+        // Run feedback lives in the solver status chip; a toast per run
+        // would be noise. Toasts are reserved for errors.
     })
     .catch(function(err) {
         if (contentDiv) contentDiv.innerHTML = '<div class="error-msg">Request failed: ' + escapeHtml(err.message) + '</div>';
@@ -165,14 +166,15 @@ function escapeHtml(str) {
  * Show a brief toast notification.
  */
 function showToast(msg, type) {
-    var bg = type === 'error' ? '#dc2626' : type === 'warn' ? '#f59e0b' : '#16a34a';
+    var bg = type === 'error' ? '#dc2626' : type === 'warn' ? '#d97706' : '#16a34a';
     var t = document.createElement('div');
+    t.className = 'toast';
     t.textContent = msg;
-    t.style.cssText = 'position:fixed;top:1rem;right:1rem;background:' + bg + ';color:#fff;padding:.6rem 1.2rem;border-radius:6px;font-size:.85rem;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:400px;';
+    t.style.background = bg;
     document.body.appendChild(t);
-    requestAnimationFrame(function() { t.style.opacity = '1'; });
+    requestAnimationFrame(function() { t.classList.add('show'); });
     setTimeout(function() {
-        t.style.opacity = '0';
+        t.classList.remove('show');
         setTimeout(function() { t.remove(); }, 300);
     }, 4000);
 }

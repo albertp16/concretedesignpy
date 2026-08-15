@@ -377,7 +377,10 @@ def test_navbar_version_tracks_the_package(client):
     assert "v%s" % concretedesignpy.__version__ in html
     assert "v0.7 |" not in html
     # and the edition label must not claim 318-19 for the whole package
-    m = re.search(r'navbar-tag[^>]*>([^<]+)<', html)
+    # (the badge moved from the old navbar to the sidebar foot in the
+    # solver-workbench redesign; the pin follows the element)
+    m = re.search(r'foot-version[^>]*>([^<]+)<', html)
+    assert m is not None, "version badge element missing"
     assert "318-19" not in m.group(1)
 
 

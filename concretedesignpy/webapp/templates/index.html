@@ -1,25 +1,51 @@
 {% extends "base.html" %}
-{% block title %}ConcreteDesignPy - RC Design Calculators{% endblock %}
+{% from "_icons.html" import icon %}
+{% block title %}ConcreteDesignPy — RC Design Workbench{% endblock %}
 
 {% block content %}
 <div class="hero">
-    <h1>ConcreteDesignPy</h1>
-    <p>Open-source reinforced concrete design calculators based on NSCP 2015 and ACI 318-19</p>
+    <h1>Reinforced Concrete Design Workbench</h1>
+    <p>Interactive solvers for beam, column, joint and retrofit design
+       per NSCP 2015 and ACI 318-19 — with transparent, printable A4
+       calculation sheets.</p>
+    <div class="hero-meta">
+        <span class="hero-chip">{{ icon('check', 13) }} {{ calculator_count }} calculators</span>
+        <span class="hero-chip">{{ icon('file-text', 13) }} A4 calc sheets</span>
+        <span class="hero-chip">{{ icon('code', 13) }} JSON API</span>
+        <span class="hero-chip" title="{{ code_basis_long }}">{{ icon('box', 13) }} {{ code_basis_short }} / ACI 318-19</span>
+    </div>
 </div>
 
-<div class="calculator-grid">
-    {% for calc in calculators %}
-    <a href="/calculator/{{ calc.id }}" class="calc-card">
-        <span class="calc-category">{{ calc.category }}</span>
-        <h3>{{ calc.name }}</h3>
-        <p>{{ calc.desc }}</p>
-    </a>
-    {% endfor %}
+<div class="calc-search">
+    {{ icon('search', 15) }}
+    <input type="search" id="calc-filter" placeholder="Filter calculators… (e.g. shear, jacket, M-phi)" autocomplete="off">
 </div>
+
+{% for group in groups %}
+<section class="calc-group" data-group>
+    <h2 class="calc-group-title">{{ group.category }}</h2>
+    <div class="calculator-grid">
+        {% for calc in group['items'] %}
+        <a href="/calculator/{{ calc.id }}" class="calc-card" data-card
+           data-search="{{ calc.name|lower }} {{ calc.desc|lower }} {{ calc.category|lower }} {{ calc.ref|lower }}">
+            <div class="calc-card-head">
+                <span class="calc-card-icon">{{ icon(calc.icon, 17) }}</span>
+                <div>
+                    <span class="calc-category">{{ calc.category }}</span>
+                    <h3>{{ calc.name }}</h3>
+                </div>
+            </div>
+            <p>{{ calc.desc }}</p>
+            <span class="calc-card-ref">{{ calc.ref }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endfor %}
 
 <div class="api-info">
-    <h2>REST API</h2>
-    <p>All calculators are available as JSON API endpoints. Send POST requests with JSON body:</p>
+    <h2>{{ icon('code', 18) }} REST API</h2>
+    <p>Every calculator is also a JSON endpoint — send a POST request with a JSON body.</p>
     <table class="api-table">
         <thead>
             <tr><th>Endpoint</th><th>Description</th></tr>
@@ -31,6 +57,7 @@
             <tr><td><code>POST /api/beam/deflection</code></td><td>Beam deflection</td></tr>
             <tr><td><code>POST /api/column/interaction</code></td><td>P-M interaction diagram</td></tr>
             <tr><td><code>POST /api/column/flexural</code></td><td>Column flexural check</td></tr>
+            <tr><td><code>POST /api/column-jacket/design</code></td><td>Column concrete jacketing</td></tr>
             <tr><td><code>POST /api/joint/shear</code></td><td>Joint shear verification</td></tr>
             <tr><td><code>POST /api/mander/confined</code></td><td>Mander confined concrete</td></tr>
             <tr><td><code>POST /api/section/development-length</code></td><td>Hook geometry</td></tr>
@@ -40,4 +67,27 @@
         </tbody>
     </table>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Landing-page filter: hides cards whose search text misses the query,
+// and whole groups once all of their cards are hidden.
+(function () {
+    var input = document.getElementById('calc-filter');
+    if (!input) { return; }
+    input.addEventListener('input', function () {
+        var q = input.value.trim().toLowerCase();
+        document.querySelectorAll('[data-group]').forEach(function (group) {
+            var visible = 0;
+            group.querySelectorAll('[data-card]').forEach(function (card) {
+                var hit = !q || card.dataset.search.indexOf(q) !== -1;
+                card.style.display = hit ? '' : 'none';
+                if (hit) { visible += 1; }
+            });
+            group.style.display = visible ? '' : 'none';
+        });
+    });
+}());
+</script>
 {% endblock %}

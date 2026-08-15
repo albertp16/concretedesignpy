@@ -1,36 +1,12 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Moment-Curvature - ConcreteDesignPy{% endblock %}
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
-.mc-layout { display: flex; gap: 2rem; align-items: flex-start; }
-.mc-left { flex: 0 0 480px; }
-.mc-right { flex: 1; min-width: 0; }
-.mc-right .results-panel { position: sticky; top: 1rem; }
 .mc-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-.report-section {
-    background: #fff; border: 1px solid var(--gray-200);
-    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
-}
-.report-section h4 {
-    font-size: .95rem; color: var(--primary-dark); margin: 0 0 .75rem;
-    padding-bottom: .35rem; border-bottom: 2px solid var(--primary-light);
-}
-.report-eq { padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0; font-size: .9rem; }
 .report-ref { font-size: .78rem; color: #3b82f6; font-style: italic; margin: 0; }
-.report-table {
-    width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0;
-}
-.report-table th {
-    background: var(--primary-dark); color: #fff; padding: .45rem .6rem;
-    text-align: center; font-weight: 600; font-size: .78rem;
-}
-.report-table td {
-    padding: .4rem .6rem; text-align: center; border-bottom: 1px solid var(--gray-200);
-    font-family: "SF Mono","Fira Code",monospace; font-size: .8rem;
-}
-.report-table tr:nth-child(even) { background: var(--gray-50); }
 .report-result {
     background: #dcfce7; padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0;
     font-size: .95rem; font-weight: 700;
@@ -40,7 +16,6 @@
 
 {% block content %}
 <div class="calc-page">
-    <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Moment-Curvature Analysis</h1>
     <p class="ref">M-&phi; Diagram &mdash; NSCP 2015 / ACI 318-19</p>
 
@@ -69,9 +44,14 @@
         </div>
     </div>
 
-    <div class="mc-layout">
-        <div class="mc-left">
-            <form id="calc-form" class="calc-form">
+    <div class="solver">
+        <aside class="solver-params">
+            <div class="solver-params-head">
+                {{ icon('sliders', 14) }}
+                <span class="solver-params-title">Parametrization</span>
+            </div>
+            <div class="solver-params-body">
+                <form id="calc-form" class="calc-form">
                 <div class="form-section">
                     <h3>Analysis Mode</h3>
                     <div style="display:flex;gap:.5rem;">
@@ -225,31 +205,46 @@
                         <div class="form-group"><label>V demand (kN)</label><input type="number" name="v_demand" value="0" step="1"><p style="font-size:.72rem;color:var(--gray-400);margin:.2rem 0 0;">0 = assume low shear</p></div>
                     </div>
                 </div>
-                <button type="submit" class="btn-primary" style="width:100%;">Analyze</button>
-            </form>
-        </div>
-
-        <div class="mc-right">
-            <div id="results" class="results-panel" style="display:none;">
-                <h2>Results</h2>
-                <div id="results-summary"></div>
-                <div id="chart-mphi" style="width:100%;"></div>
-                <div id="chart-mtheta" style="width:100%;display:none;"></div>
-                <div id="chart-backbone" style="width:100%;display:none;"></div>
-                <div id="chart-combined" style="width:100%;display:none;"></div>
-                <div id="chart-ductility" style="width:100%;display:none;"></div>
+                </form>
             </div>
-        </div>
-    </div>
+            <div class="solver-runbar">
+                <button class="btn-run" type="submit" form="calc-form">{{ icon('zap', 15) }} Update</button>
+                <label class="auto-toggle"><input type="checkbox" id="solver-auto"> Auto</label>
+                <span class="run-status" data-state="idle">Idle</span>
+            </div>
+            <div class="run-hint">Ctrl/Cmd + Enter runs from anywhere on the page</div>
+        </aside>
 
-    <div class="mc-charts" style="display:none;" id="charts-row">
-        <div id="chart-section" style="width:100%;"></div>
-        <div id="chart-strain-stress" style="width:100%;"></div>
-        <div id="chart-steel" style="width:100%;"></div>
-        <div id="chart-fiber" style="width:100%;"></div>
-    </div>
+        <section class="solver-views">
+            <div class="solver-empty" id="solver-empty">
+                {{ icon('zap', 34) }}
+                <h3>No results yet</h3>
+                <p>Set the parameters on the left, then press <b>Update</b> or hit <kbd>Ctrl/Cmd + Enter</kbd>.</p>
+            </div>
 
-    <div id="results-report" style="display:none; margin-top:1.5rem;"></div>
+            <div data-view="Results">
+                <div id="results" class="results-panel" style="display:none;">
+                    <h2>Results</h2>
+                    <div id="results-summary"></div>
+                    <div id="chart-mphi" style="width:100%;"></div>
+                    <div id="chart-mtheta" style="width:100%;display:none;"></div>
+                    <div id="chart-backbone" style="width:100%;display:none;"></div>
+                    <div id="chart-combined" style="width:100%;display:none;"></div>
+                    <div id="chart-ductility" style="width:100%;display:none;"></div>
+                </div>
+                <div class="mc-charts" style="display:none;" id="charts-row">
+                    <div id="chart-section" style="width:100%;"></div>
+                    <div id="chart-strain-stress" style="width:100%;"></div>
+                    <div id="chart-steel" style="width:100%;"></div>
+                    <div id="chart-fiber" style="width:100%;"></div>
+                </div>
+            </div>
+
+            <div data-view="Report">
+                <div id="results-report" style="display:none; margin-top:1.5rem;"></div>
+            </div>
+        </section>
+    </div>
 </div>
 
 <script>

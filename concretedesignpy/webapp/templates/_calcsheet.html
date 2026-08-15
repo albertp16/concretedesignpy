@@ -1,10 +1,10 @@
 {#
   Shared calculation-sheet panel.
 
-  One include, three calculators, so the A4 document is identical across all
-  of them and there is exactly one place to change it.
+  One include, used by several calculators, so the A4 document is identical
+  across all of them and there is exactly one place to change it.
 
-  Usage in a calculator template:
+  Usage in a calculator template (inside the "Calc Sheet" view panel):
 
       {% include "_calcsheet.html" %}
 
@@ -16,10 +16,11 @@
   the request body for `sheetEndpoint`, and for setting `sheetEndpoint`
   before the listener below runs.
 #}
-<div class="cs-actions no-print" style="display:flex;gap:.5rem;margin:1.5rem 0 .75rem;align-items:center;flex-wrap:wrap;">
-    <button type="button" id="btn-sheet" class="btn-primary">Build Calculation Sheet</button>
-    <button type="button" id="btn-print-sheet" class="btn-print" disabled>Print / Save as PDF (A4)</button>
-    <span style="font-size:.78rem;color:var(--gray-500);">
+{% from "_icons.html" import icon %}
+<div class="cs-actions no-print">
+    <button type="button" id="btn-sheet" class="btn-primary">{{ icon('file-text', 15) }} Build Calculation Sheet</button>
+    <button type="button" id="btn-print-sheet" class="btn-print" disabled>{{ icon('printer', 15) }} Print / Save as PDF (A4)</button>
+    <span class="cs-note">
         The sheet below is A4 width on screen, so what you read is what prints.
     </span>
 </div>

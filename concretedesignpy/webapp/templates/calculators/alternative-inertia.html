@@ -1,54 +1,89 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Alternative Inertia - ConcreteDesignPy{% endblock %}
+
+{% block head %}
+<style>
+    /* Page JS fills #results-report but never toggles its display (the old
+       parent #results did that); hide the empty panel until content lands. */
+    #results-report:empty { display: none; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="calc-page">
-    <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Alternative Moment of Inertia</h1>
     <p class="ref">NSCP 2015 Section 424.2.3.5</p>
 
-    <form id="calc-form" class="calc-form">
-        <div class="form-section">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Member Type</label>
-                    <select name="member_type" id="member_type">
-                        <option value="column">Column / Wall</option>
-                        <option value="beam">Beam / Flat Plate / Flat Slab</option>
-                    </select>
+    <div class="solver">
+        <aside class="solver-params">
+            <div class="solver-params-head">
+                {{ icon('sliders', 14) }}
+                <span class="solver-params-title">Parametrization</span>
+            </div>
+            <div class="solver-params-body">
+                <form id="calc-form" class="calc-form">
+                    <div class="form-section">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Member Type</label>
+                                <select name="member_type" id="member_type">
+                                    <option value="column">Column / Wall</option>
+                                    <option value="beam">Beam / Flat Plate / Flat Slab</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>Ig (mm&sup4;)</label><input type="number" name="ig" value="50000" step="1" required></div>
+                        </div>
+                    </div>
+
+                    <div class="form-section" id="col-fields">
+                        <h3>Column / Wall Parameters</h3>
+                        <div class="form-row">
+                            <div class="form-group"><label>Ast (mm&sup2;)</label><input type="number" name="ast" value="50"></div>
+                            <div class="form-group"><label>Ag (mm&sup2;)</label><input type="number" name="ag" value="80000"></div>
+                            <div class="form-group"><label>Mu</label><input type="number" name="mu" value="500"></div>
+                            <div class="form-group"><label>Pu</label><input type="number" name="pu" value="2000"></div>
+                            <div class="form-group"><label>h (mm)</label><input type="number" name="h" value="400"></div>
+                            <div class="form-group"><label>Po</label><input type="number" name="po" value="3000"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-section" id="beam-fields" style="display:none;">
+                        <h3>Beam / Slab Parameters</h3>
+                        <div class="form-row">
+                            <div class="form-group"><label>Rho</label><input type="number" name="rho" value="0.02" step="any"></div>
+                            <div class="form-group"><label>b (mm)</label><input type="number" name="b" value="300"></div>
+                            <div class="form-group"><label>d (mm)</label><input type="number" name="d" value="500"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="solver-runbar">
+                <button class="btn-run" type="submit" form="calc-form">{{ icon('zap', 15) }} Update</button>
+                <label class="auto-toggle"><input type="checkbox" id="solver-auto"> Auto</label>
+                <span class="run-status" data-state="idle">Idle</span>
+            </div>
+            <div class="run-hint">Ctrl/Cmd + Enter runs from anywhere on the page</div>
+        </aside>
+
+        <section class="solver-views">
+            <div class="solver-empty" id="solver-empty">
+                {{ icon('zap', 34) }}
+                <h3>No results yet</h3>
+                <p>Set the parameters on the left, then press <b>Update</b> or hit <kbd>Ctrl/Cmd + Enter</kbd>.</p>
+            </div>
+
+            <div data-view="Results">
+                <div id="results" class="results-panel" style="display:none;">
+                    <h2>Results</h2>
+                    <div id="results-content"></div>
                 </div>
-                <div class="form-group"><label>Ig (mm&sup4;)</label><input type="number" name="ig" value="50000" step="1" required></div>
             </div>
-        </div>
 
-        <div class="form-section" id="col-fields">
-            <h3>Column / Wall Parameters</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Ast (mm&sup2;)</label><input type="number" name="ast" value="50"></div>
-                <div class="form-group"><label>Ag (mm&sup2;)</label><input type="number" name="ag" value="80000"></div>
-                <div class="form-group"><label>Mu</label><input type="number" name="mu" value="500"></div>
-                <div class="form-group"><label>Pu</label><input type="number" name="pu" value="2000"></div>
-                <div class="form-group"><label>h (mm)</label><input type="number" name="h" value="400"></div>
-                <div class="form-group"><label>Po</label><input type="number" name="po" value="3000"></div>
+            <div data-view="Report">
+                <div id="results-report" class="report-panel"></div>
             </div>
-        </div>
-
-        <div class="form-section" id="beam-fields" style="display:none;">
-            <h3>Beam / Slab Parameters</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Rho</label><input type="number" name="rho" value="0.02" step="any"></div>
-                <div class="form-group"><label>b (mm)</label><input type="number" name="b" value="300"></div>
-                <div class="form-group"><label>d (mm)</label><input type="number" name="d" value="500"></div>
-            </div>
-        </div>
-
-        <button type="submit" class="btn-primary">Calculate</button>
-    </form>
-
-    <div id="results" class="results-panel" style="display:none;">
-        <h2>Results</h2>
-        <div id="results-content"></div>
-        <div id="results-report" class="report-panel"></div>
+        </section>
     </div>
 </div>
 

@@ -12,6 +12,7 @@ calculator route blueprints.
 from flask import Flask
 
 import concretedesignpy
+from concretedesignpy.webapp import nav
 from concretedesignpy.webapp.routes import (
     main_bp,
     beam_bp,
@@ -56,6 +57,8 @@ def create_app():
                 "target ACI 318-19 / ACI 562-16 / ACI 440.2R-17. The edition "
                 "is per module -- see CLAUSES.md."
             ),
+            # Sidebar navigation renders on every page from the registry.
+            "nav_groups": nav.calculators_by_category(),
         }
 
     return app

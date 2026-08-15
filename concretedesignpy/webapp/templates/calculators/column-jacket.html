@@ -1,37 +1,16 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Column Concrete Jacketing - ConcreteDesignPy{% endblock %}
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
-/* ---- report blocks (not global in style.css -- must be redeclared) ---- */
-.report-section {
-    background: #fff; border: 1px solid var(--gray-200);
-    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
-}
-.report-section h4 {
-    font-size: .95rem; color: var(--primary-dark); margin: 0 0 .75rem;
-    padding-bottom: .35rem; border-bottom: 2px solid var(--primary-light);
-}
-.report-eq { padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0; font-size: .9rem; }
-.report-table { width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0; }
-.report-table th {
-    background: var(--primary-dark); color: #fff; padding: .35rem .5rem;
-    text-align: center; font-weight: 600; font-size: .75rem;
-}
-.report-table td {
-    padding: .3rem .5rem; text-align: center; border-bottom: 1px solid var(--gray-200);
-    font-family: "SF Mono","Fira Code",monospace; font-size: .78rem;
-}
-.report-table tr:nth-child(even) { background: var(--gray-50); }
+/* ---- page-specific report extras (base report styles are now global) ---- */
 .report-table td.tl { text-align: left; font-family: inherit; }
 .report-result {
     background: #dcfce7; padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0;
     font-size: .95rem; font-weight: 700;
 }
 .report-ref { font-size: .78rem; color: #3b82f6; font-style: italic; margin: 0 0 .5rem; }
-.report-grid { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1rem; font-size: .82rem; }
-.report-grid dt { color: var(--gray-500); }
-.report-grid dd { margin: 0; font-family: "SF Mono","Fira Code",monospace; }
 
 /* ---- the calculation sheet: REFERENCES | CALCULATIONS | RESULTS ---- */
 .sheet {
@@ -78,17 +57,6 @@
     background: #fee2e2; border-left: 5px solid var(--danger);
     border-radius: 4px; padding: .6rem .9rem; margin-bottom: .6rem;
     font-size: .82rem; font-weight: 600;
-}
-
-/* ---- page layout ---- */
-.cj-layout { display: flex; gap: 2rem; align-items: flex-start; }
-.cj-left { flex: 0 0 460px; }
-.cj-right { flex: 1; min-width: 0; }
-.cj-right .results-panel { position: sticky; top: 1rem; }
-@media (max-width: 1080px) {
-    .cj-layout { display: block; }
-    .cj-left { width: 100%; }
-    .cj-right .results-panel { position: static; margin-top: 1.5rem; }
 }
 
 /* ---- verdict banner ---- */
@@ -158,7 +126,6 @@
 
 .cj-figcaption { font-size: .75rem; color: var(--gray-500); text-align: center; margin: .25rem 0 1rem; }
 .cj-prov { font-size: .72rem; color: var(--gray-500); line-height: 1.6; word-break: break-all; }
-.report-full { margin-top: 1.5rem; }
 .cj-hint { font-size: .74rem; color: var(--gray-500); margin: .15rem 0 0; line-height: 1.4; }
 .btn-print {
     background: #6d28d9; color: #fff; border: none; padding: .6rem 1.1rem;
@@ -172,8 +139,6 @@
     .navbar, .disclaimer-bar, .footer, .calc-form, .back-link,
     .btn-actions, .btn-primary, .btn-print, .ref { display: none !important; }
     .calc-page { padding: 0 !important; }
-    .cj-layout { display: block !important; }
-    .cj-right .results-panel { position: static !important; }
     .report-section, .cj-adv, .results-panel { page-break-inside: avoid; }
     .sheet { break-inside: auto; }
     .sheet .s-head { break-after: avoid; }
@@ -209,13 +174,17 @@
 
 {% block content %}
 <div class="calc-page">
-    <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>RC Column Concrete Jacketing</h1>
     <p class="ref">TN-RET-001 &mdash; ACI 318-19, ACI 562-16, ASCE 41-17, Mander et al. (1988) via fib Bulletin 14</p>
 
-    <div class="cj-layout">
-        <div class="cj-left">
-            <form id="calc-form" class="calc-form">
+    <div class="solver">
+        <aside class="solver-params">
+            <div class="solver-params-head">
+                {{ icon('sliders', 14) }}
+                <span class="solver-params-title">Parametrization</span>
+            </div>
+            <div class="solver-params-body">
+                <form id="calc-form" class="calc-form">
 
                 <div class="form-section">
                     <h3>Existing Column (as measured, not as drawn)</h3>
@@ -372,37 +341,51 @@
                     </div>
                 </div>
 
-                <div class="btn-actions">
-                    <button type="submit" class="btn-primary" style="flex:1">Calculate</button>
-                </div>
                 <div class="btn-actions" style="margin-top:.5rem">
                     <button type="button" id="btn-print" class="btn-print" style="flex:1" disabled>Print Client Report</button>
                     <button type="button" id="btn-print-internal" class="btn-print btn-print-ir" style="flex:1" disabled>Print Internal Review</button>
                 </div>
-            </form>
-        </div>
-
-        <div class="cj-right">
-            <div id="results" class="results-panel" style="display:none;">
-                <div id="cj-verdict"></div>
-                <h2>Figure 1 &mdash; P-M Interaction</h2>
-                <div id="chart-pm"></div>
-                <p class="cj-figcaption" id="cap-pm"></p>
-                <h2>Figure 2 &mdash; Jacketed Section</h2>
-                <div id="chart-section"></div>
-                <p class="cj-figcaption" id="cap-section"></p>
+                </form>
             </div>
-        </div>
-    </div>
+            <div class="solver-runbar">
+                <button class="btn-run" type="submit" form="calc-form">{{ icon('zap', 15) }} Update</button>
+                <label class="auto-toggle"><input type="checkbox" id="solver-auto"> Auto</label>
+                <span class="run-status" data-state="idle">Idle</span>
+            </div>
+            <div class="run-hint">Ctrl/Cmd + Enter runs from anywhere on the page</div>
+        </aside>
 
-    <div id="results-report" class="report-full" style="display:none;"></div>
+        <section class="solver-views">
+            <div class="solver-empty" id="solver-empty">
+                {{ icon('zap', 34) }}
+                <h3>No results yet</h3>
+                <p>Set the parameters on the left, then press <b>Update</b> or hit <kbd>Ctrl/Cmd + Enter</kbd>.</p>
+            </div>
 
-    <!-- Deliberately OUTSIDE #results-report: the client report is printed by
-         hiding this element, so it must not be a descendant of the document
-         being submitted. -->
-    <div id="internal-review" class="internal-review" style="display:none;">
-        <div class="ir-banner">Internal Review &mdash; not part of the client submission</div>
-        <div id="internal-review-body"></div>
+            <div data-view="Results">
+                <div id="results" class="results-panel" style="display:none;">
+                    <div id="cj-verdict"></div>
+                    <h2>Figure 1 &mdash; P-M Interaction</h2>
+                    <div id="chart-pm"></div>
+                    <p class="cj-figcaption" id="cap-pm"></p>
+                    <h2>Figure 2 &mdash; Jacketed Section</h2>
+                    <div id="chart-section"></div>
+                    <p class="cj-figcaption" id="cap-section"></p>
+                </div>
+            </div>
+
+            <div data-view="Report">
+                <div id="results-report" class="report-full" style="display:none;"></div>
+
+                <!-- Deliberately OUTSIDE #results-report: the client report is printed by
+                     hiding this element, so it must not be a descendant of the document
+                     being submitted. -->
+                <div id="internal-review" class="internal-review" style="display:none;">
+                    <div class="ir-banner">Internal Review &mdash; not part of the client submission</div>
+                    <div id="internal-review-body"></div>
+                </div>
+            </div>
+        </section>
     </div>
 </div>
 

@@ -1,48 +1,75 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Development Length - ConcreteDesignPy{% endblock %}
 {% block head %}<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>{% endblock %}
 
 {% block content %}
 <div class="calc-page">
-    <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Development Length &amp; Hook Geometry</h1>
     <p class="ref">NSCP 2015 Section 425 &mdash; Tables 425.3.1 &amp; 425.3.2</p>
 
-    <form id="calc-form" class="calc-form">
-        <div class="form-section">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Bar Type</label>
-                    <select name="bar_type">
-                        <option value="deformed">Deformed Bars (Table 425.3.1)</option>
-                        <option value="stirrup">Stirrups/Ties/Hoops (Table 425.3.2)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Bar Size (mm)</label>
-                    <input type="number" name="bar_size" value="25" required>
-                </div>
-                <div class="form-group">
-                    <label>Hook Angle</label>
-                    <select name="angle">
-                        <option value="90">90&deg;</option>
-                        <option value="135">135&deg;</option>
-                        <option value="180" selected>180&deg;</option>
-                    </select>
+    <div class="solver">
+        <aside class="solver-params">
+            <div class="solver-params-head">
+                {{ icon('sliders', 14) }}
+                <span class="solver-params-title">Parametrization</span>
+            </div>
+            <div class="solver-params-body">
+                <form id="calc-form" class="calc-form">
+                    <div class="form-section">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Bar Type</label>
+                                <select name="bar_type">
+                                    <option value="deformed">Deformed Bars (Table 425.3.1)</option>
+                                    <option value="stirrup">Stirrups/Ties/Hoops (Table 425.3.2)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Bar Size (mm)</label>
+                                <input type="number" name="bar_size" value="25" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Hook Angle</label>
+                                <select name="angle">
+                                    <option value="90">90&deg;</option>
+                                    <option value="135">135&deg;</option>
+                                    <option value="180" selected>180&deg;</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="solver-runbar">
+                <button class="btn-run" type="submit" form="calc-form">{{ icon('zap', 15) }} Update</button>
+                <label class="auto-toggle"><input type="checkbox" id="solver-auto"> Auto</label>
+                <span class="run-status" data-state="idle">Idle</span>
+            </div>
+            <div class="run-hint">Ctrl/Cmd + Enter runs from anywhere on the page</div>
+        </aside>
+
+        <section class="solver-views">
+            <div class="solver-empty" id="solver-empty">
+                {{ icon('zap', 34) }}
+                <h3>No results yet</h3>
+                <p>Set the parameters on the left, then press <b>Update</b> or hit <kbd>Ctrl/Cmd + Enter</kbd>.</p>
+            </div>
+
+            <div data-view="Results">
+                <div id="results" class="results-panel" style="display:none;">
+                    <h2>Results</h2>
+                    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+                        <div id="chart-hook" style="flex:1;min-width:480px;"></div>
+                        <div id="results-content" style="flex:0 0 auto;min-width:200px;"></div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <button type="submit" class="btn-primary">Calculate</button>
-    </form>
-
-    <div id="results" class="results-panel" style="display:none;">
-        <h2>Results</h2>
-        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
-            <div id="chart-hook" style="flex:1;min-width:480px;"></div>
-            <div id="results-content" style="flex:0 0 auto;min-width:200px;"></div>
-        </div>
-        <div id="results-report" class="report-panel"></div>
+            <div data-view="Report">
+                <div id="results-report" class="report-panel"></div>
+            </div>
+        </section>
     </div>
 </div>
 

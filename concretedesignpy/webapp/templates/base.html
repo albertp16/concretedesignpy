@@ -4,36 +4,81 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ConcreteDesignPy{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
     {% block head %}{% endblock %}
 </head>
-<body>
-    <nav class="navbar">
-        <div class="container">
-            <a href="/" class="navbar-brand">ConcreteDesignPy</a>
-            <span class="navbar-tag" title="{{ code_basis_long }}">v{{ app_version }} | {{ code_basis_short }}</span>
-        </div>
-    </nav>
+{% from "_icons.html" import icon %}
+<body class="app">
+    <aside class="app-sidebar" id="app-sidebar" aria-label="Calculator navigation">
+        <a href="/" class="sidebar-brand">
+            <span class="brand-mark">{{ icon('box', 20) }}</span>
+            <span class="brand-text">Concrete<b>Design</b>Py</span>
+        </a>
 
-    <div class="disclaimer-bar">
-        <div class="container">
-            APEC Internal Tool &mdash; Albert Pamonag Engineering Consultancy &mdash; For reference only. All results must be verified by a licensed professional engineer.
+        <nav class="sidebar-nav">
+            <a href="/" class="nav-link{% if request.path == '/' %} active{% endif %}">
+                {{ icon('home', 16) }}<span>Overview</span>
+            </a>
+            {% for group in nav_groups %}
+            <div class="nav-group">
+                <div class="nav-group-label">{{ group.category }}</div>
+                {% for item in group['items'] %}
+                <a href="/calculator/{{ item.id }}"
+                   class="nav-link{% if request.path == '/calculator/' + item.id %} active{% endif %}"
+                   title="{{ item.name }} — {{ item.ref }}">
+                    {{ icon(item.icon, 16) }}<span>{{ item.short }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </nav>
+
+        <div class="sidebar-foot">
+            <span class="foot-version" title="{{ code_basis_long }}">v{{ app_version }} &middot; {{ code_basis_short }}</span>
+            <span class="foot-org">APEC &middot; MIT License</span>
         </div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <div class="app-main">
+        <header class="app-topbar">
+            <button type="button" class="topbar-menu-btn" id="sidebar-toggle" aria-label="Toggle navigation">
+                {{ icon('menu', 18) }}
+            </button>
+            <div class="topbar-crumbs">
+                {% block topbar %}
+                    {% if calc %}
+                        <span class="crumb-category">{{ calc.category }}</span>
+                        <span class="crumb-sep">/</span>
+                        <span class="crumb-page">{{ calc.name }}</span>
+                    {% else %}
+                        <span class="crumb-page">RC Design Workbench</span>
+                    {% endif %}
+                {% endblock %}
+            </div>
+            <div class="topbar-right">
+                <span class="disclaimer-chip" title="APEC Internal Tool — Albert Pamonag Engineering Consultancy. For reference only. All results must be verified by a licensed professional engineer.">
+                    {{ icon('alert-triangle', 13) }}<span>Verify with a licensed PE</span>
+                </span>
+            </div>
+        </header>
+
+        <main class="app-content">
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="app-footer">
+            <span>ConcreteDesignPy v{{ app_version }} &mdash; MIT License &mdash; Albert Pamonag Engineering Consultancy</span>
+            <span class="footer-disclaimer">APEC internal tool, for reference only. Verify all results with a licensed professional engineer.</span>
+        </footer>
     </div>
 
-    <main class="container">
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer class="footer">
-        <div class="container">
-            <p>ConcreteDesignPy &mdash; MIT License &mdash; Albert Pamonag Engineering Consultancy</p>
-            <p class="disclaimer">APEC Internal Tool. For reference only. Verify all results with licensed professional engineer.</p>
-        </div>
-    </footer>
-
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/solver.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

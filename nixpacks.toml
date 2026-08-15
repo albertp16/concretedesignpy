@@ -1,0 +1,7 @@
+# Railway/Nixpacks build configuration.
+#
+# package.json exists only for the front-end Jest tests, but its presence
+# makes Nixpacks auto-detect this repo as a Node app, so the Python build
+# (pip install -r requirements.txt) never runs and gunicorn is missing at
+# deploy time. Pinning the provider restores the Python build.
+providers = ["python"]

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Column Design - ConcreteDesignPy{% endblock %}
 
 {% block head %}
@@ -7,38 +8,6 @@
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
 /* Column page specific styles */
-.col-page-layout { display: flex; gap: 2rem; align-items: flex-start; }
-.col-page-left { flex: 0 0 500px; }
-.col-page-right { flex: 1; min-width: 0; }
-.col-page-right .results-panel { position: sticky; top: 1rem; }
-
-/* Report sections */
-.report-full { margin-top: 1.5rem; }
-.report-section {
-    background: #fff; border: 1px solid var(--gray-200);
-    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
-}
-.report-section h4 {
-    font-size: .95rem; color: var(--primary-dark); margin: 0 0 .75rem;
-    padding-bottom: .35rem; border-bottom: 2px solid var(--primary-light);
-}
-.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem 2rem; font-size: .85rem; }
-.report-grid dt { color: var(--gray-500); }
-.report-grid dd { font-family: "SF Mono","Fira Code",monospace; font-weight: 500; text-align: right; }
-.report-eq { background: var(--gray-50); padding: .6rem 1rem; border-radius: 4px; margin: .5rem 0; font-size: .9rem; }
-.report-table {
-    width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0;
-}
-.report-table th {
-    background: var(--primary-dark); color: #fff; padding: .35rem .5rem;
-    text-align: center; font-weight: 600; font-size: .75rem;
-}
-.report-table td {
-    padding: .3rem .5rem; text-align: center; border-bottom: 1px solid var(--gray-200);
-    font-family: "SF Mono","Fira Code",monospace; font-size: .78rem;
-}
-.report-table tr:nth-child(even) { background: var(--gray-50); }
-.report-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .dc-table th { background: #b91c1c; }
 .dc-table .status-pass { background: #dcfce7; }
 .dc-table .status-fail { background: #fee2e2; }
@@ -47,12 +16,16 @@
 
 {% block content %}
 <div class="calc-page">
-    <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Strain-Compatibility Analysis of Reinforced Concrete Section</h1>
     <p class="ref">NSCP 2015 / ACI 318-19 &mdash; Column P-M / P-M-M Interaction Diagram</p>
 
-    <div class="col-page-layout">
-        <div class="col-page-left">
+    <div class="solver">
+        <aside class="solver-params">
+            <div class="solver-params-head">
+                {{ icon('sliders', 14) }}
+                <span class="solver-params-title">Parametrization</span>
+            </div>
+            <div class="solver-params-body">
             <form id="calc-form" class="calc-form">
                 <div class="form-section">
                     <h3>Analysis Mode</h3>
@@ -136,30 +109,44 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn-primary" style="width:100%;" id="submit-btn">Generate Interaction Diagram</button>
             </form>
-        </div>
-
-        <div class="col-page-right">
-            <div id="results" class="results-panel" style="display:none;">
-                <h2 id="results-title">P-M Interaction Diagram</h2>
-                <div id="results-summary-biaxial" style="display:none;"></div>
-                <div id="chart-pm" style="text-align:center;"></div>
-                <div id="chart-3d" style="text-align:center;display:none;"></div>
-                <div id="svg-rebar" style="text-align:center;margin-top:1rem;"></div>
             </div>
-        </div>
-    </div>
+            <div class="solver-runbar">
+                <button class="btn-run" type="submit" form="calc-form">{{ icon('zap', 15) }} Update</button>
+                <label class="auto-toggle"><input type="checkbox" id="solver-auto"> Auto</label>
+                <span class="run-status" data-state="idle">Idle</span>
+            </div>
+            <div class="run-hint">Ctrl/Cmd + Enter runs from anywhere on the page</div>
+        </aside>
 
-    <div id="charts-row-biaxial" style="display:none;margin-top:1rem;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-            <div id="chart-contour" style="width:100%;"></div>
-            <div id="chart-fiber-col" style="width:100%;"></div>
-        </div>
-    </div>
+        <section class="solver-views">
+            <div class="solver-empty" id="solver-empty">
+                {{ icon('zap', 34) }}
+                <h3>No results yet</h3>
+                <p>Set the parameters on the left, then press <b>Update</b> or hit <kbd>Ctrl/Cmd + Enter</kbd>.</p>
+            </div>
 
-    <!-- Full-width report below -->
-    <div id="results-report" class="report-full" style="display:none;"></div>
+            <div data-view="Results">
+                <div id="results" class="results-panel" style="display:none;">
+                    <h2 id="results-title">P-M Interaction Diagram</h2>
+                    <div id="results-summary-biaxial" style="display:none;"></div>
+                    <div id="chart-pm" style="text-align:center;"></div>
+                    <div id="chart-3d" style="text-align:center;display:none;"></div>
+                    <div id="svg-rebar" style="text-align:center;margin-top:1rem;"></div>
+                </div>
+                <div id="charts-row-biaxial" style="display:none;margin-top:1rem;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div id="chart-contour" style="width:100%;"></div>
+                        <div id="chart-fiber-col" style="width:100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div data-view="Report">
+                <div id="results-report" class="report-full" style="display:none;"></div>
+            </div>
+        </section>
+    </div>
 </div>
 
 <script>
@@ -170,7 +157,6 @@ function setAnalysisMode(mode) {
     document.getElementById('btn-uniaxial').className = mode === 'uniaxial' ? 'btn-primary' : 'btn-secondary';
     document.getElementById('btn-biaxial').className = mode === 'biaxial' ? 'btn-primary' : 'btn-secondary';
     document.getElementById('biaxial-params').style.display = mode === 'biaxial' ? '' : 'none';
-    document.getElementById('submit-btn').textContent = mode === 'biaxial' ? 'Generate Biaxial Surface' : 'Generate Interaction Diagram';
     // Switch Handsontable columns
     rebuildHot(mode);
 }

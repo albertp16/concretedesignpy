@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Joint Shear - ConcreteDesignPy{% endblock %}
 
 {% block head %}
@@ -7,71 +8,101 @@
 
 {% block content %}
 <div class="calc-page">
-    <a href="/" class="back-link">&larr; All Calculators</a>
     <h1>Joint Shear Verification</h1>
     <p class="ref">NSCP 2015 Section 418.8.4 &mdash; Special Moment Frames (&equiv; ACI 318M-14)</p>
 
-    <form id="calc-form" class="calc-form">
-        <div class="form-section">
-            <h3>Forces</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Ve, column shear (kN)</label><input type="number" name="ve" value="384.23" step="any" required></div>
+    <div class="solver">
+        <aside class="solver-params">
+            <div class="solver-params-head">
+                {{ icon('sliders', 14) }}
+                <span class="solver-params-title">Parametrization</span>
             </div>
-        </div>
+            <div class="solver-params-body">
+                <form id="calc-form" class="calc-form">
+                    <div class="form-section">
+                        <h3>Forces</h3>
+                        <div class="form-row">
+                            <div class="form-group"><label>Ve, column shear (kN)</label><input type="number" name="ve" value="384.23" step="any" required></div>
+                        </div>
+                    </div>
 
-        <div class="form-section">
-            <h3>Reinforcement Group 1</h3>
-            <div class="form-row">
-                <div class="form-group"><label>As per bar (mm&sup2;)</label><input type="number" name="as1" value="491" required></div>
-                <div class="form-group"><label>Number of bars</label><input type="number" name="n_bars1" value="8" required></div>
-            </div>
-        </div>
+                    <div class="form-section">
+                        <h3>Reinforcement Group 1</h3>
+                        <div class="form-row">
+                            <div class="form-group"><label>As per bar (mm&sup2;)</label><input type="number" name="as1" value="491" required></div>
+                            <div class="form-group"><label>Number of bars</label><input type="number" name="n_bars1" value="8" required></div>
+                        </div>
+                    </div>
 
-        <div class="form-section">
-            <h3>Reinforcement Group 2</h3>
-            <div class="form-row">
-                <div class="form-group"><label>As per bar (mm&sup2;)</label><input type="number" name="as2" value="491" required></div>
-                <div class="form-group"><label>Number of bars</label><input type="number" name="n_bars2" value="4" required></div>
-            </div>
-        </div>
+                    <div class="form-section">
+                        <h3>Reinforcement Group 2</h3>
+                        <div class="form-row">
+                            <div class="form-group"><label>As per bar (mm&sup2;)</label><input type="number" name="as2" value="491" required></div>
+                            <div class="form-group"><label>Number of bars</label><input type="number" name="n_bars2" value="4" required></div>
+                        </div>
+                    </div>
 
-        <div class="form-section">
-            <h3>Material &amp; Geometry</h3>
-            <div class="form-row">
-                <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="414" step="any" required></div>
-                <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="34.5" step="any" required></div>
-                <div class="form-group"><label>Beam width (mm)</label><input type="number" name="beam_width" value="500" required></div>
-                <div class="form-group"><label>Joint depth h (mm)</label><input type="number" name="joint_depth" value="600" required></div>
+                    <div class="form-section">
+                        <h3>Material &amp; Geometry</h3>
+                        <div class="form-row">
+                            <div class="form-group"><label>fy (MPa)</label><input type="number" name="fy" value="414" step="any" required></div>
+                            <div class="form-group"><label>f'c (MPa)</label><input type="number" name="fc" value="34.5" step="any" required></div>
+                            <div class="form-group"><label>Beam width (mm)</label><input type="number" name="beam_width" value="500" required></div>
+                            <div class="form-group"><label>Joint depth h (mm)</label><input type="number" name="joint_depth" value="600" required></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Column width (mm)</label><input type="number" name="column_width" value="500" required></div>
+                            <div class="form-group"><label>Perp. distance x, column face to beam face (mm)</label><input type="number" name="perpendicular_dist" value="50"></div>
+                            <div class="form-group">
+                                <label>Joint Config</label>
+                                <select name="joint_config">
+                                    <option value="1">4-face confined (1.7)</option>
+                                    <option value="2">3 or 2-face (1.2)</option>
+                                    <option value="3">Other (1.0)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>&lambda; (concrete)</label>
+                                <select name="lamda">
+                                    <option value="1.0">Normalweight (1.0)</option>
+                                    <option value="0.75">Lightweight (0.75)</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>&phi;</label><input type="number" value="0.85" disabled title="Fixed at 0.85 for SMF joints (Section 21.2.4.4)"></div>
+                        </div>
+                    </div>
+                </form>
             </div>
-            <div class="form-row">
-                <div class="form-group"><label>Column width (mm)</label><input type="number" name="column_width" value="500" required></div>
-                <div class="form-group"><label>Perp. distance x, column face to beam face (mm)</label><input type="number" name="perpendicular_dist" value="50"></div>
-                <div class="form-group">
-                    <label>Joint Config</label>
-                    <select name="joint_config">
-                        <option value="1">4-face confined (1.7)</option>
-                        <option value="2">3 or 2-face (1.2)</option>
-                        <option value="3">Other (1.0)</option>
-                    </select>
+            <div class="solver-runbar">
+                <button class="btn-run" type="submit" form="calc-form">{{ icon('zap', 15) }} Update</button>
+                <label class="auto-toggle"><input type="checkbox" id="solver-auto"> Auto</label>
+                <span class="run-status" data-state="idle">Idle</span>
+            </div>
+            <div class="run-hint">Ctrl/Cmd + Enter runs from anywhere on the page</div>
+        </aside>
+
+        <section class="solver-views">
+            <div class="solver-empty" id="solver-empty">
+                {{ icon('zap', 34) }}
+                <h3>No results yet</h3>
+                <p>Set the parameters on the left, then press <b>Update</b> or hit <kbd>Ctrl/Cmd + Enter</kbd>.</p>
+            </div>
+
+            <div data-view="Results">
+                <div id="results" class="results-panel" style="display:none;">
+                    <h2>Results</h2>
+                    <div id="results-content"></div>
                 </div>
-                <div class="form-group">
-                    <label>&lambda; (concrete)</label>
-                    <select name="lamda">
-                        <option value="1.0">Normalweight (1.0)</option>
-                        <option value="0.75">Lightweight (0.75)</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>&phi;</label><input type="number" value="0.85" disabled title="Fixed at 0.85 for SMF joints (Section 21.2.4.4)"></div>
             </div>
-        </div>
 
-        <button type="submit" class="btn-primary">Check</button>
-    </form>
+            <div data-view="Report">
+                <div id="results-report" class="report-panel"></div>
+            </div>
 
-    <div id="results" class="results-panel" style="display:none;">
-        <h2>Results</h2>
-        <div id="results-content"></div>
-        <div id="results-report" class="report-panel"></div>
+            <div data-view="Calc Sheet">
+                {% include "_calcsheet.html" %}
+            </div>
+        </section>
     </div>
 </div>
 
@@ -121,5 +152,4 @@ function sheetMeta() {
     return { project: 'ConcreteDesignPy', member: 'Beam-column joint' };
 }
 </script>
-{% include "_calcsheet.html" %}
 {% endblock %}

@@ -1,5 +1,53 @@
 # Changelog - concretedesignpy
 
+## Version 0.10.0 | August 15, 2026
+
+Solver-workbench redesign of the web UI, and a fix for the Railway
+deploy that had been crash-looping since the Jest suite landed.
+
+### Added
+- **VIKTOR-style solver layout on every calculator.** Each page is now a
+  left parametrization panel (sticky, collapsible sections) and a right
+  set of tabbed views (Results / Report / Calc Sheet where the page has
+  one). The tab bar is built at runtime from `[data-view]` panels by the
+  new `static/js/solver.js`; Plotly charts in a hidden tab are resized on
+  activation, so nothing renders at zero width.
+- **Run bar with live status.** An Update button (plus Ctrl/Cmd+Enter from
+  anywhere), an opt-in Auto mode (debounced re-run on parameter change,
+  remembered per page in localStorage), and a status chip driven by
+  instrumenting `fetch` for `/api/*` POSTs: parameters changed → running →
+  up to date with elapsed time, or error. Pages contribute no code to any
+  of this.
+- **App shell.** A dark grouped sidebar rendered on every page from a new
+  single-source calculator registry (`webapp/nav.py` — the landing page,
+  sidebar and breadcrumbs all read it), a breadcrumb topbar, and a
+  searchable landing page. Icons are Lucide path data inlined as a Jinja
+  macro (`_icons.html`), so no icon CDN and no icon-name drift.
+- **Design system.** `style.css` rewritten around tokens (Inter for UI,
+  JetBrains Mono for numbers) while keeping the legacy class vocabulary
+  (`results-panel`, `report-*`, `form-*`, …) styled, so page-internal
+  markup upgraded without logic edits. KPI strips and verdict chips are
+  available to all pages.
+
+### Fixed
+- **Railway deploy: `gunicorn: command not found`.** `package.json`
+  (added for the Jest suite) made Nixpacks detect the repo as a Node app,
+  so `pip install -r requirements.txt` never ran. `nixpacks.toml` now pins
+  `providers = ["python"]`, and the Procfile/railway.json start commands
+  use `python -m gunicorn`, which survives PATH differences.
+- **Per-run success toasts removed.** Run feedback lives in the status
+  chip; toasts are reserved for errors.
+
+### Changed
+- The version badge moved from the old navbar to the sidebar foot; the
+  e2e pin (`test_navbar_version_tracks_the_package`) follows the element
+  and now also asserts the element exists.
+- The calculator JavaScript is byte-identical across the redesign except
+  one line in `column-interaction.html` that relabelled its now-removed
+  in-form submit button (it would have thrown on null). All 296 pytest
+  cases — including the column-jacket page-source pins — and the 69-case
+  Jest suite pass unchanged.
+
 ## Version 0.9.0 | August 15, 2026
 
 Printable A4 calculation sheets for beam flexure, beam shear and joint
