@@ -144,6 +144,10 @@ def calculate_ultimate_shear(phi: float, vc: float, vs: float) -> float:
 def main():
     """
     Demonstrates example validations for transverse reinforcements.
+
+    Returns:
+        list[str]: One message per validation that failed. An empty list means
+        every validation passed.
     """
     # Example parameters (in mm)
     first_hoop_loc = 55   # Distance of the first hoop from the face
@@ -152,17 +156,25 @@ def main():
     ds = 8                # Stirrup diameter
     hoop_spacing = 60     # Provided hoop spacing
 
+    failures = []
+
     # Validate first hoop location
     if not validate_first_hoop(first_hoop_loc):
+        failures.append("First hoop location validation failed.")
 
     # Validate maximum hoop spacing
     if not validate_max_hoop_spacing(depth, db, ds, hoop_spacing):
+        failures.append("Maximum hoop spacing validation failed.")
 
     # Validate hoops not required scenario
     if not validate_hoops_not_required(depth, hoop_spacing):
+        failures.append("Hoops not required spacing validation failed.")
 
     # Validate maximum spacing based on bar diameter
     if not validate_max_spacing(db, hoop_spacing):
+        failures.append("Maximum spacing based on bar diameter validation failed.")
+
+    return failures
 
 if __name__ == "__main__":
     main()
