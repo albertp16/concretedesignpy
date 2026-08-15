@@ -21,7 +21,8 @@ def _tension_force(as_bar, n_bars, fy, factor=1.25):
 
 def joint_shear_check(
     ve, as1, n_bars1, as2, n_bars2, fy, fc,
-    beam_width, joint_depth, perpendicular_dist=0,
+    beam_width, joint_depth, *, column_width,
+    perpendicular_dist=0,
     joint_config=1, lamda=1.0, phi=0.85,
 ):
     """
@@ -44,15 +45,29 @@ def joint_shear_check(
     fc : float
         Concrete compressive strength (MPa).
     beam_width : float
-        Width of the beam (mm).
+        Width of the beam, b (mm).
     joint_depth : float
-        Depth of the joint / column dimension (mm).
+        Overall depth of the column, h, in the direction of the joint
+        shear considered (mm).
+    column_width : float
+        Overall width of the column perpendicular to the joint shear
+        considered (mm). Keyword-only and required: without it the
+        governing cap on Aj cannot be applied.
     perpendicular_dist : float
-        Perpendicular distance from column face to beam edge (mm).
+        Perpendicular distance from the column side face to the nearest
+        beam edge, x (mm). Zero when the beam is flush with, or wider
+        than, the column.
+
+        NOTE for the next reader: this is measured **beam face to column
+        face**, and that is deliberate. Section 15.5.2.2(b) is worded
+        "twice the perpendicular distance from longitudinal axis of beam
+        to nearest side face of the column", i.e. 2 * (b/2 + x), which is
+        identically b + 2x. Fig. R15.5.2.2 draws the same limit as
+        "b + 2x" with x face-measured. Do not "fix" this back to 2 * x.
     joint_config : int
-        1 = confined on all 4 faces (factor 1.7),
-        2 = confined on 3 or 2 opposite faces (factor 1.2),
-        3 = other (factor 1.0).
+        1 = confined on all 4 faces (gamma 1.7),
+        2 = confined on 3 or 2 opposite faces (gamma 1.2),
+        3 = other (gamma 1.0).
     lamda : float
         Lightweight concrete factor (1.0 for normal weight).
     phi : float
@@ -62,15 +77,30 @@ def joint_shear_check(
     -------
     dict
         Keys: t1, t2, v_joint, joint_width, aj, vn, phi_vn, status
+
+    Notes
+    -----
+    This function checks joint shear only. It does not check joint
+    transverse reinforcement, bar development into the joint, or the
+    column-to-beam flexural strength ratio.
     """
+    if column_width <= 0:
+        raise ValueError("column_width must be positive.")
+
     t1 = _tension_force(as1, n_bars1, fy)
     t2 = _tension_force(as2, n_bars2, fy)
     v_joint = t1 + t2 - ve
 
-    # Effective joint area
+    # Effective joint area, Section 15.5.2.2.
+    # "Effective joint width shall be the overall width of the column
+    #  where the beam is wider than the column. Where the column is wider
+    #  than the beam, effective joint width shall not exceed the lesser of
+    #  (a) and (b)."  R15.5.2.2: "In no case is Aj greater than the column
+    #  cross-sectional area."
+    # Both sentences are satisfied by taking the least of the three.
     option_a = beam_width + joint_depth
     option_b = beam_width + 2 * perpendicular_dist
-    joint_width = min(option_a, option_b)
+    joint_width = min(column_width, option_a, option_b)
     aj = joint_width * joint_depth
 
     # Joint shear strength factor
@@ -87,6 +117,7 @@ def joint_shear_check(
         "t2": round(t2, 2),
         "v_joint": round(v_joint, 2),
         "joint_width": round(joint_width, 2),
+        "column_width": column_width,
         "aj": round(aj, 2),
         "vn": round(vn, 2),
         "phi_vn": round(phi_vn, 2),

@@ -25,6 +25,7 @@ def joint_shear():
             fc=float(data["fc"]),
             beam_width=float(data["beam_width"]),
             joint_depth=float(data["joint_depth"]),
+            column_width=float(data["column_width"]),
             perpendicular_dist=float(data.get("perpendicular_dist", 0)),
             joint_config=int(data.get("joint_config", 1)),
             lamda=float(data.get("lamda", 1.0)),
