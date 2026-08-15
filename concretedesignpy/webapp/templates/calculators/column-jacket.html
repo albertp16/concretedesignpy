@@ -463,8 +463,9 @@ function renderVerdict(d) {
        + 'only &mdash; it is deliberately not called &ldquo;safe&rdquo;.'
        + '<span class="screen-only"> Read every advisory in the Internal Review panel '
        + 'before relying on it.</span>'
-       + '<span class="client-only"> This report covers the computed checks only. '
-       + 'Engineering advisories are issued separately.</span>'
+       + '<span class="client-only"> This report covers the computed code checks only and is '
+       + 'not a statement that the retrofit is safe or complete; it is subject to the review '
+       + 'and judgement of the Engineer of Record.</span>'
        + '</span></div>';
     document.getElementById('cj-verdict').innerHTML = h;
 }
@@ -898,31 +899,29 @@ function buildSummary(d) {
     return h + '</table></div>';
 }
 
-// ---------------------------------------------- advisory disclosure block
+// ---------------------------------------------- advisory disclosure summary
 function buildDisclosure(d) {
-    // The client report does NOT carry the advisory text (user direction,
-    // 2026-08-15). It carries this instead, so the omission is DISCLOSED
-    // rather than silent: the count, the critical count, and every code with
-    // its severity. Built from d.advisories, never hand-written -- a
-    // hand-maintained list would drift the moment an advisory is added, and
-    // an omission nobody can see is indistinguishable from an answer that
-    // never had the finding.
+    // Heads the INTERNAL REVIEW panel. It is not rendered in the client
+    // report: user direction of 2026-08-15 removed advisory content from the
+    // submitted document entirely, including the code list and the count.
+    // Kept here so the Engineer of Record still sees, in one line, how many
+    // findings the calculation raised and how many are critical. Built from
+    // d.advisories, never hand-written -- a hand-maintained list would drift
+    // the moment an advisory is added.
     var codes = d.advisories.map(function(a) {
         return esc(a.code) + ' (' + esc(a.severity) + ')';
     }).join(', ');
     var crit = 0;
     d.advisories.forEach(function(a) { if (a.severity === 'critical') crit += 1; });
 
-    var h = '<div class="report-section"><h4>Engineering Advisories &mdash; Issued Separately</h4>';
-    h += '<div class="cj-disclosure">';
+    var h = '<div class="cj-disclosure">';
     h += '<strong>' + d.advisories.length + ' advisories (' + crit + ' critical) apply to this '
-       + 'calculation and are NOT reproduced in this report,</strong> at the direction of the '
-       + 'Engineer of Record. They are issued as a separate Internal Review document. '
-       + 'Each one is an engineering trap the arithmetic cannot rule out, and the verdict above '
-       + 'is a statement about the computed checks only.';
+       + 'calculation.</strong> They are excluded from the client report at the direction of the '
+       + 'Engineer of Record. Each one is an engineering trap the arithmetic cannot rule out, and '
+       + 'the verdict is a statement about the computed checks only.';
     h += '<div class="cj-codes"><span class="cj-codes-label">Advisory codes raised:</span> '
        + codes + '</div>';
-    h += '</div></div>';
+    h += '</div>';
     return h;
 }
 
@@ -934,9 +933,10 @@ function buildInternalReview(d) {
     // sorted by severity or capped.
     var h = '<div class="report-section ir-section">';
     h += '<h4>Internal Review &mdash; Advisories (' + d.advisories.length + ')</h4>';
-    h += '<p class="report-ref">Engineer-of-Record review copy. Excluded from the client report '
-       + 'by direction; the client report discloses that these exist and lists their codes. '
+    h += '<p class="report-ref">Engineer-of-Record review copy. The client report carries no '
+       + 'advisory content at all &mdash; not the text, not the codes, not the count. '
        + 'Hover or focus an advisory to reveal the rest of its text.</p>';
+    h += buildDisclosure(d);
     h += d.advisories.map(advisory).join('');
     h += '</div>';
     return h;
@@ -978,8 +978,10 @@ function buildReport(d) {
         h += '</div>';
     }
 
-    h += buildDisclosure(d);
-
+    // No advisory content of any kind reaches the client report -- not the
+    // text, not the codes, not the count (user direction, 2026-08-15, taken
+    // after the disclosure block was reviewed on screen). The disclosure
+    // summary now heads the Internal Review panel instead.
     var pv = d.provenance;
     h += '<div class="report-section"><h4>Provenance</h4><div class="cj-prov">';
     h += 'Engine: ' + esc(pv.engine_version) + '<br>SHA-256: ' + esc(pv.engine_sha256) + '<br>';

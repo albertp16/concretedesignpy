@@ -246,40 +246,45 @@ def test_advisories_cannot_be_hidden(page_source):
 # ----------------------------------- client report / internal review split
 
 
-def test_the_client_report_does_not_carry_advisory_text(page_source):
-    """User direction, 2026-08-15: the report is submitted to the client and
-    must not reproduce the engineering advisories.
+def test_the_client_report_carries_no_advisory_content(page_source):
+    """User direction, 2026-08-15 (revised after review of the disclosure
+    block on screen): the submitted report carries NO advisory content at all
+    -- not the text, not the codes, not the count.
 
-    buildReport must not render them -- only buildInternalReview may.
+    buildReport must therefore reference neither the advisory renderer nor the
+    disclosure summary; both belong to buildInternalReview.
     """
     report = page_source.split("function buildReport")[1] \
                         .split("// ------------------------------------------------------------------ submit")[0]
-    assert "d.advisories.map(advisory)" not in report, \
-        "the client report must not render advisory text"
-    assert "buildDisclosure(d)" in report, \
-        "the client report must still disclose that advisories exist"
+    assert "d.advisories" not in report, \
+        "the client report must not touch d.advisories in any form"
+    assert "buildDisclosure" not in report, \
+        "the disclosure summary belongs to the internal review, not the report"
+    assert "advisory(" not in report
 
 
-def test_the_client_report_discloses_what_it_omits(page_source):
-    """The other half, and the one that makes the omission legitimate.
+def test_the_disclosure_summary_lives_in_the_internal_review(page_source):
+    """The count and the full code list are not lost -- they head the Internal
+    Review panel, so the Engineer of Record still sees in one line how many
+    findings the calculation raised and how many are critical.
 
-    A directed omission that leaves no trace is indistinguishable from an
-    answer that never had the finding. The report carries the count, the
-    critical count and EVERY advisory code with its severity -- built from
-    the response, never hand-written, so it cannot drift when an advisory is
-    added.
+    Built from the response, never hand-written: a hand-maintained list would
+    drift the moment an advisory is added.
     """
+    ir = page_source.split("function buildInternalReview")[1] \
+                    .split("function buildReport")[0]
+    assert "buildDisclosure(d)" in ir
+
     body = page_source.split("function buildDisclosure")[1] \
-                      .split("function buildInternalReview")[0]
+                      .split("// ------------------------------------------------- internal review")[0]
     assert "d.advisories.map(" in body, "the code list must be built from the response"
     assert "a.code" in body and "a.severity" in body
     assert "d.advisories.length" in body, "the count must be reported"
     for forbidden in (".filter(", ".slice("):
         assert forbidden not in body, \
-            "the disclosure must list every advisory, not a subset ({})".format(forbidden)
-    # and it must say the omission was DIRECTED, not merely be silent.
-    # (the phrase spans a JS string concatenation, so match its halves)
-    assert "NOT reproduced in this report" in body
+            "the summary must cover every advisory, not a subset ({})".format(forbidden)
+    # the exclusion is recorded as DIRECTED, so the decision stays visible to
+    # whoever reads the internal copy
     assert "at the direction of the" in body and "Engineer of Record" in body
 
 
@@ -313,7 +318,10 @@ def test_the_client_verdict_does_not_point_at_missing_advisories(page_source):
     rules must swap them."""
     verdict = page_source.split("function renderVerdict")[1].split("function drawPM")[0]
     assert 'class="screen-only"' in verdict and 'class="client-only"' in verdict
-    assert "issued separately" in verdict
+    # the client wording must not overclaim, and must not reference advisories
+    # the document does not contain
+    assert "computed code checks only" in verdict
+    assert "advisor" not in verdict.split('class="client-only"')[1].split("</span>")[0].lower()
     print_block = page_source.split("@media print {")[1]
     assert ".screen-only { display: none !important; }" in print_block
     assert ".client-only { display: inline !important; }" in print_block

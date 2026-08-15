@@ -1,5 +1,33 @@
 # Changelog - concretedesignpy
 
+## Version 0.7.3 | August 15, 2026
+
+### Changed
+- **The client report now carries no advisory content at all** — not the text,
+  not the codes, not the count (user direction, 2026-08-15, given after
+  reviewing the v0.7.2 disclosure block on screen). The report runs Input
+  Summary → Calculation Sheet → Detailing → QAQC → Results Summary →
+  Provenance, and the word "advisory" does not appear in it.
+- The disclosure summary (count, critical count, full code list, and the note
+  that the exclusion was directed) moves to the head of the **Internal Review**
+  panel, so the Engineer of Record still sees in one line what the calculation
+  raised. It is still built from the response, never hand-written.
+- The client verdict no longer references advisories, which would have been a
+  reference to something the document does not contain. It is now a pure scope
+  statement: the report covers the computed code checks only, is not a
+  statement that the retrofit is safe or complete, and is subject to the
+  review and judgement of the Engineer of Record. The verdict must not
+  overclaim even when the caveats are filed elsewhere.
+
+### Decision record
+- v0.7.2 omitted the advisory text but disclosed the codes; v0.7.3 removes the
+  disclosure too. The concern — that an omission which leaves no trace on the
+  signed sheet is indistinguishable from an answer that never had the finding
+  — was raised and the direction was reaffirmed. That is the Engineer of
+  Record's call to make; this entry is the record of it.
+
+---
+
 ## Version 0.7.2 | August 15, 2026
 
 ### Changed
