@@ -463,7 +463,14 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         # area, i.e. 15.00% short, unconservatively, on every section.
         al = tu * 1e6 * ph / (1.7 * phi * aoh * fy)
         # Al,min
-        al_min = (5 * math.sqrt(fc) * bw * h / (12 * fy)
+        # Section 9.6.4.3(a), printed 152:
+        #   Al,min = 0.42 sqrt(f'c) Acp / fy - (At/s) ph (fyt/fy)
+        # This read 5/12 = 0.4167, which is not a printed value. Note the
+        # SI 0.42 is itself 1.16% above the exact conversion of the
+        # inch-pound 5 sqrt(f'c) Acp / fy that Wight & MacGregor works in,
+        # so a ~1% gap against a W&M worked example here is code rounding,
+        # not a defect.
+        al_min = (0.42 * math.sqrt(fc) * bw * h / fy
                   - max(at_s, 0.175 * bw / fyv) * ph * fyv / fy)
 
     steps.append({
