@@ -650,9 +650,38 @@ function advisory(a) {
 }
 
 // ------------------------------------------------------ calculation sheet
+function pubRef(s) {
+    // Internal APEC note identifiers must not reach the client submission.
+    // Several clause strings arrive from the server already carrying them --
+    // monolithic.clause ends "; TN-RET-001 Core Technical Requirements 4",
+    // and monolithic.reason closes on "TN-RET-002 TODO C10 -- BLOCKING" --
+    // so stripping only the hard-coded ones here would miss the ones that
+    // matter. Drop any sentence or semicolon-separated segment naming an
+    // internal note; what remains is the published citation, which is what a
+    // client can actually look up.
+    // Filter at the FINEST granularity available, innermost first. Doing the
+    // sentence split first threw away whole strings that carry no full stop:
+    // "Lampropoulos ... Tables 2-5; TN-RET-001 Core Technical Requirements 4"
+    // is one sentence, so it matched as a whole and the published citation
+    // was lost with the internal one, leaving only the fallback.
+    var drop = /TN-RET|TODO\s+[A-Z]\d/i;
+    return String(s)
+        .split(/(?<=\.)\s+/)                       // sentences
+        .map(function(sentence) {
+            return sentence.split(/\s*;\s*/)       // clauses within a sentence
+                .filter(function(seg) { return !drop.test(seg); })
+                .join('; ');
+        })
+        .filter(function(x) { return x.trim(); })
+        .join(' ')
+        .trim() || 'Engineering interpretation';
+}
+
 function step(ref, desc, eqHtml, res) {
-    return '<div class="s-ref">' + ref + '</div>'
-         + '<div class="s-calc"><p class="desc">' + desc + '</p>' + (eqHtml || '') + '</div>'
+    // Both the reference and the description are sanitised: the sheet is
+    // client-facing, and buildInternalReview does not use step().
+    return '<div class="s-ref">' + pubRef(ref) + '</div>'
+         + '<div class="s-calc"><p class="desc">' + pubRef(desc) + '</p>' + (eqHtml || '') + '</div>'
          + '<div class="s-res">' + res + '</div>';
 }
 function heading(t) {
@@ -813,7 +842,7 @@ function buildSheet(d) {
     // ---- 7: preload + stiffness ----
     if (pl && st) {
         h += heading('7 &mdash; Preload and Stiffness');
-        h += step('Mechanics, not a code equation; TN-RET-001',
+        h += step('Mechanics, not a code equation',
             'Only load applied after casting is shared; P&#8320; stays in the core',
             '<div class="report-eq">\\[ \\varepsilon_0 = ' + num(pl.eps_0, 6) + ' \\qquad \\text{jacket share } '
                 + num(pl.jacket_share_percent, 1) + '\\% \\text{ vs monolithic } ' + num(pl.jacket_share_monolithic_percent, 1) + '\\% \\]</div>',
@@ -839,7 +868,8 @@ function buildSheet(d) {
             'K_F = ' + num(mo.K_F, 3) + '<br><span class="dim">EOR decision</span>');
     } else if (mo) {
         h += heading('8 &mdash; Monolithic Coefficients');
-        h += step('TN-RET-002 TODO C10', esc(mo.reason), '', '<span class="bad">not available</span>');
+        h += step('Lampropoulos et al. (2012) &mdash; scope', esc(mo.reason), '',
+                  '<span class="bad">not available</span>');
     }
 
     h += '</div></div>';
@@ -939,6 +969,7 @@ function buildInternalReview(d) {
     h += buildDisclosure(d);
     h += d.advisories.map(advisory).join('');
     h += '</div>';
+    h += buildProvenance(d);
     return h;
 }
 
@@ -978,17 +1009,32 @@ function buildReport(d) {
         h += '</div>';
     }
 
-    // No advisory content of any kind reaches the client report -- not the
-    // text, not the codes, not the count (user direction, 2026-08-15, taken
-    // after the disclosure block was reviewed on screen). The disclosure
-    // summary now heads the Internal Review panel instead.
+    // The client submission ends at the Results Summary. Two things are
+    // deliberately absent, both by direction (2026-08-15):
+    //   - advisory content of any kind: not the text, not the codes, not the
+    //     count;
+    //   - provenance: engine version, source chain, SHA-256, units, code
+    //     basis and the software disclaimer.
+    // Both live in the Internal Review panel instead. Nothing is discarded;
+    // it is withheld from the submitted document only.
+    return h;
+}
+
+// ------------------------------------------------------- provenance (internal)
+function buildProvenance(d) {
+    // Excluded from the client submission by direction. Kept here in full
+    // because it is what makes a number auditable a year later: the engine
+    // version and its SHA-256 pin exactly which code produced these results,
+    // and the source line records the vendoring chain the hash compares
+    // against.
     var pv = d.provenance;
-    h += '<div class="report-section"><h4>Provenance</h4><div class="cj-prov">';
+    var h = '<div class="report-section ir-section"><h4>Provenance (internal)</h4>';
+    h += '<div class="cj-prov">';
+    h += 'Software: ConcreteDesignPy<br>';
     h += 'Engine: ' + esc(pv.engine_version) + '<br>SHA-256: ' + esc(pv.engine_sha256) + '<br>';
     h += 'Source: ' + esc(pv.engine_source) + '<br>Units: ' + esc(pv.units) + '<br>';
     h += 'Code basis: ' + esc(pv.code_basis) + '<br><br><em>' + esc(pv.disclaimer) + '</em>';
     h += '</div></div>';
-
     return h;
 }
 

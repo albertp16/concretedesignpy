@@ -246,6 +246,94 @@ def test_advisories_cannot_be_hidden(page_source):
 # ----------------------------------- client report / internal review split
 
 
+def test_the_client_report_carries_no_provenance(page_source):
+    """User direction, 2026-08-15: the provenance block is deleted from the
+    client submission.
+
+    It leaked an internal working-file path (including a directory literally
+    named "Drafts"), described the engine as vendored from a copy of a copy,
+    and closed by pointing the reader at TN-RET-001 -- an internal note the
+    client does not have. It is retained in full in the Internal Review, where
+    the engine hash is what makes a number auditable a year later.
+    """
+    report = page_source.split("function buildReport")[1] \
+                        .split("// ------------------------------------------------------- provenance")[0]
+    assert "d.provenance" not in report, \
+        "the client report must not render provenance"
+    assert "engine_sha256" not in report and "engine_source" not in report
+    # and the internal copy must still have it, in full
+    ir = page_source.split("function buildInternalReview")[1] \
+                    .split("function buildReport")[0]
+    assert "buildProvenance(d)" in ir
+    prov = page_source.split("function buildProvenance")[1] \
+                      .split("// ------------------------------------------------------------------ report")[0]
+    for field in ("engine_version", "engine_sha256", "engine_source",
+                  "units", "code_basis", "disclaimer"):
+        assert field in prov, "internal provenance lost {}".format(field)
+
+
+def test_no_internal_path_can_reach_the_client_report(page_source):
+    """The vendoring path names an internal directory tree. The client report
+    must not render any field that can contain it."""
+    report = page_source.split("function buildReport")[1] \
+                        .split("// ------------------------------------------------------- provenance")[0]
+    for leak in ("engine_source", "APEC knowledge", "05_WORKING_FILES",
+                 "Drafts", "TN-RET-001"):
+        assert leak not in report, \
+            "client report may expose internal reference {!r}".format(leak)
+
+
+def test_internal_note_identifiers_are_stripped_from_the_sheet(page_source):
+    """Several clause strings arrive from the SERVER already naming internal
+    notes -- monolithic.clause ends "; TN-RET-001 Core Technical Requirements
+    4" -- so a static scan of this template cannot catch them. step() runs
+    both its reference and its description through pubRef().
+    """
+    step_fn = page_source.split("function step(")[1].split("function buildInputSummary")[0]
+    assert "pubRef(ref)" in step_fn and "pubRef(desc)" in step_fn
+
+    # no hard-coded internal identifier survives in the sheet builder either
+    sheet = page_source.split("function buildSheet")[1].split("function buildQaqc")[0]
+    for leak in ("TN-RET", "TODO C"):
+        assert leak not in sheet, \
+            "buildSheet hard-codes internal reference {!r}".format(leak)
+
+
+def test_pubRef_keeps_the_published_half_of_a_mixed_citation():
+    """Regression: the first cut split sentences before clauses, so a citation
+    with no full stop matched as a whole and the published half was discarded
+    with the internal one -- the Lampropoulos reference collapsed to the
+    generic fallback. Filtering must run innermost-first.
+
+    This re-implements pubRef's contract in Python rather than parsing the JS,
+    and pins the behaviour the browser was verified to have.
+    """
+    import re as _re
+
+    def pub_ref(s):
+        drop = _re.compile(r"TN-RET|TODO\s+[A-Z]\d", _re.I)
+        kept = []
+        for sentence in _re.split(r"(?<=\.)\s+", s):
+            segs = [x for x in _re.split(r"\s*;\s*", sentence) if not drop.search(x)]
+            joined = "; ".join(segs)
+            if joined.strip():
+                kept.append(joined)
+        return " ".join(kept).strip() or "Engineering interpretation"
+
+    mixed = ("Lampropoulos, Tsioulou & Dritsos (2012) Tables 2-5; "
+             "TN-RET-001 Core Technical Requirements 4")
+    assert pub_ref(mixed) == "Lampropoulos, Tsioulou & Dritsos (2012) Tables 2-5"
+    assert pub_ref("Mechanics, not a code equation; TN-RET-001") == \
+        "Mechanics, not a code equation"
+    # a sentence naming an internal note goes, the rest stays
+    assert "must not be borrowed" in pub_ref(
+        "They must not be borrowed. TN-RET-002 TODO C10 -- BLOCKING.")
+    assert "TN-RET" not in pub_ref(
+        "They must not be borrowed. TN-RET-002 TODO C10 -- BLOCKING.")
+    # nothing publishable left -> a neutral label, never an empty cell
+    assert pub_ref("TN-RET-002 TODO C10") == "Engineering interpretation"
+
+
 def test_the_client_report_carries_no_advisory_content(page_source):
     """User direction, 2026-08-15 (revised after review of the disclosure
     block on screen): the submitted report carries NO advisory content at all

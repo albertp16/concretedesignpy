@@ -1,5 +1,40 @@
 # Changelog - concretedesignpy
 
+## Version 0.7.4 | August 15, 2026
+
+### Changed
+- **Provenance deleted from the client submission** (user direction,
+  2026-08-15). It is retained in full in the Internal Review, where the engine
+  version and SHA-256 are what make a number auditable a year later. The
+  client report now ends at the Results Summary.
+- **Internal note identifiers are stripped from the calculation sheet.** Two
+  reached the client report: one hard-coded here, and one arriving from the
+  server inside `monolithic.clause`, which ends `"; TN-RET-001 Core Technical
+  Requirements 4"`. A static scan of the template could not have caught the
+  second, so `step()` now runs both its reference and its description through
+  `pubRef()`, which drops any sentence or clause naming an internal note and
+  keeps the published citation.
+
+### Fixed
+- `pubRef()` filtered sentences before clauses, so a citation carrying no full
+  stop matched as a whole and its published half was discarded with the
+  internal one — the Lampropoulos reference collapsed to the generic fallback.
+  Filtering now runs innermost-first.
+
+### Known gaps in the client submission
+Removing the provenance block also removed the document-level code-basis
+statement, which an independent review considered one of the two genuinely
+client-appropriate lines in it. The submitted report currently has no title
+block, no issue date, no revision identifier, no responsibility block (named
+Engineer of Record, licence, signature), no page numbering, no scope-of-
+reliance statement, and no statement of where the existing-column input data
+came from. Individual checks still cite their ACI/ASCE clauses in the
+REFERENCES column. These are documentary gaps, not computational ones, and
+are recorded here rather than fixed because a title block needs project
+inputs that this calculator does not yet collect.
+
+---
+
 ## Version 0.7.3 | August 15, 2026
 
 ### Changed
