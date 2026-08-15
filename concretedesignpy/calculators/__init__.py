@@ -21,8 +21,8 @@ Extracted and consolidated from development notebooks.
 
 Modules:
     - beam_moment: Beam flexural capacity (neutral axis solver)
-    - beam_shear: Concrete and steel shear strength
-    - beam_torsion: Torsion design checks per ACI/NSCP
+    - beam_shear: Concrete and steel shear strength, and the single
+      combined shear+torsion implementation (shear_torsion_design)
     - beam_deflection: Short-term and long-term deflection
     - frp_flexure: ACI 440.2R-17 Ch 10 FRP flexural strengthening
     - frp_shear: ACI 440.2R-17 Ch 11 FRP shear strengthening
@@ -47,8 +47,9 @@ from concretedesignpy.calculators.beam_shear import (
     compute_concrete_shear_strength,
     compute_steel_shear_strength,
     compute_shear_spacing,
+    shear_design,
+    shear_torsion_design,
 )
-from concretedesignpy.calculators.beam_torsion import torsion_design
 from concretedesignpy.calculators.beam_deflection import deflection_computation
 from concretedesignpy.calculators.column_interaction import (
     generate_interaction_diagram,
