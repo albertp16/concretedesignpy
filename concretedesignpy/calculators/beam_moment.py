@@ -192,6 +192,17 @@ def calculate_beam_moment(
         for rb in rebars:
             strain = ecu * (rb["d"] - c_val) / c_val
             stress = max(-fy, min(fy, strain * es))
+            # Bars inside the Whitney block displace concrete that the
+            # block has already counted at 0.85 f'c, so the compression
+            # bar force is A's(f's - 0.85 f'c), not A's f's.
+            # W&M Ex 4-4 step 5, printed 170:
+            #   Cs = 3 x 1.00 in^2 x (43.5 - 3.42 ksi) = 120 kips.
+            # Only bars above the neutral axis AND within depth a are
+            # inside the block; a bar in compression but below a sits in
+            # cracked concrete and displaces nothing.
+            if stress < 0 and rb["d"] < a_val:
+                stress += 0.85 * fc
+                stress = min(stress, 0.0)
             force = stress * rb["area"]
             fs_net += force
             if force >= 0:

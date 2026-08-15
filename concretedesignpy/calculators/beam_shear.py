@@ -274,10 +274,16 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
     # ── 3. Concrete shear strength Vc ──
     # ACI 318M-14 Cl. 22.5.5.1 with axial load modification
     if nu > 0:
-        # Compression: Cl. 22.5.6.1
-        vc_1 = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
-        vc_2 = 0.3 * math.sqrt(fc) * bw * d * (1 + 0.3 * nu * 1000 / ag) / 1000
-        vc = min(vc_1, vc_2)
+        # Compression: Cl. 22.5.6.1, W&M Eq. (6-13aM) printed 282.
+        # There used to be a second branch here,
+        #     0.3 sqrt(fc) bw d (1 + 0.3 Nu/Ag),
+        # taken as an upper bound and selected with min(). It is not an
+        # expression `reference/` supports, and it was provably inert:
+        # its ratio to the branch below is 1.8 (1 + 0.3q)/(1 + q/14) with
+        # q = Nu/Ag, which equals 1.8 at Nu = 0 and only grows, because
+        # 0.3 > 1/14. min() therefore always returned the first branch,
+        # for every Nu >= 0. Deleted rather than replaced.
+        vc = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
         vc_note = "with axial compression"
     elif nu < 0:
         # Tension: Cl. 22.5.7.1
@@ -310,7 +316,13 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         vs = vs_req_raw
         shear_status = "SAFE"
 
-    # Check: Vu <= phi*(Vc + 0.66*sqrt(fc')*bw*d)
+    # Check: Vu <= phi*(Vc + 0.66*sqrt(fc')*bw*d), Cl. 22.5.1.2.
+    # Note this is the SAME condition as vs_req_raw > vs_max above:
+    #   vs_req_raw > vs_max  <=>  vu/phi - vc > vs_max  <=>  vu > vu_max.
+    # shear_status was computed and then thrown away, overall_check being
+    # returned under that key, so "UNSAFE - Vs exceeds limit" could never
+    # reach a caller. It is now returned as vs_status. No verdict changes:
+    # the two agree by construction.
     vu_max = phi * (vc + (2.0 / 3.0) * math.sqrt(fc) * bw * d / 1000)
     overall_check = "SAFE" if vu <= vu_max else "UNSAFE"
 
@@ -351,10 +363,31 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
     })
 
     # ── 6. Torsional thresholds ──
-    # fTcr = phi * sqrt(fc') * (bw*h)^2 / (2*(bw+h)) / 3  (in kN.m)
-    tcr = phi * math.sqrt(fc) * (bw * h) ** 2 / (2 * (bw + h)) / 3 / 1e6
-    # fTth = fTcr / 4
-    tth = tcr / 4
+    # Table 22.7.4.1(a), printed 463, and Table 22.7.5.1, printed 464, both
+    # read at the page. Solid cross section, nonprestressed:
+    #   Tth = 0.083 lam sqrt(fc') (Acp^2/pcp)
+    #   Tcr = 0.33  lam sqrt(fc') (Acp^2/pcp)
+    # and rows (c) of both tables multiply by
+    #   sqrt(1 + Nu/(0.33 Ag lam sqrt(fc')))
+    # for a member subject to axial force, Nu positive for compression and
+    # negative for tension. That factor was omitted entirely -- Nu is an
+    # argument of this function and was never used for torsion. Omitting it
+    # is conservative under compression and UNCONSERVATIVE under net
+    # tension, which is the case that matters.
+    #
+    # The coefficients were also 1/12 and 1/3 (0.0833, 0.3333) against the
+    # printed 0.083 and 0.33, i.e. +0.4% on Tth and +1.0% on Tcr, both in
+    # the direction of neglecting torsion. Now the printed values.
+    lam = 1.0
+    acp = bw * h
+    pcp = 2 * (bw + h)
+    axial_ratio = 1.0 + nu * 1000.0 / (0.33 * ag * lam * math.sqrt(fc))
+    # Net tension beyond 0.33 Ag lam sqrt(fc') drives the radicand negative;
+    # clamp at zero so the thresholds vanish and torsion is always designed
+    # for, rather than taking the square root of a negative number.
+    axial_factor = math.sqrt(max(0.0, axial_ratio))
+    tcr = phi * 0.33 * lam * math.sqrt(fc) * acp ** 2 / pcp * axial_factor / 1e6
+    tth = phi * 0.083 * lam * math.sqrt(fc) * acp ** 2 / pcp * axial_factor / 1e6
 
     if tu < tth:
         torsion_action = "Neglect Torsion"
@@ -420,7 +453,11 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
     })
 
     # ── 8. Minimum shear reinforcement ──
-    av_min_1 = (1.0 / 16.0) * math.sqrt(fc) * bw / fyv
+    # Table 9.6.3.4(a)/(b), printed 151: 0.062 sqrt(f'c) bw/fyt and
+    # 0.35 bw/fyt. This used to read 1/16 = 0.0625 -- W&M Eq. (6-20M)'s
+    # rounding -- while compute_shear_spacing() used 0.062. Two constants
+    # 0.8% apart for one provision, inside one package. Now one constant.
+    av_min_1 = 0.062 * math.sqrt(fc) * bw / fyv
     av_min_2 = 0.35 * bw / fyv
     av_min = max(av_min_1, av_min_2)
 
@@ -498,6 +535,7 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         "tth": round(tth, 4),
         "torsion_action": torsion_action,
         "shear_status": overall_check,
+        "vs_status": shear_status,
         "dim_check": dim_check,
         "smax": round(smax, 0),
         "spacing_check": spacing_check,
@@ -533,9 +571,10 @@ def shear_design(fc, fyv, phi, bw, h, cc, c, d, vu, nu,
 
     # ── 1. Concrete shear strength Vc ──
     if nu > 0:
-        vc_1 = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
-        vc_2 = 0.3 * math.sqrt(fc) * bw * d * (1 + 0.3 * nu * 1000 / ag) / 1000
-        vc = min(vc_1, vc_2)
+        # Cl. 22.5.6.1 / W&M Eq. (6-13aM), printed 282. See the note in
+        # shear_torsion_design(): the deleted min() second branch had no
+        # basis in reference/ and never governed for any Nu >= 0.
+        vc = (1 + nu * 1000 / (14 * ag)) * (math.sqrt(fc) / 6) * bw * d / 1000
         vc_note = "with axial compression"
     elif nu < 0:
         vc = max(0, (1 + 0.29 * nu * 1000 / ag) * (math.sqrt(fc) / 6) * bw * d / 1000)
@@ -562,7 +601,11 @@ def shear_design(fc, fyv, phi, bw, h, cc, c, d, vu, nu,
     av_s_req = (vu * 1000 - phi * vc * 1000) / (phi * fyv * d) if vs > 0 else 0
 
     # ── 3. Minimum shear reinforcement ──
-    av_min_1 = (1.0 / 16.0) * math.sqrt(fc) * bw / fyv
+    # Table 9.6.3.4(a)/(b), printed 151: 0.062 sqrt(f'c) bw/fyt and
+    # 0.35 bw/fyt. This used to read 1/16 = 0.0625 -- W&M Eq. (6-20M)'s
+    # rounding -- while compute_shear_spacing() used 0.062. Two constants
+    # 0.8% apart for one provision, inside one package. Now one constant.
+    av_min_1 = 0.062 * math.sqrt(fc) * bw / fyv
     av_min_2 = 0.35 * bw / fyv
     av_min = max(av_min_1, av_min_2)
 
