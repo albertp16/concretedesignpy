@@ -614,6 +614,7 @@ body.app {
     border-bottom: 1px solid var(--border);
     margin-bottom: 1rem;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
 }
 .view-tab {
@@ -968,15 +969,33 @@ body.app {
 .report-grid dt { color: var(--muted); }
 .report-grid dd { font-family: var(--font-mono); font-weight: 500; text-align: right; }
 
+/* Equations sit directly on the page, with no box around them — the same
+   treatment the A4 sheet gives .cs-eq. A border per equation turns a report
+   into a stack of cards, and the boxes were also the reason every equation
+   grew scrollbars: `overflow-x: auto` alone leaves the other axis `visible`,
+   which CSS then computes to `auto`, so MathJax's block margin was enough to
+   raise a vertical scrollbar on an element that never needed one. Naming
+   both axes is what removes it. */
 .report-eq {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    padding: .55rem 1rem;
-    border-radius: var(--radius-sm);
-    margin: .5rem 0;
+    margin: .6rem 0;
     font-size: .9rem;
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
 }
+/* MathJax gives a block equation `margin: 1em 0` of its own. Stacked on the
+   wrapper's margin it double-spaces every step, and it was the content that
+   overflowed the wrapper vertically in the first place. The wrapper owns the
+   spacing. */
+.report-eq mjx-container { margin: 0 !important; }
+.report-eq::-webkit-scrollbar { height: 5px; }
+.report-eq::-webkit-scrollbar-track { background: transparent; }
+.report-eq::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+}
+.report-eq:hover::-webkit-scrollbar-thumb { background: var(--border-strong); }
 
 .report-table {
     width: 100%;

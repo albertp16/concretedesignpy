@@ -103,8 +103,13 @@
     border-right: 1px solid var(--sheet-rule-soft);
 }
 .cs-sheet .cs-desc { margin: 0 0 .2rem; font-size: 8pt; color: #475569; }
+/* `overflow-y: hidden` keeps a wide equation from raising a vertical
+   scrollbar it never needs, but MathJax's box sits a hair above its line
+   box, so the top ~1.5px of tall glyphs — a fraction bar, a radical — was
+   being shaved off. The padding gives that overhang somewhere to live. */
 .cs-sheet .cs-eq {
     font-size: 8.5pt; overflow-x: auto; overflow-y: hidden; max-width: 100%;
+    padding: 2px 0;
 }
 .cs-sheet .cs-res {
     padding: .4rem .45rem; font-size: 7.6pt; font-weight: 700;
@@ -224,7 +229,10 @@
 /* Wide tables must scroll inside their own box rather than pushing the
    page sideways. */
 .cs-block .cs-table { display: table; }
-.cs-block > .cs-tablewrap { overflow-x: auto; }
+/* Both axes named: `overflow-x: auto` on its own leaves the other axis
+   `visible`, which computes to `auto`, and the wrap grows a vertical
+   scrollbar it never needed. */
+.cs-block > .cs-tablewrap { overflow-x: auto; overflow-y: hidden; }
 
 .cs-prov { font-size: 6.8pt; color: #64748b; line-height: 1.6; }
 .cs-prov dt { font-weight: 600; color: #475569; }
