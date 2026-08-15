@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Mander Confined Concrete - ConcreteDesignPy{% endblock %}
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
 .report-section {
     background: #fff; border: 1px solid var(--gray-200);
@@ -147,8 +147,8 @@ function renderStressStrainChart(result) {
 
     var layout = {
         title: { text: "Mander's Stress-Strain Curve", font: { size: 14 } },
-        xaxis: { title: 'Strain, \u03b5', zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
-        yaxis: { title: 'Stress (MPa)', zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        xaxis: { title: { text: 'Strain, \u03b5' }, zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        yaxis: { title: { text: 'Stress (MPa)' }, zeroline: true, gridcolor: '#e5e7eb', rangemode: 'tozero' },
         showlegend: true,
         legend: { x: 1, xanchor: 'right', y: 0.4, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, font: { size: 10 } },
         annotations: annotations,

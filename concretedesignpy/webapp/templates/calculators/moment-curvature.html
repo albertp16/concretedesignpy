@@ -2,7 +2,7 @@
 {% block title %}Moment-Curvature - ConcreteDesignPy{% endblock %}
 
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
 .mc-layout { display: flex; gap: 2rem; align-items: flex-start; }
 .mc-left { flex: 0 0 480px; }
@@ -637,8 +637,8 @@ function renderMPhiChartBoth(pts, advPts, events, engine) {
 
     var layout = {
         title: { text: 'Moment-Curvature Diagram', font: { size: 14 } },
-        xaxis: { title: 'Curvature, \u03c6 (1/mm)', rangemode: 'tozero', gridcolor: '#e5e7eb', tickformat: '.2e' },
-        yaxis: { title: 'Moment, M (kN-m)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
+        xaxis: { title: { text: 'Curvature, \u03c6 (1/mm)' }, rangemode: 'tozero', gridcolor: '#e5e7eb', tickformat: '.2e' },
+        yaxis: { title: { text: 'Moment, M (kN-m)' }, rangemode: 'tozero', gridcolor: '#e5e7eb' },
         height: 450,
         margin: { t: 40, r: 20, b: 60, l: 70 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
@@ -714,8 +714,8 @@ function renderConcreteModelChart(modelParams, hogFallback) {
 
     var layout = {
         title: { text: isMander ? 'Mander Confined vs Unconfined Concrete' : 'Concrete Stress-Strain Model (Unconfined)', font: { size: 14 } },
-        xaxis: { title: 'Strain, \u03b5c', rangemode: 'tozero', gridcolor: '#e5e7eb' },
-        yaxis: { title: 'Stress (MPa)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
+        xaxis: { title: { text: 'Strain, \u03b5c' }, rangemode: 'tozero', gridcolor: '#e5e7eb' },
+        yaxis: { title: { text: 'Stress (MPa)' }, rangemode: 'tozero', gridcolor: '#e5e7eb' },
         height: 450,
         margin: { t: 40, r: 20, b: 60, l: 60 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
@@ -773,8 +773,8 @@ function renderSteelChart(payload) {
 
     Plotly.newPlot('chart-steel', traces, {
         title: { text: 'Steel Stress-Strain Model (fy=' + fy + ' MPa, Es=' + (es/1000) + ' GPa)', font: { size: 14 } },
-        xaxis: { title: 'Strain, \u03b5s', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
-        yaxis: { title: 'Stress, fs (MPa)', zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
+        xaxis: { title: { text: 'Strain, \u03b5s' }, zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
+        yaxis: { title: { text: 'Stress, fs (MPa)' }, zeroline: true, zerolinecolor: '#999', gridcolor: '#e5e7eb' },
         height: 450,
         margin: { t: 40, r: 20, b: 60, l: 60 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
@@ -820,7 +820,7 @@ function renderFiberChart(fiberData, payload) {
         z: zStress, y: fiberData.y, x: xVals,
         type: 'heatmap', xgap: 1, ygap: 1,
         colorscale: stressCS, zmid: 0,
-        colorbar: { title: stressLabel, thickness: 12, len: 0.8, titleside: 'right', titlefont: { size: 10 } },
+        colorbar: { title: { text: stressLabel, side: 'right', font: { size: 10 } }, thickness: 12, len: 0.8 },
         xaxis: 'x', yaxis: 'y',
         hovertemplate: 'y=%{y:.0f}mm<br>\u03c3=%{z:.2f} MPa<extra></extra>',
     }];
@@ -829,7 +829,7 @@ function renderFiberChart(fiberData, payload) {
         z: zStrain, y: fiberData.y, x: xVals,
         type: 'heatmap', xgap: 1, ygap: 1,
         colorscale: strainCS, zmid: 0,
-        colorbar: { title: 'Strain \u03b5', thickness: 12, len: 0.8, x: 1.08, titleside: 'right', titlefont: { size: 10 } },
+        colorbar: { title: { text: 'Strain \u03b5', side: 'right', font: { size: 10 } }, thickness: 12, len: 0.8, x: 1.08 },
         xaxis: 'x2', yaxis: 'y',
         hovertemplate: 'y=%{y:.0f}mm<br>\u03b5=%{z:.6f}<extra></extra>',
     });
@@ -865,9 +865,9 @@ function renderFiberChart(fiberData, payload) {
     var modelTag = isMander ? ' [Mander Confined]' : ' [Hognestad Unconfined]';
     Plotly.newPlot('chart-fiber', traces, {
         title: { text: 'Fiber Distribution at Ultimate' + modelTag + ' (c=' + c.toFixed(1) + ' mm)', font: { size: 13 } },
-        yaxis: { title: 'y (mm)', range: [-5, h + 5], gridcolor: '#e5e7eb', zeroline: false },
-        xaxis: { title: 'x (mm)', domain: [0, 0.43], range: [-5, b + 5], gridcolor: '#e5e7eb' },
-        xaxis2: { title: 'x (mm)', domain: [0.54, 0.97], range: [-5, b + 5], gridcolor: '#e5e7eb' },
+        yaxis: { title: { text: 'y (mm)' }, range: [-5, h + 5], gridcolor: '#e5e7eb', zeroline: false },
+        xaxis: { title: { text: 'x (mm)' }, domain: [0, 0.43], range: [-5, b + 5], gridcolor: '#e5e7eb' },
+        xaxis2: { title: { text: 'x (mm)' }, domain: [0.54, 0.97], range: [-5, b + 5], gridcolor: '#e5e7eb' },
         height: 500, margin: { t: 40, r: 75, b: 50, l: 60 },
         plot_bgcolor: '#f8fafc', paper_bgcolor: '#fff',
         shapes: shapes,
@@ -1105,7 +1105,7 @@ function renderMThetaResults(payload, mphi, mtheta, backbone) {
         Plotly.newPlot('chart-backbone', tr2, Object.assign({}, baseLayout, {
             title: { text: '2. Generalized Force-Deformation Backbone', font: { size: 14 } },
             shapes: bbShapes,
-            yaxis: { title: 'Moment, M (kN-m)', rangemode: 'tozero', gridcolor: '#e5e7eb', range: [0, yMax] },
+            yaxis: { title: { text: 'Moment, M (kN-m)' }, rangemode: 'tozero', gridcolor: '#e5e7eb', range: [0, yMax] },
         }), plotCfg);
     }
 
@@ -1366,8 +1366,8 @@ function renderMPhiChart(pts) {
 
     var layout = {
         title: { text: 'Moment-Curvature Diagram', font: { size: 14 } },
-        xaxis: { title: 'Curvature, \u03c6 (1/mm)', rangemode: 'tozero', gridcolor: '#e5e7eb', tickformat: '.2e' },
-        yaxis: { title: 'Moment, M (kN-m)', rangemode: 'tozero', gridcolor: '#e5e7eb' },
+        xaxis: { title: { text: 'Curvature, \u03c6 (1/mm)' }, rangemode: 'tozero', gridcolor: '#e5e7eb', tickformat: '.2e' },
+        yaxis: { title: { text: 'Moment, M (kN-m)' }, rangemode: 'tozero', gridcolor: '#e5e7eb' },
         height: 450,
         margin: { t: 40, r: 20, b: 60, l: 70 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',
@@ -1754,11 +1754,11 @@ function renderStrainStressChart(payload, sp, pts) {
 
     var layout = {
         title: { text: 'Section Analysis at Ultimate Limit State', font: { size: 14 }, y: 0.98 },
-        yaxis: { title: 'Depth (mm)', range: [-10, H + 30], gridcolor: '#f0f0f0', zeroline: false },
+        yaxis: { title: { text: 'Depth (mm)' }, range: [-10, H + 30], gridcolor: '#f0f0f0', zeroline: false },
         xaxis:  { domain: [0, 0.15], visible: false, range: [-20, b + 20] },
-        xaxis2: { domain: [0.20, 0.42], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', tickformat: '.3f', title: '' },
-        xaxis3: { domain: [0.48, 0.72], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', title: '' },
-        xaxis4: { domain: [0.78, 1.0], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', title: '' },
+        xaxis2: { domain: [0.20, 0.42], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', tickformat: '.3f', title: { text: '' } },
+        xaxis3: { domain: [0.48, 0.72], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', title: { text: '' } },
+        xaxis4: { domain: [0.78, 1.0], zeroline: true, zerolinecolor: '#999', zerolinewidth: 1.5, gridcolor: '#f0f0f0', title: { text: '' } },
         height: 500,
         margin: { t: 50, r: 30, b: 30, l: 60 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff',

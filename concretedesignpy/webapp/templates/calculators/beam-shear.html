@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Beam Shear Design - ConcreteDesignPy{% endblock %}
-{% block head %}<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min/plotly.min.js"></script>
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3/plotly.min.js"></script>
 <style>
 .st-section { margin-bottom: 1.25rem; }
 .st-section h4 {
@@ -221,8 +221,8 @@ function renderShearChart(r, p) {
     ];
     Plotly.newPlot('chart-shear', traces, {
         title: { text: 'Shear Capacity vs Stirrup Spacing', font: { size: 13 } },
-        xaxis: { title: 'Stirrup Spacing, s (mm)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
-        yaxis: { title: 'Shear Capacity, \u03c6Vn (kN)', gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        xaxis: { title: { text: 'Stirrup Spacing, s (mm)' }, gridcolor: '#e5e7eb', rangemode: 'tozero' },
+        yaxis: { title: { text: 'Shear Capacity, \u03c6Vn (kN)' }, gridcolor: '#e5e7eb', rangemode: 'tozero' },
         legend: { x: 1, xanchor: 'right', y: 1, font: { size: 9 }, bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#d1d5db', borderwidth: 1 },
         height: 420, margin: { t: 40, r: 10, b: 50, l: 60 },
         plot_bgcolor: '#fff', paper_bgcolor: '#fff', hovermode: 'x unified',
