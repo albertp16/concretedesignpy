@@ -1,5 +1,44 @@
 # Changelog - concretedesignpy
 
+## Version 0.7.0 | August 15, 2026
+
+### Added
+- **RC Column Concrete Jacketing** — new modules `calculators/column_jacket.py`
+  (engine) and `calculators/column_jacket_design.py` (design boundary), per
+  TN-RET-001, ACI 318-19, ACI 562-16 and ASCE 41-17:
+  - P-M interaction of the composite section using a **single** ACI stress
+    block with β₁ from the extreme compression fibre. Giving each concrete its
+    own β₁c is physically inverted and unconservative; it remains available as
+    `stress_block='per_material'` for comparison only
+  - Mander confinement with **k_e computed from the actual tie and bar
+    geometry**, not assumed. A plain perimeter hoop gives k_e ≈ 0.40, not the
+    0.80 assumed by habit, which overstates f'cc by roughly 12%
+  - One-way shear with `d` taken from the **actual extreme tension bar**, so
+    the shear check and the interaction diagram agree about where the steel is
+  - Interface shear transfer reporting **both** ACI capacity routes (shear
+    friction and the Table 16.4.4.2 bond route) and picking neither
+  - Unshored-jacket preload split, stiffness feedback, detailing checks, axial
+    strength, and induced-eccentricity geometry
+  - Lampropoulos et al. (2012) monolithic coefficients **reported and never
+    applied**, with both the corrected and uncorrected results side by side
+  - Partial (one/two-opposite/three-sided) jackets compute geometry, axial
+    strength and P-M interaction, and declare the checks that have no model
+    instead of answering with four-sided behaviour. Two *adjacent* faces are
+    refused outright — that section's capacity is a biaxial surface
+  - Every result carries `provenance` (including a SHA-256 of the engine
+    source) and an `advisories` list of traps the arithmetic cannot rule out
+- **Test suite** — first `tests/` directory in the repo, 86 tests covering the
+  jacketing engine and its design boundary. Independent recomputations are
+  separated from labelled regression pins
+
+### Changed
+- `setup.py` version synced to `__init__.__version__` (it had been left at
+  0.5.0 while the package reported 0.6.0)
+- README: retrofitting/strengthening features, library usage, testing section,
+  and the ACI 562-16 / fib B14 / Lampropoulos references
+
+---
+
 ## Version 0.4.0 | April 5, 2026
 
 ### Added

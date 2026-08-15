@@ -1,4 +1,4 @@
-__version__ = '0.6.0'
+__version__ = '0.7.0'
 
 from .general import area_diam, steel_area, area_ratio
 from .mgt import generateFIBERMGT
@@ -16,3 +16,11 @@ from .calculators.column_biaxial import generate_biaxial_diagram
 from .calculators.mander import confined_stress_strain
 from .calculators.frp_flexure import frp_flexural_strengthening, get_env_reduction
 from .calculators.frp_shear import frp_shear_strengthening
+
+# v0.7.0 — RC column concrete jacketing (TN-RET-001, ACI 318-19 / ACI 562-16)
+from .calculators.column_jacket_design import (
+    column_jacket_design,
+    build_jacketed_column,
+    validate_jacket_request,
+)
+from .calculators.column_jacket import JacketedColumn

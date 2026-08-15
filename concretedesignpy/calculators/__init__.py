@@ -28,6 +28,8 @@ Modules:
     - frp_shear: ACI 440.2R-17 Ch 11 FRP shear strengthening
     - column_interaction: P-M interaction diagram generation
     - column_flexural: Minimum flexural strength ratio check
+    - column_jacket: RC column concrete jacketing engine (TN-RET-001)
+    - column_jacket_design: Jacketing design report, units + advisories boundary
     - joint_shear: Joint shear verification for special moment frames
     - mander: Mander's confined concrete model
     - development_length: Hook geometry per NSCP 2015 Section 425
@@ -37,7 +39,7 @@ Modules:
     - alternative_inertia: Alternative moment of inertia per NSCP 2015
 
 Standards:
-    NSCP 2015, ACI 318-19, ASCE 41-17, ACI 440.2R-17
+    NSCP 2015, ACI 318-19, ASCE 41-17, ACI 440.2R-17, ACI 562-16
 """
 
 from concretedesignpy.calculators.beam_moment import calculate_beam_moment
@@ -88,4 +90,20 @@ from concretedesignpy.calculators.frp_flexure import (
 )
 from concretedesignpy.calculators.frp_shear import (
     frp_shear_strengthening,
+)
+from concretedesignpy.calculators.column_jacket import (
+    Concrete,
+    ConfinedConcrete,
+    Steel,
+    Bar,
+    TieSet,
+    JacketedColumn,
+    rect_perimeter_bars,
+    capacity_at_P,
+    utilisation,
+)
+from concretedesignpy.calculators.column_jacket_design import (
+    column_jacket_design,
+    build_jacketed_column,
+    validate_jacket_request,
 )
