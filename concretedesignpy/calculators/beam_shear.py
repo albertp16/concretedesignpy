@@ -364,10 +364,16 @@ def shear_torsion_design(fc, fyv, fy, phi, bw, h, cc, c, d,
         al = 0
         al_min = 0
     else:
-        # At/s = Tu / (phi * 2 * 1.0 * 0.85 * Aoh * fyv)  per leg
+        # Eq. (22.7.6.1a): Tn = 2 Ao At fyt cot(theta) / s, with
+        # Ao = 0.85 Aoh (22.7.6.1.1) and theta = 45 deg (22.7.6.1.2a),
+        # so At/s = Tu / (phi * 1.7 * Aoh * fyt), per leg.
         at_s = tu * 1e6 / (phi * 2 * 0.85 * aoh * fyv)
-        # Al = Tu * Ph / (2 * phi * Aoh * fy)
-        al = tu * 1e6 * ph / (2 * phi * aoh * fy)
+        # Eq. (22.7.6.1b): Tn = 2 Ao Al fy tan(theta) / ph, same Ao and
+        # theta, so Al = (Tu/phi) ph / (1.7 Aoh fy) cot(theta).
+        # The divisor is 1.7 Aoh, NOT 2 Aoh: 2 Ao = 2 (0.85 Aoh) = 1.7 Aoh.
+        # Using 2 Aoh made every Al exactly 1.7/2 = 0.85 of the required
+        # area, i.e. 15.00% short, unconservatively, on every section.
+        al = tu * 1e6 * ph / (1.7 * phi * aoh * fy)
         # Al,min
         al_min = (5 * math.sqrt(fc) * bw * h / (12 * fy)
                   - max(at_s, 0.175 * bw / fyv) * ph * fyv / fy)
