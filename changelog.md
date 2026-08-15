@@ -37,6 +37,32 @@ deploy that had been crash-looping since the Jest suite landed.
   use `python -m gunicorn`, which survives PATH differences.
 - **Per-run success toasts removed.** Run feedback lives in the status
   chip; toasts are reserved for errors.
+- **Every report equation was boxed, and grew two scrollbars.** The
+  border and background turned a report into a stack of cards. The
+  vertical scrollbar was never needed at all: `overflow-x: auto` on its
+  own leaves the other axis `visible`, which CSS computes to `auto`, so
+  MathJax's 1em block margin was enough to raise a scrollbar on content
+  that already fitted. Both axes are named now, the box is gone, MathJax's
+  own margin goes with it (the wrapper owns the spacing), and where a
+  genuinely wide equation still scrolls sideways the bar stays hidden
+  until the pointer is over it.
+- **The column jacketing sheet starved its calculations column.**
+  REFERENCES and RESULTS were a fixed 168px each, which was free while
+  the report spanned the page and crippling once it moved into the
+  solver's views column: 336px of fixed track left the calculations
+  143px, so nearly every equation overflowed sideways. The tracks are
+  proportional now, and below the width where three columns stay readable
+  the sheet collapses to one labelled column — the fallback `.cs-sheet`
+  already uses on A4. It is keyed to the container, not the viewport,
+  because that column is narrow on a wide screen and full width on a
+  narrow one. At 1280px the calculations column goes from 143px to 479px
+  and the equations that overflow drop from 14 to 2.
+- **The A4 sheet was shaving the top off tall glyphs.** Pre-existing, and
+  it printed that way: `.cs-eq` hid its vertical overflow while MathJax's
+  box sits a hair above its line box, so roughly the top 1.5px of a
+  fraction bar or a radical was clipped on the deliverable. Vertical
+  padding gives that overhang somewhere to live — measured back to zero
+  clipped glyphs across all 16 equations on the shear sheet.
 
 ### Changed
 - The version badge moved from the old navbar to the sidebar foot; the
